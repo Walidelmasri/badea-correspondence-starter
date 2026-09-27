@@ -1,0 +1,61 @@
+# Dependencies
+/node_modules/
+
+# Angular build output
+/dist/
+/.angular/
+
+# Test / coverage output
+/coverage/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.secret
+*.secrets
+secrets/
+config/local/
+config/private/
+
+# Certificates / keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE / editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+.cache/
+tmp/
+
+# Internal deployment overrides
+docker-compose.override.yml
+docker-compose.*.local.yml
+nginx/*.local.conf
+deployment/private/
