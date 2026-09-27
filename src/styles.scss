@@ -1,26 +1,62 @@
+@import '@fontsource/tajawal/400.css';
+@import '@fontsource/tajawal/500.css';
+@import '@fontsource/tajawal/600.css';
+@import '@fontsource/tajawal/700.css';
+@import '@fontsource/tajawal/800.css';
+
 :root {
   font-family: 'Tajawal', Arial, sans-serif;
 
-  --color-brand-950: #0b2e27;
-  --color-brand-900: #123f35;
-  --color-brand-800: #165445;
-  --color-brand-700: #176c50;
-  --color-brand-600: #21855f;
-  --color-brand-100: #e9f4ef;
+  /* Brand */
+  --color-primary-950: #0b2e27;
+  --color-primary-900: #123f35;
+  --color-primary-800: #165445;
+  --color-primary-700: #176c50;
+  --color-primary-600: #21855f;
+  --color-primary-500: #2d9870;
+  --color-primary-100: #e9f4ef;
+  --color-primary-050: #f4f9f6;
 
+  /* Neutral */
   --color-background: #f6f8f7;
   --color-surface: #ffffff;
+  --color-surface-muted: #f9faf9;
 
   --color-text-primary: #17211d;
   --color-text-secondary: #69756f;
+  --color-text-tertiary: #929b97;
+
   --color-border: #e3e9e6;
+  --color-border-strong: #d1dbd6;
 
+  /* Semantic */
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+
+  --color-warning: #b54708;
+  --color-warning-soft: #fffaeb;
+
+  /* Shape */
+  --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
-  --radius-lg: 1.125rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
 
-  --shadow-card:
+  /* Shadow */
+  --shadow-sm:
     0 1px 2px rgb(18 63 53 / 4%),
-    0 12px 32px rgb(18 63 53 / 6%);
+    0 4px 12px rgb(18 63 53 / 4%);
+
+  --shadow-md:
+    0 2px 4px rgb(18 63 53 / 4%),
+    0 12px 32px rgb(18 63 53 / 7%);
+
+  /* Layout */
+  --app-max-width: 100rem;
+
+  /* Motion */
+  --transition-fast: 120ms ease;
+  --transition-normal: 180ms ease;
 }
 
 *,
@@ -29,16 +65,21 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
   min-height: 100%;
+  color-scheme: light;
 }
 
 body {
+  min-height: 100vh;
   margin: 0;
+
   background: var(--color-background);
   color: var(--color-text-primary);
+
   font-family: inherit;
+  font-size: 16px;
+
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -48,4 +89,36 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  border: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+}
+
+::selection {
+  background: var(--color-primary-100);
+  color: var(--color-primary-950);
 }
