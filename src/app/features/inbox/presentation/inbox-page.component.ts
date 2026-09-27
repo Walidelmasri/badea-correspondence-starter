@@ -1,7 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
 } from '@angular/core';
+
+import { TranslationService } from '../../../core/i18n/translation.service';
 
 @Component({
   selector: 'app-inbox-page',
@@ -10,4 +13,6 @@ import {
   styleUrl: './inbox-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InboxPageComponent {}
+export class InboxPageComponent {
+  readonly translation = inject(TranslationService);
+}

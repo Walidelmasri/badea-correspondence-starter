@@ -1,12 +1,16 @@
 <section class="inbox-page">
   <header class="inbox-page__header">
     <div>
-      <span class="inbox-page__eyebrow">مساحة العمل</span>
+      <span class="inbox-page__eyebrow">
+        {{ translation.text().inbox.eyebrow }}
+      </span>
 
-      <h1>الوارد</h1>
+      <h1>
+        {{ translation.text().inbox.title }}
+      </h1>
 
       <p>
-        المراسلات والوثائق الواردة إليك
+        {{ translation.text().inbox.description }}
       </p>
     </div>
 
@@ -14,19 +18,19 @@
       class="inbox-page__new"
       type="button"
     >
-      مراسلة جديدة
+      {{ translation.text().inbox.newCorrespondence }}
     </button>
   </header>
 
   <div class="inbox-page__toolbar">
     <label class="inbox-search">
       <span class="visually-hidden">
-        البحث في المراسلات
+        {{ translation.text().inbox.search.label }}
       </span>
 
       <input
         type="search"
-        placeholder="بحث بالموضوع، المرسل أو رقم الوثيقة"
+        [placeholder]="translation.text().inbox.search.placeholder"
       />
     </label>
   </div>
@@ -34,20 +38,22 @@
   <div class="inbox-workspace">
     <section
       class="inbox-workspace__list"
-      aria-label="قائمة المراسلات"
+      [attr.aria-label]="translation.text().inbox.title"
     >
       <div class="inbox-workspace__empty">
-        <strong>لا توجد مراسلات حالياً</strong>
+        <strong>
+          {{ translation.text().inbox.empty.title }}
+        </strong>
 
         <span>
-          ستظهر المراسلات الواردة هنا.
+          {{ translation.text().inbox.empty.description }}
         </span>
       </div>
     </section>
 
     <section
       class="inbox-workspace__detail"
-      aria-label="تفاصيل المراسلة"
+      aria-live="polite"
     >
       <div class="inbox-workspace__placeholder">
         <div
@@ -58,11 +64,11 @@
         </div>
 
         <strong>
-          اختر مراسلة لعرضها
+          {{ translation.text().inbox.detailPlaceholder.title }}
         </strong>
 
         <span>
-          ستظهر تفاصيل الوثيقة والإجراء المطلوب هنا.
+          {{ translation.text().inbox.detailPlaceholder.description }}
         </span>
       </div>
     </section>
