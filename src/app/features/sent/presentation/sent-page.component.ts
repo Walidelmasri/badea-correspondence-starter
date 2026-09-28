@@ -1,16 +1,22 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
 } from '@angular/core';
+
+import { TranslationService } from '../../../core/i18n/translation.service';
+import { CorrespondenceWorkspaceComponent } from '../../../shared/ui/correspondence-workspace/correspondence-workspace.component';
 
 @Component({
   selector: 'app-sent-page',
   standalone: true,
-  template: `
-    <section>
-      <h1>Sent</h1>
-    </section>
-  `,
+  imports: [
+    CorrespondenceWorkspaceComponent,
+  ],
+  templateUrl: './sent-page.component.html',
+  styleUrl: './sent-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SentPageComponent {}
+export class SentPageComponent {
+  readonly translation = inject(TranslationService);
+}

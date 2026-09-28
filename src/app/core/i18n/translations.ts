@@ -2,9 +2,9 @@ import { AppLanguage } from './language.service';
 
 type TranslationShape<T> = {
   [Key in keyof T]:
-    T[Key] extends string
-      ? string
-      : TranslationShape<T[Key]>;
+  T[Key] extends string
+  ? string
+  : TranslationShape<T[Key]>;
 };
 
 const AR_TRANSLATIONS = {
@@ -49,7 +49,27 @@ const AR_TRANSLATIONS = {
       documentPreview: 'معاينة الوثيقة',
     },
   },
+  sent: {
+    eyebrow: 'مساحة العمل',
+    title: 'المرسل',
+    description: 'المراسلات والوثائق التي قمت بإرسالها',
+    newCorrespondence: 'مراسلة جديدة',
 
+    search: {
+      label: 'البحث في المراسلات المرسلة',
+      placeholder: 'بحث بالموضوع، المستلم أو رقم الوثيقة',
+    },
+
+    empty: {
+      title: 'لا توجد مراسلات مرسلة',
+      description: 'ستظهر المراسلات التي ترسلها هنا.',
+    },
+
+    detailPlaceholder: {
+      title: 'اختر مراسلة لعرضها',
+      description: 'ستظهر تفاصيل المراسلة والمستلمين هنا.',
+    },
+  },
   user: {
     office: 'مكتب الرئيس',
   },
@@ -98,7 +118,27 @@ const EN_TRANSLATIONS = {
       documentPreview: 'Document Preview',
     },
   },
+  sent: {
+    eyebrow: 'Workspace',
+    title: 'Sent',
+    description: 'Correspondence and documents you have sent',
+    newCorrespondence: 'New Correspondence',
 
+    search: {
+      label: 'Search sent correspondence',
+      placeholder: 'Search by subject, recipient or document number',
+    },
+
+    empty: {
+      title: 'No sent correspondence',
+      description: 'Correspondence you send will appear here.',
+    },
+
+    detailPlaceholder: {
+      title: 'Select correspondence to view',
+      description: 'Correspondence details and recipients will appear here.',
+    },
+  },
   user: {
     office: 'President Office',
   },

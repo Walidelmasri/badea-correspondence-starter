@@ -1,0 +1,55 @@
+[workspace-list],
+[workspace-detail] {
+  min-height: 100%;
+}
+
+.sent-empty,
+.sent-detail-placeholder {
+  min-height: 100%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+
+  padding: 2rem;
+
+  text-align: center;
+}
+
+.sent-empty strong,
+.sent-detail-placeholder strong {
+  color: var(--color-text-primary);
+
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.sent-empty span,
+.sent-detail-placeholder span {
+  max-width: 24rem;
+
+  color: var(--color-text-tertiary);
+
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.sent-detail-placeholder__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+
+  display: grid;
+  place-items: center;
+
+  margin-block-end: 0.4rem;
+
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+
+  background: var(--color-surface);
+  color: var(--color-primary-700);
+
+  font-size: 1.4rem;
+}
