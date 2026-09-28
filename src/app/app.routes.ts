@@ -21,6 +21,20 @@ export const routes: Routes = [
       ).then((module) => module.SentPageComponent),
   },
   {
+    path: 'drafts',
+    loadComponent: () =>
+      import(
+        './features/drafts/presentation/drafts-page.component'
+      ).then((module) => module.DraftsPageComponent),
+  },
+  {
+    path: 'compose',
+    loadComponent: () =>
+      import(
+        './features/compose/presentation/compose-page.component'
+      ).then((module) => module.ComposePageComponent),
+  },
+  {
     path: '**',
     redirectTo: 'inbox',
   },

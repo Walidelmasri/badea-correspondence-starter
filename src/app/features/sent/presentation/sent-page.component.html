@@ -5,6 +5,7 @@
   [searchLabel]="translation.text().sent.search.label"
   [searchPlaceholder]="translation.text().sent.search.placeholder"
   [primaryActionLabel]="translation.text().sent.newCorrespondence"
+  (primaryAction)="openCompose()"
 >
   <div workspace-list>
     <div class="sent-empty">

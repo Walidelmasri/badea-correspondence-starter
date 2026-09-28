@@ -70,6 +70,60 @@ const AR_TRANSLATIONS = {
       description: 'ستظهر تفاصيل المراسلة والمستلمين هنا.',
     },
   },
+  drafts: {
+    eyebrow: 'مساحة العمل',
+    title: 'المسودات',
+    description: 'المراسلات التي لم يتم إرسالها بعد',
+    newCorrespondence: 'مراسلة جديدة',
+
+    search: {
+      label: 'البحث في المسودات',
+      placeholder: 'بحث بالموضوع أو رقم الوثيقة',
+    },
+
+    empty: {
+      title: 'لا توجد مسودات',
+      description: 'ستظهر المراسلات المحفوظة كمسودات هنا.',
+    },
+
+    detailPlaceholder: {
+      title: 'اختر مسودة لعرضها',
+      description: 'ستظهر تفاصيل المسودة هنا.',
+    },
+  },
+  compose: {
+    eyebrow: 'مراسلات الرئاسة',
+    title: 'مراسلة جديدة',
+    description: 'إعداد وإرسال مراسلة جديدة',
+
+    fields: {
+      recipient: 'إلى السيد / الجهة',
+      subject: 'الموضوع',
+      documentNumber: 'رقم الوثيقة',
+      documentDate: 'تاريخ الوثيقة',
+      entity: 'الدولة / الجهة / الإدارة',
+      instruction: 'الإجراء المطلوب',
+      explanation: 'الشرح',
+      attachments: 'المرفقات',
+      copyTo: 'صورة مع التحية',
+    },
+
+    placeholders: {
+      recipient: 'اختر المستلم',
+      subject: 'أدخل موضوع المراسلة',
+      documentNumber: 'أدخل رقم الوثيقة',
+      entity: 'اختر أو أدخل الدولة / الجهة / الإدارة',
+      explanation: 'أدخل الشرح أو التوجيهات',
+      copyTo: 'إضافة مستلم نسخة',
+    },
+
+    actions: {
+      saveDraft: 'حفظ كمسودة',
+      send: 'إرسال',
+      cancel: 'إلغاء',
+      addAttachment: 'إضافة مرفق',
+    },
+  },
   user: {
     office: 'مكتب الرئيس',
   },
@@ -137,6 +191,60 @@ const EN_TRANSLATIONS = {
     detailPlaceholder: {
       title: 'Select correspondence to view',
       description: 'Correspondence details and recipients will appear here.',
+    },
+  },
+  drafts: {
+    eyebrow: 'Workspace',
+    title: 'Drafts',
+    description: 'Correspondence that has not yet been sent',
+    newCorrespondence: 'New Correspondence',
+
+    search: {
+      label: 'Search drafts',
+      placeholder: 'Search by subject or document number',
+    },
+
+    empty: {
+      title: 'No drafts',
+      description: 'Correspondence saved as drafts will appear here.',
+    },
+
+    detailPlaceholder: {
+      title: 'Select a draft to view',
+      description: 'Draft details will appear here.',
+    },
+  },
+  compose: {
+    eyebrow: 'Presidency Correspondence',
+    title: 'New Correspondence',
+    description: 'Prepare and send new correspondence',
+
+    fields: {
+      recipient: 'To / Recipient',
+      subject: 'Subject',
+      documentNumber: 'Document Number',
+      documentDate: 'Document Date',
+      entity: 'Country / Entity / Department',
+      instruction: 'Required Action',
+      explanation: 'Explanation',
+      attachments: 'Attachments',
+      copyTo: 'Copy To',
+    },
+
+    placeholders: {
+      recipient: 'Select recipient',
+      subject: 'Enter correspondence subject',
+      documentNumber: 'Enter document number',
+      entity: 'Select or enter country / entity / department',
+      explanation: 'Enter explanation or instructions',
+      copyTo: 'Add copy recipient',
+    },
+
+    actions: {
+      saveDraft: 'Save Draft',
+      send: 'Send',
+      cancel: 'Cancel',
+      addAttachment: 'Add Attachment',
     },
   },
   user: {

@@ -1,0 +1,222 @@
+<section class="compose-page">
+  <header class="compose-page__header">
+    <div>
+      <span class="compose-page__eyebrow">
+        {{ translation.text().compose.eyebrow }}
+      </span>
+
+      <h1>
+        {{ translation.text().compose.title }}
+      </h1>
+
+      <p>
+        {{ translation.text().compose.description }}
+      </p>
+    </div>
+  </header>
+
+  <form
+    class="compose-form"
+    [formGroup]="form"
+  >
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>
+          {{ translation.text().compose.fields.recipient }}
+        </h2>
+      </div>
+
+      <div class="compose-grid compose-grid--two">
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ translation.text().compose.fields.recipient }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="recipient"
+            [placeholder]="translation.text().compose.placeholders.recipient"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ translation.text().compose.fields.copyTo }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="copyTo"
+            [placeholder]="translation.text().compose.placeholders.copyTo"
+            autocomplete="off"
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>
+          {{ translation.text().compose.fields.subject }}
+        </h2>
+      </div>
+
+      <label class="form-field">
+        <span class="form-field__label">
+          {{ translation.text().compose.fields.subject }}
+        </span>
+
+        <input
+          type="text"
+          formControlName="subject"
+          [placeholder]="translation.text().compose.placeholders.subject"
+          autocomplete="off"
+        />
+      </label>
+
+      <div class="compose-grid compose-grid--three">
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ translation.text().compose.fields.documentNumber }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="documentNumber"
+            [placeholder]="translation.text().compose.placeholders.documentNumber"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ translation.text().compose.fields.documentDate }}
+          </span>
+
+          <input
+            type="date"
+            formControlName="documentDate"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ translation.text().compose.fields.entity }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="entity"
+            [placeholder]="translation.text().compose.placeholders.entity"
+            autocomplete="off"
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>
+          {{ translation.text().compose.fields.instruction }}
+        </h2>
+      </div>
+
+      <fieldset class="instruction-grid">
+        <legend class="visually-hidden">
+          {{ translation.text().compose.fields.instruction }}
+        </legend>
+
+        @for (
+          instruction of instructions;
+          track instruction
+        ) {
+          <label class="instruction-option">
+            <input
+              type="radio"
+              formControlName="instruction"
+              [value]="instruction"
+            />
+
+            <span class="instruction-option__control"></span>
+
+            <span class="instruction-option__label">
+              {{
+                instructionLabels[
+                  translation.language()
+                ][instruction]
+              }}
+            </span>
+          </label>
+        }
+      </fieldset>
+    </section>
+
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>
+          {{ translation.text().compose.fields.explanation }}
+        </h2>
+      </div>
+
+      <label class="form-field">
+        <span class="visually-hidden">
+          {{ translation.text().compose.fields.explanation }}
+        </span>
+
+        <textarea
+          formControlName="explanation"
+          rows="6"
+          [placeholder]="translation.text().compose.placeholders.explanation"
+        ></textarea>
+      </label>
+    </section>
+
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>
+          {{ translation.text().compose.fields.attachments }}
+        </h2>
+      </div>
+
+      <div class="attachment-dropzone">
+        <div class="attachment-dropzone__icon">
+          +
+        </div>
+
+        <strong>
+          {{ translation.text().compose.actions.addAttachment }}
+        </strong>
+
+        <span>
+          PDF, Word, Excel
+        </span>
+      </div>
+    </section>
+
+    <footer class="compose-actions">
+      <button
+        class="compose-actions__secondary"
+        type="button"
+      >
+        {{ translation.text().compose.actions.cancel }}
+      </button>
+
+      <div class="compose-actions__primary-group">
+        <button
+          class="compose-actions__draft"
+          type="button"
+        >
+          {{ translation.text().compose.actions.saveDraft }}
+        </button>
+
+        <button
+          class="compose-actions__send"
+          type="button"
+        >
+          {{ translation.text().compose.actions.send }}
+        </button>
+      </div>
+    </footer>
+  </form>
+</section>

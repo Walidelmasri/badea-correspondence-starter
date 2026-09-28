@@ -3,6 +3,7 @@ import {
   Component,
   inject,
 } from '@angular/core';
+import { Router } from '@angular/router';
 
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { CorrespondenceWorkspaceComponent } from '../../../shared/ui/correspondence-workspace/correspondence-workspace.component';
@@ -23,9 +24,15 @@ import { CORRESPONDENCE_INSTRUCTION_LABELS } from './correspondence-instruction.
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InboxPageComponent {
+  private readonly router = inject(Router);
+
   readonly translation = inject(TranslationService);
   readonly inbox = inject(InboxFacade);
 
   readonly instructionLabels =
     CORRESPONDENCE_INSTRUCTION_LABELS;
+
+  openCompose(): void {
+    void this.router.navigate(['/compose']);
+  }
 }

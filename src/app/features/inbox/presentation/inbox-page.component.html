@@ -5,6 +5,7 @@
   [searchLabel]="translation.text().inbox.search.label"
   [searchPlaceholder]="translation.text().inbox.search.placeholder"
   [primaryActionLabel]="translation.text().inbox.newCorrespondence"
+  (primaryAction)="openCompose()"
 >
   <div workspace-list>
     @if (inbox.correspondence().length === 0) {

@@ -13,8 +13,8 @@ export const MAIN_NAVIGATION: readonly NavigationItem[] = [
     key: 'drafts',
     route: '/drafts',
   },
-  {
-    key: 'completed',
-    route: '/completed',
-  },
+  // {
+  //   key: 'completed',
+  //   route: '/completed',
+  // },
 ] as const;

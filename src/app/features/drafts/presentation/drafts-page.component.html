@@ -1,0 +1,40 @@
+<app-correspondence-workspace
+  [eyebrow]="translation.text().drafts.eyebrow"
+  [title]="translation.text().drafts.title"
+  [description]="translation.text().drafts.description"
+  [searchLabel]="translation.text().drafts.search.label"
+  [searchPlaceholder]="translation.text().drafts.search.placeholder"
+  [primaryActionLabel]="translation.text().drafts.newCorrespondence"
+  (primaryAction)="openCompose()"
+>
+  <div workspace-list>
+    <div class="drafts-empty">
+      <strong>
+        {{ translation.text().drafts.empty.title }}
+      </strong>
+
+      <span>
+        {{ translation.text().drafts.empty.description }}
+      </span>
+    </div>
+  </div>
+
+  <div workspace-detail>
+    <div class="drafts-detail-placeholder">
+      <div
+        class="drafts-detail-placeholder__icon"
+        aria-hidden="true"
+      >
+        ◇
+      </div>
+
+      <strong>
+        {{ translation.text().drafts.detailPlaceholder.title }}
+      </strong>
+
+      <span>
+        {{ translation.text().drafts.detailPlaceholder.description }}
+      </span>
+    </div>
+  </div>
+</app-correspondence-workspace>
