@@ -16,6 +16,21 @@
       </div>
     </div>
 
+    <nav
+      class="app-navigation"
+      aria-label="Main navigation"
+    >
+      @for (item of navigation; track item.key) {
+        <a
+          class="app-navigation__item"
+          [routerLink]="item.route"
+          routerLinkActive="app-navigation__item--active"
+        >
+          {{ translation.text().navigation[item.key] }}
+        </a>
+      }
+    </nav>
+
     <div class="app-header__actions">
       <button
         class="app-header__language"

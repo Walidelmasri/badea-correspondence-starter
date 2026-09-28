@@ -1,3 +1,5 @@
+import { CorrespondenceInstruction } from './correspondence-instruction.model';
+
 export type CorrespondencePriority =
   | 'normal'
   | 'urgent';
@@ -15,7 +17,7 @@ export interface CorrespondenceSummary {
   readonly senderDepartment: string;
 
   readonly subject: string;
-  readonly instruction: string;
+  readonly instruction: CorrespondenceInstruction;
 
   readonly receivedAt: Date;
 

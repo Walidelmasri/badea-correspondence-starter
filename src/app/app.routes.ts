@@ -14,6 +14,13 @@ export const routes: Routes = [
       ).then((module) => module.InboxPageComponent),
   },
   {
+    path: 'sent',
+    loadComponent: () =>
+      import(
+        './features/sent/presentation/sent-page.component'
+      ).then((module) => module.SentPageComponent),
+  },
+  {
     path: '**',
     redirectTo: 'inbox',
   },

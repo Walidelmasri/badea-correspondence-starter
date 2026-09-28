@@ -1,168 +1,157 @@
-<section class="inbox-page">
-  <header class="inbox-page__header">
-    <div>
-      <span class="inbox-page__eyebrow">
-        {{ translation.text().inbox.eyebrow }}
-      </span>
+<app-correspondence-workspace
+  [eyebrow]="translation.text().inbox.eyebrow"
+  [title]="translation.text().inbox.title"
+  [description]="translation.text().inbox.description"
+  [searchLabel]="translation.text().inbox.search.label"
+  [searchPlaceholder]="translation.text().inbox.search.placeholder"
+  [primaryActionLabel]="translation.text().inbox.newCorrespondence"
+>
+  <div workspace-list>
+    @if (inbox.correspondence().length === 0) {
+      <div class="inbox-empty">
+        <strong>
+          {{ translation.text().inbox.empty.title }}
+        </strong>
 
-      <h1>
-        {{ translation.text().inbox.title }}
-      </h1>
+        <span>
+          {{ translation.text().inbox.empty.description }}
+        </span>
+      </div>
+    } @else {
+      <div class="correspondence-list">
+        @for (
+          item of inbox.correspondence();
+          track item.id
+        ) {
+          <button
+            class="correspondence-card"
+            [class.correspondence-card--unread]="
+              item.status === 'unread'
+            "
+            [class.correspondence-card--selected]="
+              inbox.selectedCorrespondence()?.id === item.id
+            "
+            type="button"
+            (click)="inbox.selectCorrespondence(item.id)"
+          >
+            <span
+              class="correspondence-card__status"
+              aria-hidden="true"
+            ></span>
 
-      <p>
-        {{ translation.text().inbox.description }}
-      </p>
-    </div>
+            <div class="correspondence-card__body">
+              <div class="correspondence-card__meta">
+                <strong>
+                  {{ item.senderName }}
+                </strong>
 
-    <button
-      class="inbox-page__new"
-      type="button"
-    >
-      {{ translation.text().inbox.newCorrespondence }}
-    </button>
-  </header>
-
-  <div class="inbox-page__toolbar">
-    <label class="inbox-search">
-      <span class="visually-hidden">
-        {{ translation.text().inbox.search.label }}
-      </span>
-
-      <input
-        type="search"
-        [placeholder]="translation.text().inbox.search.placeholder"
-      />
-    </label>
-  </div>
-
-  <div class="inbox-workspace">
-    <section
-      class="inbox-workspace__list"
-      [attr.aria-label]="translation.text().inbox.title"
-    >
-      @if (inbox.correspondence().length === 0) {
-        <div class="inbox-workspace__empty">
-          <strong>
-            {{ translation.text().inbox.empty.title }}
-          </strong>
-
-          <span>
-            {{ translation.text().inbox.empty.description }}
-          </span>
-        </div>
-      } @else {
-        <div class="correspondence-list">
-          @for (
-            item of inbox.correspondence();
-            track item.id
-          ) {
-            <button
-              class="correspondence-card"
-              [class.correspondence-card--unread]="
-                item.status === 'unread'
-              "
-              [class.correspondence-card--selected]="
-                inbox.selectedCorrespondence()?.id === item.id
-              "
-              type="button"
-              (click)="inbox.selectCorrespondence(item.id)"
-            >
-              <span
-                class="correspondence-card__status"
-                aria-hidden="true"
-              ></span>
-
-              <div class="correspondence-card__body">
-                <div class="correspondence-card__meta">
-                  <strong>
-                    {{ item.senderName }}
-                  </strong>
-
-                  <span>
-                    {{ item.referenceNumber }}
-                  </span>
-                </div>
-
-                <h2>
-                  {{ item.subject }}
-                </h2>
-
-                <div class="correspondence-card__footer">
-                  @if (item.attachmentCount > 0) {
-                    <span>
-                      📎 {{ item.attachmentCount }}
-                    </span>
-                  }
-                </div>
+                <span>
+                  {{ item.referenceNumber }}
+                </span>
               </div>
-            </button>
-          }
-        </div>
-      }
-    </section>
-
-    <section
-      class="inbox-workspace__detail"
-      aria-live="polite"
-    >
-      @if (inbox.selectedCorrespondence(); as selected) {
-        <article class="correspondence-detail">
-          <header class="correspondence-detail__header">
-            <div>
-              <span class="correspondence-detail__reference">
-                {{ selected.referenceNumber }}
-              </span>
 
               <h2>
-                {{ selected.subject }}
+                {{ item.subject }}
               </h2>
-            </div>
-          </header>
 
-          <dl class="correspondence-detail__metadata">
-            <div>
-              <dt>المرسل</dt>
-              <dd>{{ selected.senderName }}</dd>
+              <div class="correspondence-card__footer">
+                @if (item.attachmentCount > 0) {
+                  <span>
+                    📎 {{ item.attachmentCount }}
+                  </span>
+                }
+              </div>
             </div>
+          </button>
+        }
+      </div>
+    }
+  </div>
 
-            <div>
-              <dt>الإدارة</dt>
-              <dd>{{ selected.senderDepartment }}</dd>
-            </div>
+  <div workspace-detail>
+    @if (inbox.selectedCorrespondence(); as selected) {
+      <article class="correspondence-detail">
+        <header class="correspondence-detail__header">
+          <div>
+            <span class="correspondence-detail__reference">
+              {{ selected.referenceNumber }}
+            </span>
 
-            <div>
-              <dt>الإجراء المطلوب</dt>
-              <dd>{{ selected.instruction }}</dd>
-            </div>
-
-            <div>
-              <dt>المرفقات</dt>
-              <dd>{{ selected.attachmentCount }}</dd>
-            </div>
-          </dl>
-
-          <div class="correspondence-detail__document">
-            <span>معاينة الوثيقة</span>
+            <h2>
+              {{ selected.subject }}
+            </h2>
           </div>
-        </article>
-      } @else {
-        <div class="inbox-workspace__placeholder">
-          <div
-            class="inbox-workspace__placeholder-icon"
-            aria-hidden="true"
-          >
-            ◇
+        </header>
+
+        <dl class="correspondence-detail__metadata">
+          <div>
+            <dt>
+              {{ translation.text().inbox.detail.sender }}
+            </dt>
+
+            <dd>
+              {{ selected.senderName }}
+            </dd>
           </div>
 
-          <strong>
-            {{ translation.text().inbox.detailPlaceholder.title }}
-          </strong>
+          <div>
+            <dt>
+              {{ translation.text().inbox.detail.department }}
+            </dt>
 
+            <dd>
+              {{ selected.senderDepartment }}
+            </dd>
+          </div>
+
+          <div>
+            <dt>
+              {{ translation.text().inbox.detail.requiredAction }}
+            </dt>
+
+            <dd>
+              {{
+                instructionLabels[
+                  translation.language()
+                ][selected.instruction]
+              }}
+            </dd>
+          </div>
+
+          <div>
+            <dt>
+              {{ translation.text().inbox.detail.attachments }}
+            </dt>
+
+            <dd>
+              {{ selected.attachmentCount }}
+            </dd>
+          </div>
+        </dl>
+
+        <div class="correspondence-detail__document">
           <span>
-            {{ translation.text().inbox.detailPlaceholder.description }}
+            {{ translation.text().inbox.detail.documentPreview }}
           </span>
         </div>
-      }
-    </section>
+      </article>
+    } @else {
+      <div class="inbox-detail-placeholder">
+        <div
+          class="inbox-detail-placeholder__icon"
+          aria-hidden="true"
+        >
+          ◇
+        </div>
+
+        <strong>
+          {{ translation.text().inbox.detailPlaceholder.title }}
+        </strong>
+
+        <span>
+          {{ translation.text().inbox.detailPlaceholder.description }}
+        </span>
+      </div>
+    }
   </div>
-</section>
+</app-correspondence-workspace>

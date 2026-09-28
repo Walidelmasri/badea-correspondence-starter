@@ -1,0 +1,56 @@
+<section class="workspace-page">
+  <header class="workspace-page__header">
+    <div>
+      <span class="workspace-page__eyebrow">
+        {{ eyebrow() }}
+      </span>
+
+      <h1>
+        {{ title() }}
+      </h1>
+
+      <p>
+        {{ description() }}
+      </p>
+    </div>
+
+    <button
+      class="workspace-page__primary-action"
+      type="button"
+      (click)="primaryAction.emit()"
+    >
+      {{ primaryActionLabel() }}
+    </button>
+  </header>
+
+  <div class="workspace-page__toolbar">
+    <label class="workspace-search">
+      <span class="visually-hidden">
+        {{ searchLabel() }}
+      </span>
+
+      <input
+        type="search"
+        [placeholder]="searchPlaceholder()"
+      />
+    </label>
+
+    <ng-content select="[workspace-toolbar]" />
+  </div>
+
+  <div class="workspace">
+    <section
+      class="workspace__list"
+      [attr.aria-label]="title()"
+    >
+      <ng-content select="[workspace-list]" />
+    </section>
+
+    <section
+      class="workspace__detail"
+      aria-live="polite"
+    >
+      <ng-content select="[workspace-detail]" />
+    </section>
+  </div>
+</section>
