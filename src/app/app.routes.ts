@@ -35,6 +35,13 @@ export const routes: Routes = [
       ).then((module) => module.ComposePageComponent),
   },
   {
+    path: 'pdf-spike',
+    loadComponent: () =>
+      import(
+        './features/pdf-spike/presentation/pdf-spike-page.component'
+      ).then((module) => module.PdfSpikePageComponent),
+  },
+  {
     path: '**',
     redirectTo: 'inbox',
   },

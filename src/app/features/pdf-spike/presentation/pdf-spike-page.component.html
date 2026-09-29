@@ -1,0 +1,32 @@
+<section class="pdf-spike-page">
+  <header class="pdf-spike-page__header">
+    <div>
+      <span class="pdf-spike-page__eyebrow">
+        PDF Technical Spike
+      </span>
+
+      <h1>
+        PDF Viewer & Annotation Test
+      </h1>
+
+      <p>
+        Temporary validation of PDF viewing, annotation,
+        editing, signatures, and document round-tripping.
+      </p>
+    </div>
+
+    <button
+      class="pdf-spike-page__reload"
+      type="button"
+      (click)="reloadEditedDocument()"
+    >
+      Reload Edited PDF
+    </button>
+  </header>
+
+  <div class="pdf-spike-page__viewer">
+    <app-pdf-workspace
+      [src]="pdfSource()"
+    />
+  </div>
+</section>

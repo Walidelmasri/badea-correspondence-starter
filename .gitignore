@@ -59,3 +59,7 @@ docker-compose.override.yml
 docker-compose.*.local.yml
 nginx/*.local.conf
 deployment/private/
+
+# Local PDF files used for development/testing
+/src/assets/pdf/local/
+/public/pdf/local/

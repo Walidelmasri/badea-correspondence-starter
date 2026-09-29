@@ -124,6 +124,33 @@ const AR_TRANSLATIONS = {
       addAttachment: 'إضافة مرفق',
     },
   },
+  pdf: {
+    toolbar: {
+      highlight: 'تمييز',
+      draw: 'رسم',
+      text: 'نص',
+      signature: 'توقيع',
+      thumbnails: 'الصفحات',
+      zoomIn: 'تكبير',
+      zoomOut: 'تصغير',
+      pageWidth: 'عرض الصفحة',
+      undo: 'تراجع',
+      redo: 'إعادة',
+      more: 'المزيد',
+
+      search: 'بحث',
+      rotate: 'تدوير',
+      print: 'طباعة',
+      download: 'تنزيل',
+      properties: 'خصائص المستند',
+    },
+
+    saveStatus: {
+      saving: 'جارٍ الحفظ...',
+      saved: 'تم الحفظ',
+      failed: 'تعذر الحفظ',
+    },
+  },
   user: {
     office: 'مكتب الرئيس',
   },
@@ -245,6 +272,33 @@ const EN_TRANSLATIONS = {
       send: 'Send',
       cancel: 'Cancel',
       addAttachment: 'Add Attachment',
+    },
+  },
+  pdf: {
+    toolbar: {
+      highlight: 'Highlight',
+      draw: 'Draw',
+      text: 'Text',
+      signature: 'Signature',
+      thumbnails: 'Pages',
+      zoomIn: 'Zoom In',
+      zoomOut: 'Zoom Out',
+      pageWidth: 'Page Width',
+      undo: 'Undo',
+      redo: 'Redo',
+      more: 'More',
+
+      search: 'Search',
+      rotate: 'Rotate',
+      print: 'Print',
+      download: 'Download',
+      properties: 'Document Properties',
+    },
+
+    saveStatus: {
+      saving: 'Saving...',
+      saved: 'Saved',
+      failed: 'Save failed',
     },
   },
   user: {
