@@ -42,6 +42,16 @@ export const routes: Routes = [
       ).then((module) => module.PdfSpikePageComponent),
   },
   {
+    path: 'president-review',
+    loadComponent: () =>
+      import(
+        './features/president-review/presentation/president-review-page.component'
+      ).then(
+        (component) =>
+          component.PresidentReviewPageComponent,
+      ),
+  },
+  {
     path: '**',
     redirectTo: 'inbox',
   },
