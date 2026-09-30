@@ -1,21 +1,20 @@
-<ngx-extended-pdf-viewer
-  [src]="src()"
-  [height]="'100%'"
-  zoom="page-width"
-  [showOpenFileButton]="false"
-  [showDownloadButton]="true"
-  [showPrintButton]="true"
-  [showPresentationModeButton]="false"
-  [showPropertiesButton]="false"
-  [showSidebarButton]="true"
-  [showFindButton]="true"
-  [showPagingButtons]="true"
-  [showZoomButtons]="true"
-  [showRotateButton]="true"
-  [showHandToolButton]="true"
-  [showTextEditor]="true"
-  [showDrawEditor]="true"
-  [showHighlightEditor]="true"
-  [showStampEditor]="true"
-  [showSignatureEditor]="true"
-/>
+<ng-template #customToolbar>
+  <app-pdf-toolbar [page]="page()" [pageCount]="pageCount()" [activeTool]="activeTool()" (previousPage)="previousPage()"
+    (nextPage)="nextPage()" (zoomOut)="zoomOut()" (zoomIn)="zoomIn()" (fitPageWidth)="fitPageWidth()"
+    (selectTool)="selectTool($event)" (toggleSidebar)="toggleSidebar()" (moreAction)="handleMoreAction($event)"
+    [canUndo]="canUndo()" [canRedo]="canRedo()" (undo)="undo()" (redo)="redo()" />
+</ng-template>
+
+<ngx-extended-pdf-viewer [src]="src()" [height]="'100%'" [zoom]="zoom()" [page]="page()" [textLayer]="true"
+  [customToolbar]="customToolbar" [language]="translation.language() === 'ar' ? 'ar' : 'en-US'"
+  [showOpenFileButton]="false" [showFindButton]="false" [(sidebarVisible)]="sidebarVisible"
+  [activeSidebarView]="sidebarView" [(findbarVisible)]="findbarVisible" [(rotation)]="rotation"
+  (pdfLoaded)="onPdfLoaded()" (pageChange)="onPageChange($event)" (pagesLoaded)="pageCount.set($event.pagesCount)"
+  (currentZoomFactor)="onCurrentZoomFactorChange($event)"
+  (annotationEditorLayerRendered)="onAnnotationEditorLayerRendered()" />
+
+@if (propertiesVisible()) {
+@if (documentProperties(); as properties) {
+<app-pdf-properties-dialog [properties]="properties" (closed)="closeDocumentProperties()" />
+}
+}

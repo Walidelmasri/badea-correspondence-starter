@@ -1,0 +1,156 @@
+<nav class="pdf-toolbar" [attr.dir]="translation.direction()" aria-label="PDF toolbar">
+  <div class="pdf-toolbar__group pdf-toolbar__group--navigation">
+    <button class="pdf-toolbar__icon-button" type="button" [attr.aria-label]="translation.text().pdf.toolbar.thumbnails"
+      [title]="translation.text().pdf.toolbar.thumbnails" (click)="toggleSidebar.emit()">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="4" width="5" height="7" rx="1" />
+        <rect x="3" y="13" width="5" height="7" rx="1" />
+        <path d="M11 6h10M11 10h10M11 15h10M11 19h10" />
+      </svg>
+    </button>
+
+    <div class="pdf-toolbar__page-control">
+      <button class="pdf-toolbar__compact-button pdf-toolbar__page-button" type="button"
+        [attr.aria-label]="translation.text().pdf.toolbar.previousPage"
+        [title]="translation.text().pdf.toolbar.previousPage" [disabled]="page() <= 1" (click)="previousPage.emit()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+      </button>
+
+      <span class="pdf-toolbar__page-count" dir="ltr">
+        <strong>{{ formatNumber(page()) }}</strong>
+        <span>/</span>
+        <span>{{ formatNumber(pageCount()) }}</span>
+      </span>
+
+      <button class="pdf-toolbar__compact-button pdf-toolbar__page-button" type="button"
+        [attr.aria-label]="translation.text().pdf.toolbar.nextPage" [title]="translation.text().pdf.toolbar.nextPage"
+        [disabled]="page() >= pageCount()" (click)="nextPage.emit()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="pdf-toolbar__divider"></div>
+
+  <div class="pdf-toolbar__group pdf-toolbar__group--zoom">
+    <button class="pdf-toolbar__icon-button" type="button" [attr.aria-label]="translation.text().pdf.toolbar.zoomOut"
+      [title]="translation.text().pdf.toolbar.zoomOut" (click)="zoomOut.emit()">
+      <span class="pdf-toolbar__symbol" aria-hidden="true">
+        −
+      </span>
+    </button>
+
+    <button class="pdf-toolbar__fit-button" type="button" (click)="fitPageWidth.emit()">
+      {{ translation.text().pdf.toolbar.pageWidth }}
+    </button>
+
+    <button class="pdf-toolbar__icon-button" type="button" [attr.aria-label]="translation.text().pdf.toolbar.zoomIn"
+      [title]="translation.text().pdf.toolbar.zoomIn" (click)="zoomIn.emit()">
+      <span class="pdf-toolbar__symbol" aria-hidden="true">
+        +
+      </span>
+    </button>
+  </div>
+
+  <div class="pdf-toolbar__divider"></div>
+
+  <div class="pdf-toolbar__group pdf-toolbar__group--editors">
+    <button class="pdf-toolbar__tool" type="button" [class.pdf-toolbar__tool--active]="activeTool() === 'highlight'"
+      [attr.aria-pressed]="activeTool() === 'highlight'" (click)="selectTool.emit('highlight')">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m15 4 5 5-9 9H6v-5Z" />
+        <path d="M4 20h12" />
+      </svg>
+
+      <span>
+        {{ translation.text().pdf.toolbar.highlight }}
+      </span>
+    </button>
+
+    <button class="pdf-toolbar__tool" type="button" [class.pdf-toolbar__tool--active]="activeTool() === 'draw'"
+      [attr.aria-pressed]="activeTool() === 'draw'" (click)="selectTool.emit('draw')">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 17c3-6 5-9 8-9 2 0 2 3 4 3 1 0 2-1 4-3" />
+        <path d="M4 20h16" />
+      </svg>
+
+      <span>
+        {{ translation.text().pdf.toolbar.draw }}
+      </span>
+    </button>
+
+    <button class="pdf-toolbar__tool" type="button" [class.pdf-toolbar__tool--active]="activeTool() === 'text'"
+      [attr.aria-pressed]="activeTool() === 'text'" (click)="selectTool.emit('text')">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 5h14M12 5v14M8 19h8" />
+      </svg>
+
+      <span>
+        {{ translation.text().pdf.toolbar.text }}
+      </span>
+    </button>
+  </div>
+
+  <div class="pdf-toolbar__group pdf-toolbar__group--actions">
+    <button class="pdf-toolbar__icon-button" type="button" [attr.aria-label]="translation.text().pdf.toolbar.undo"
+      [title]="translation.text().pdf.toolbar.undo" (click)="undo.emit()" [disabled]="!canUndo()">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m9 7-5 5 5 5" />
+        <path d="M5 12h8a6 6 0 0 1 6 6" />
+      </svg>
+    </button>
+
+    <button class="pdf-toolbar__icon-button" type="button" [attr.aria-label]="translation.text().pdf.toolbar.redo"
+      [title]="translation.text().pdf.toolbar.redo" (click)="redo.emit()"  [disabled]="!canRedo()">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m15 7 5 5-5 5" />
+        <path d="M19 12h-8a6 6 0 0 0-6 6" />
+      </svg>
+    </button>
+
+    <div class="pdf-toolbar__more">
+      <button class="pdf-toolbar__more-button" type="button" [attr.aria-label]="translation.text().pdf.toolbar.more"
+        [attr.aria-expanded]="moreOpen()" (click)="toggleMore()">
+        <span>
+          {{ translation.text().pdf.toolbar.more }}
+        </span>
+
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="12" r="1" />
+          <circle cx="12" cy="12" r="1" />
+          <circle cx="19" cy="12" r="1" />
+        </svg>
+      </button>
+
+      @if (moreOpen()) {
+      <div class="pdf-toolbar__menu" role="group" [attr.aria-label]="translation.text().pdf.toolbar.more">
+        <button class="pdf-toolbar__menu-item" type="button" (click)="selectMoreAction('search')">
+          {{ translation.text().pdf.toolbar.search }}
+        </button>
+
+        <button class="pdf-toolbar__menu-item" type="button" (click)="selectMoreAction('rotate-clockwise')">
+          {{ translation.text().pdf.toolbar.rotateClockwise }}
+        </button>
+
+        <button class="pdf-toolbar__menu-item" type="button" (click)="selectMoreAction('rotate-counterclockwise')">
+          {{ translation.text().pdf.toolbar.rotateCounterclockwise }}
+        </button>
+
+        <div class="pdf-toolbar__menu-separator"></div>
+
+        <button class="pdf-toolbar__menu-item" type="button" (click)="selectMoreAction('properties')">
+          {{ translation.text().pdf.toolbar.properties }}
+        </button>
+
+        <button class="pdf-toolbar__menu-item" type="button" (click)="selectMoreAction('print')">
+          {{ translation.text().pdf.toolbar.print }}
+        </button>
+      </div>
+      }
+    </div>
+  </div>
+</nav>

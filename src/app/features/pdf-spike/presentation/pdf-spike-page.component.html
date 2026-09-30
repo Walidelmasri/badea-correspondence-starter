@@ -15,18 +15,12 @@
       </p>
     </div>
 
-    <button
-      class="pdf-spike-page__reload"
-      type="button"
-      (click)="reloadEditedDocument()"
-    >
+    <button class="pdf-spike-page__reload" type="button" (click)="reloadEditedDocument()">
       Reload Edited PDF
     </button>
   </header>
 
   <div class="pdf-spike-page__viewer">
-    <app-pdf-workspace
-      [src]="pdfSource()"
-    />
+    <app-pdf-workspace [src]="pdfSource()" filename="report-badea.pdf" />
   </div>
 </section>

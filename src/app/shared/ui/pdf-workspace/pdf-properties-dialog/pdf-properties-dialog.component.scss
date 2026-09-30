@@ -1,0 +1,215 @@
+:host {
+  display: contents;
+}
+
+.pdf-properties-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: min(85dvh, 42rem);
+
+  margin: auto;
+  padding: 0;
+
+  overflow: auto;
+
+  border: 1px solid var(--color-border);
+  border-radius: 1.15rem;
+
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+
+  box-shadow:
+    0 24px 80px rgb(0 0 0 / 18%),
+    0 6px 24px rgb(0 0 0 / 8%);
+}
+
+.pdf-properties-dialog::backdrop {
+  background: rgb(15 30 27 / 42%);
+  backdrop-filter: blur(3px);
+}
+
+/* Header */
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+
+  padding: 1.5rem;
+
+  border-block-end: 1px solid var(--color-border);
+}
+
+.dialog-header__eyebrow {
+  display: block;
+
+  margin-block-end: 0.35rem;
+
+  color: var(--color-primary-700);
+
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.dialog-header h2 {
+  margin: 0;
+
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.dialog-close {
+  width: 2.5rem;
+  height: 2.5rem;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  border: 0;
+  border-radius: 0.75rem;
+
+  background: var(--color-primary-050);
+  color: var(--color-text-secondary);
+
+  cursor: pointer;
+}
+
+.dialog-close:hover {
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
+}
+
+.dialog-close svg {
+  width: 1.1rem;
+  height: 1.1rem;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* Content */
+
+.dialog-content {
+  padding: 1.5rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.properties-section h3 {
+  margin: 0 0 1rem;
+
+  color: var(--color-primary-700);
+
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.properties-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  margin: 0;
+}
+
+.properties-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+
+  gap: 1rem;
+
+  align-items: start;
+
+  padding-block: 0.85rem;
+
+  border-block-end: 1px solid var(--color-border);
+}
+
+.properties-row:last-child {
+  border-block-end: 0;
+}
+
+.properties-row dt {
+  color: var(--color-text-tertiary);
+
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.properties-row dd {
+  min-width: 0;
+
+  margin: 0;
+
+  overflow-wrap: anywhere;
+
+  color: var(--color-text-primary);
+
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.properties-row__filename {
+  color: var(--color-primary-700);
+}
+
+/* Footer */
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+
+  padding: 1rem 1.5rem;
+
+  border-block-start: 1px solid var(--color-border);
+
+  background: var(--color-primary-050);
+}
+
+.dialog-done {
+  min-height: 2.65rem;
+  min-width: 6rem;
+
+  padding-inline: 1.25rem;
+
+  border: 0;
+  border-radius: 0.7rem;
+
+  background: var(--color-primary-900);
+  color: white;
+
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.dialog-done:hover {
+  background: var(--color-primary-800);
+}
+
+.pdf-properties-dialog button:focus-visible {
+  outline: 3px solid var(--color-primary-600);
+  outline-offset: 3px;
+}
+
+@media (max-width: 30rem) {
+  .dialog-header,
+  .dialog-content {
+    padding: 1.15rem;
+  }
+
+  .dialog-footer {
+    padding: 1rem 1.15rem;
+  }
+}

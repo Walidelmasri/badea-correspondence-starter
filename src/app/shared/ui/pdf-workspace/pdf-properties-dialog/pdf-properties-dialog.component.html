@@ -1,0 +1,139 @@
+<dialog
+  #dialog
+  class="pdf-properties-dialog"
+  [attr.dir]="translation.direction()"
+  [attr.aria-label]="translation.text().pdf.properties.heading"
+  (close)="closed.emit()"
+>
+  <header class="dialog-header">
+    <div class="dialog-header__content">
+      <span class="dialog-header__eyebrow">
+        PDF
+      </span>
+
+      <h2>
+        {{ translation.text().pdf.properties.heading }}
+      </h2>
+    </div>
+
+    <button
+      class="dialog-close"
+      type="button"
+      autofocus
+      [attr.aria-label]="translation.text().pdf.properties.close"
+      (click)="close()"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 6 18 18M18 6 6 18" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="dialog-content">
+    <section class="properties-section">
+      <h3>
+        {{ translation.text().pdf.properties.fileInformation }}
+      </h3>
+
+      <dl class="properties-list">
+        <div class="properties-row">
+          <dt>
+            {{ translation.text().pdf.properties.filename }}
+          </dt>
+
+          <dd class="properties-row__filename" dir="auto">
+            {{ properties().filename }}
+          </dd>
+        </div>
+
+        <div class="properties-row">
+          <dt>
+            {{ translation.text().pdf.properties.size }}
+          </dt>
+
+          <dd>
+            {{ formatFileSize(properties().sizeBytes) }}
+          </dd>
+        </div>
+
+        <div class="properties-row">
+          <dt>
+            {{ translation.text().pdf.properties.pages }}
+          </dt>
+
+          <dd>
+            {{ formatNumber(properties().pageCount) }}
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    @if (hasExtendedMetadata()) {
+      <section class="properties-section">
+        <h3>
+          {{ translation.text().pdf.properties.documentDetails }}
+        </h3>
+
+        <dl class="properties-list">
+          @if (properties().title) {
+            <div class="properties-row">
+              <dt>
+                {{ translation.text().pdf.properties.title }}
+              </dt>
+
+              <dd dir="auto">
+                {{ properties().title }}
+              </dd>
+            </div>
+          }
+
+          @if (properties().author) {
+            <div class="properties-row">
+              <dt>
+                {{ translation.text().pdf.properties.author }}
+              </dt>
+
+              <dd dir="auto">
+                {{ properties().author }}
+              </dd>
+            </div>
+          }
+
+          @if (properties().createdAt) {
+            <div class="properties-row">
+              <dt>
+                {{ translation.text().pdf.properties.created }}
+              </dt>
+
+              <dd>
+                {{ formatDate(properties().createdAt) }}
+              </dd>
+            </div>
+          }
+
+          @if (properties().modifiedAt) {
+            <div class="properties-row">
+              <dt>
+                {{ translation.text().pdf.properties.modified }}
+              </dt>
+
+              <dd>
+                {{ formatDate(properties().modifiedAt) }}
+              </dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+  </div>
+
+  <footer class="dialog-footer">
+    <button
+      class="dialog-done"
+      type="button"
+      (click)="close()"
+    >
+      {{ translation.text().pdf.properties.close }}
+    </button>
+  </footer>
+</dialog>
