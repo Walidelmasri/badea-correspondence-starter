@@ -432,41 +432,89 @@
 /* Compact workspace */
 
 @container pdf-toolbar (max-width: 46rem) {
-    .pdf-toolbar {
-        padding: 0.5rem 0.55rem;
-    }
+  .pdf-toolbar {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto;
 
-    .pdf-toolbar__page-count {
-        min-width: 3.5rem;
-    }
+    grid-template-areas:
+      'navigation actions'
+      'zoom editors';
 
-    .pdf-toolbar__fit-button {
-        padding-inline: 0.65rem;
-    }
+    column-gap: 0.5rem;
+    row-gap: 0.4rem;
 
-    .pdf-toolbar__group--editors {
-        justify-content: safe center;
+    padding: 0.5rem 0.55rem;
+  }
 
-        overflow-x: auto;
+  .pdf-toolbar__group--navigation {
+    grid-area: navigation;
 
-        scrollbar-width: none;
-    }
+    justify-self: start;
+  }
 
-    .pdf-toolbar__group--editors::-webkit-scrollbar {
-        display: none;
-    }
+  .pdf-toolbar__group--actions {
+    grid-area: actions;
 
-    .pdf-toolbar__tool {
-        flex: 0 0 auto;
-    }
+    justify-self: end;
+  }
 
-    .pdf-toolbar__more-button {
-        width: 2.65rem;
+  .pdf-toolbar__group--zoom {
+    grid-area: zoom;
 
-        padding: 0;
-    }
+    justify-self: start;
+  }
 
-    .pdf-toolbar__more-button span {
-        display: none;
-    }
+  .pdf-toolbar__group--editors {
+    grid-area: editors;
+
+    width: auto;
+
+    justify-self: end;
+    justify-content: flex-end;
+
+    padding-block-start: 0;
+
+    border-block-start: 0;
+
+    overflow: visible;
+  }
+
+  .pdf-toolbar__page-count {
+    min-width: 3.5rem;
+  }
+
+  .pdf-toolbar__fit-button {
+    padding-inline: 0.65rem;
+  }
+
+  /*
+   * At this width the editing tools become
+   * compact icon controls.
+   *
+   * Accessible names still come from the buttons'
+   * existing labels/titles.
+   */
+  .pdf-toolbar__tool {
+    width: 2.65rem;
+    height: 2.65rem;
+
+    flex: 0 0 2.65rem;
+
+    padding: 0;
+  }
+
+  .pdf-toolbar__tool span {
+    display: none;
+  }
+
+  .pdf-toolbar__more-button {
+    width: 2.65rem;
+
+    padding: 0;
+  }
+
+  .pdf-toolbar__more-button span {
+    display: none;
+  }
 }
