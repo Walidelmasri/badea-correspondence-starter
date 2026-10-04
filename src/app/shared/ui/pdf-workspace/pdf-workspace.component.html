@@ -1,3 +1,11 @@
+<div
+  class="pdf-workspace__viewer"
+  appPdfInkOverlay
+  [documentKey]="documentKey()"
+  [inkTool]="inkTool()"
+  [inkRotation]="rotation()"
+  (strokeCommitted)="onInkStrokeCommitted()"
+>
 <ng-template #customToolbar>
   <app-pdf-toolbar [page]="page()" [pageCount]="pageCount()" [activeTool]="activeTool()" (previousPage)="previousPage()"
     (nextPage)="nextPage()" (zoomOut)="zoomOut()" (zoomIn)="zoomIn()" (fitPageWidth)="fitPageWidth()"
@@ -18,3 +26,4 @@
 <app-pdf-properties-dialog [properties]="properties" (closed)="closeDocumentProperties()" />
 }
 }
+</div>

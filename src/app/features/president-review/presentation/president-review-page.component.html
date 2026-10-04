@@ -1,498 +1,385 @@
-<section
-  class="president-review"
-  [attr.dir]="translation.direction()"
->
-  <header class="president-review__header">
-    <div>
-      <span class="president-review__eyebrow">
-        {{ translation.text().presidentReview.eyebrow }}
-      </span>
-
-      <h1>
-        {{ translation.text().presidentReview.title }}
-      </h1>
-    </div>
-
-    <div class="president-review__meta">
-      <div>
-        <span>
-          {{ translation.text().presidentReview.reference }}
-        </span>
-
-        <strong>PR-2026-0184</strong>
-      </div>
-
-      <div>
-        <span>
-          {{ translation.text().presidentReview.date }}
-        </span>
-
-        <strong>30 Sep 2026</strong>
-      </div>
-    </div>
-  </header>
-
-  <div class="president-review__workspace">
-    <main class="document-desk">
-      <section class="attachment-section">
-        <div class="section-heading">
-          <div>
-            <span class="section-heading__eyebrow">
-              {{ translation.text().presidentReview.documents }}
+<section class="president-review" [attr.dir]="translation.direction()">
+    <header class="president-review__header">
+        <div>
+            <span class="president-review__eyebrow">
+                {{ translation.text().presidentReview.eyebrow }}
             </span>
 
-            <h2>
-              {{ translation.text().presidentReview.attachments }}
-            </h2>
-          </div>
-
-          <span class="attachment-count">
-            {{ attachments.length }}
-          </span>
+            <h1>
+                {{ translation.text().presidentReview.title }}
+            </h1>
         </div>
 
-        <div
-          class="attachment-rail"
-          role="list"
-        >
-          @for (
-            attachment of attachments;
-            track attachment.id
-          ) {
-            <button
-              class="attachment-card"
-              type="button"
-              role="listitem"
-              [class.attachment-card--active]="
-                activeAttachmentId() === attachment.id
-              "
-              (click)="selectAttachment(attachment.id)"
-            >
-              <span class="attachment-card__icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path d="M7 3h7l4 4v14H7Z" />
-                  <path d="M14 3v5h5" />
-                </svg>
-              </span>
-
-              <span class="attachment-card__content">
-                <strong>
-                  {{ attachmentLabel(attachment) }}
-                </strong>
-
+        <div class="president-review__meta">
+            <div>
                 <span>
-                  {{ attachment.sizeLabel }}
+                    {{ translation.text().presidentReview.reference }}
                 </span>
-              </span>
 
-              <span class="attachment-card__status">
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path d="m7 12 3 3 7-7" />
-                </svg>
-              </span>
-            </button>
-          }
-        </div>
-      </section>
-
-      <section class="pdf-stage">
-        <app-pdf-workspace
-          [src]="activeAttachment().src"
-          [filename]="activeAttachment().filename"
-        />
-      </section>
-
-      <section class="explanation-card">
-        <header class="explanation-card__header">
-          <div>
-            <span class="section-heading__eyebrow">
-              {{ translation.text().presidentReview.optional }}
-            </span>
-
-            <h2>
-              {{ translation.text().presidentReview.explanation }}
-            </h2>
-          </div>
-
-          <div
-            class="explanation-mode"
-            role="group"
-            [attr.aria-label]="
-              translation.text().presidentReview.explanation
-            "
-          >
-            <button
-              type="button"
-              [class.explanation-mode__button--active]="
-                explanationMode() === 'pen'
-              "
-              (click)="setExplanationMode('pen')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="m4 20 4-1 10-10-3-3L5 16Z" />
-                <path d="m13 8 3 3" />
-              </svg>
-
-              {{
-                translation.text().presidentReview.pen
-              }}
-            </button>
-
-            <button
-              type="button"
-              [class.explanation-mode__button--active]="
-                explanationMode() === 'keyboard'
-              "
-              (click)="setExplanationMode('keyboard')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <rect
-                  x="3"
-                  y="6"
-                  width="18"
-                  height="12"
-                  rx="2"
-                />
-                <path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M7 14h10" />
-              </svg>
-
-              {{
-                translation.text().presidentReview.keyboard
-              }}
-            </button>
-          </div>
-        </header>
-
-        @if (explanationMode() === 'pen') {
-          <div class="handwriting-surface">
-            <div class="handwriting-surface__hint">
-              <span class="handwriting-surface__icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path d="m4 20 4-1 10-10-3-3L5 16Z" />
-                  <path d="m13 8 3 3" />
-                </svg>
-              </span>
-
-              <div>
-                <strong>
-                  {{
-                    translation.text()
-                      .presidentReview.writeWithPencil
-                  }}
-                </strong>
-
-                <span>
-                  {{
-                    translation.text()
-                      .presidentReview.writeWithPencilHint
-                  }}
-                </span>
-              </div>
+                <strong>PR-2026-0184</strong>
             </div>
-          </div>
-        } @else {
-          <textarea
-            class="typed-explanation"
-            rows="5"
-            [value]="typedExplanation()"
-            [placeholder]="
+
+            <div>
+                <span>
+                    {{ translation.text().presidentReview.date }}
+                </span>
+
+                <strong>30 Sep 2026</strong>
+            </div>
+        </div>
+    </header>
+
+    <div class="president-review__workspace">
+        <main class="document-desk">
+            <section class="attachment-section">
+                <div class="section-heading">
+                    <div>
+                        <span class="section-heading__eyebrow">
+                            {{ translation.text().presidentReview.documents }}
+                        </span>
+
+                        <h2>
+                            {{ translation.text().presidentReview.attachments }}
+                        </h2>
+                    </div>
+
+                    <span class="attachment-count">
+                        {{ attachments.length }}
+                    </span>
+                </div>
+
+                <div class="attachment-rail" role="list">
+                    @for (
+                    attachment of attachments;
+                    track attachment.id
+                    ) {
+                    <button class="attachment-card" type="button" role="listitem" [class.attachment-card--active]="
+                activeAttachmentId() === attachment.id
+              " (click)="selectAttachment(attachment.id)">
+                        <span class="attachment-card__icon">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M7 3h7l4 4v14H7Z" />
+                                <path d="M14 3v5h5" />
+                            </svg>
+                        </span>
+
+                        <span class="attachment-card__content">
+                            <strong>
+                                {{ attachmentLabel(attachment) }}
+                            </strong>
+
+                            <span>
+                                {{ attachment.sizeLabel }}
+                            </span>
+                        </span>
+
+                        <span class="attachment-card__status">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m7 12 3 3 7-7" />
+                            </svg>
+                        </span>
+                    </button>
+                    }
+                </div>
+            </section>
+
+            <section class="pdf-stage">
+                <app-pdf-workspace [src]="activeAttachment().src" [filename]="activeAttachment().filename"
+                    [documentKey]="activeAttachment().id" />
+            </section>
+
+            <section class="explanation-card">
+                <header class="explanation-card__header">
+                    <div>
+                        <span class="section-heading__eyebrow">
+                            {{ translation.text().presidentReview.optional }}
+                        </span>
+
+                        <h2>
+                            {{ translation.text().presidentReview.explanation }}
+                        </h2>
+                    </div>
+
+                    <div class="explanation-mode" role="group" [attr.aria-label]="
+              translation.text().presidentReview.explanation
+            ">
+                        <button type="button" [class.explanation-mode__button--active]="
+                explanationMode() === 'pen'
+              " (click)="setExplanationMode('pen')">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m4 20 4-1 10-10-3-3L5 16Z" />
+                                <path d="m13 8 3 3" />
+                            </svg>
+
+                            {{
+                            translation.text().presidentReview.pen
+                            }}
+                        </button>
+
+                        <button type="button" [class.explanation-mode__button--active]="
+                explanationMode() === 'keyboard'
+              " (click)="setExplanationMode('keyboard')">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="3" y="6" width="18" height="12" rx="2" />
+                                <path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M7 14h10" />
+                            </svg>
+
+                            {{
+                            translation.text().presidentReview.keyboard
+                            }}
+                        </button>
+                    </div>
+                </header>
+
+                @if (explanationMode() === 'pen') {
+                <div class="handwriting-surface">
+                    <div class="handwriting-surface__hint">
+                        <span class="handwriting-surface__icon">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m4 20 4-1 10-10-3-3L5 16Z" />
+                                <path d="m13 8 3 3" />
+                            </svg>
+                        </span>
+
+                        <div>
+                            <strong>
+                                {{
+                                translation.text()
+                                .presidentReview.writeWithPencil
+                                }}
+                            </strong>
+
+                            <span>
+                                {{
+                                translation.text()
+                                .presidentReview.writeWithPencilHint
+                                }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                } @else {
+                <textarea class="typed-explanation" rows="5" [value]="typedExplanation()" [placeholder]="
               translation.text()
                 .presidentReview.explanationPlaceholder
-            "
-            (input)="onTypedExplanationInput($event)"
-          ></textarea>
-        }
-      </section>
-    </main>
+            " (input)="onTypedExplanationInput($event)"></textarea>
+                }
+            </section>
+        </main>
 
-    <aside class="decision-panel">
-      <header class="decision-panel__header">
-        <span>
-          {{ translation.text().presidentReview.direction }}
-        </span>
+        <aside class="decision-panel">
+            <header class="decision-panel__header">
+                <span>
+                    {{ translation.text().presidentReview.direction }}
+                </span>
 
-        <h2>
-          {{ translation.text().presidentReview.yourDirection }}
-        </h2>
+                <h2>
+                    {{ translation.text().presidentReview.yourDirection }}
+                </h2>
 
-        <p>
-          {{
-            translation.text()
-              .presidentReview.directionHint
-          }}
-        </p>
-      </header>
+                <p>
+                    {{
+                    translation.text()
+                    .presidentReview.directionHint
+                    }}
+                </p>
+            </header>
 
-      <section class="decision-section">
-        <div class="decision-section__heading">
-          <div>
-            <span class="decision-section__number">
-              01
-            </span>
+            <section class="decision-section">
+                <div class="decision-section__heading">
+                    <div>
+                        <span class="decision-section__number">
+                            01
+                        </span>
 
-            <h3>
-              {{ translation.text().presidentReview.to }}
-            </h3>
-          </div>
+                        <h3>
+                            {{ translation.text().presidentReview.to }}
+                        </h3>
+                    </div>
 
-          <span class="required-badge">
-            {{
-              translation.text().presidentReview.required
-            }}
-          </span>
-        </div>
+                    <span class="required-badge">
+                        {{
+                        translation.text().presidentReview.required
+                        }}
+                    </span>
+                </div>
 
-        <div class="office-recipient">
-          <span class="office-recipient__check">
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path d="m6 12 4 4 8-9" />
-            </svg>
-          </span>
+                <div class="office-recipient">
+                    <span class="office-recipient__check">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 12 4 4 8-9" />
+                        </svg>
+                    </span>
 
-          <div>
-            <strong>
-              {{
-                translation.text()
-                  .presidentReview.presidentOffice
-              }}
-            </strong>
+                    <div>
+                        <strong>
+                            {{
+                            translation.text()
+                            .presidentReview.presidentOffice
+                            }}
+                        </strong>
 
-            <span>
-              {{
-                translation.text()
-                  .presidentReview.defaultRecipient
-              }}
-            </span>
-          </div>
-        </div>
+                        <span>
+                            {{
+                            translation.text()
+                            .presidentReview.defaultRecipient
+                            }}
+                        </span>
+                    </div>
+                </div>
 
-        <div class="choice-grid">
-          @for (
-            recipient of recipients;
-            track recipient.id
-          ) {
-            <button
-              class="choice-chip"
-              type="button"
-              [class.choice-chip--selected]="
+                <div class="choice-grid">
+                    @for (
+                    recipient of recipients;
+                    track recipient.id
+                    ) {
+                    <button class="choice-chip" type="button" [class.choice-chip--selected]="
                 recipientSelected(recipient.id)
-              "
-              (click)="toggleRecipient(recipient.id)"
-            >
-              <span>
-                {{ recipientLabel(recipient) }}
-              </span>
+              " (click)="toggleRecipient(recipient.id)">
+                        <span>
+                            {{ recipientLabel(recipient) }}
+                        </span>
 
-              @if (
-                recipientSelected(recipient.id)
-              ) {
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path d="m6 12 4 4 8-9" />
-                </svg>
-              }
-            </button>
-          }
-        </div>
+                        @if (
+                        recipientSelected(recipient.id)
+                        ) {
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 12 4 4 8-9" />
+                        </svg>
+                        }
+                    </button>
+                    }
+                </div>
 
-        @if (otherRecipientSelected()) {
-          <input
-            class="inline-other-input"
-            type="text"
-            [value]="otherRecipient()"
-            [placeholder]="
+                @if (otherRecipientSelected()) {
+                <input class="inline-other-input" type="text" [value]="otherRecipient()" [placeholder]="
               translation.text()
                 .presidentReview.otherRecipientPlaceholder
-            "
-            (input)="onOtherRecipientInput($event)"
-          />
-        }
-      </section>
-
-      <section class="decision-section">
-        <div class="decision-section__heading">
-          <div>
-            <span class="decision-section__number">
-              02
-            </span>
-
-            <h3>
-              {{
-                translation.text()
-                  .presidentReview.requiredAction
-              }}
-            </h3>
-          </div>
-
-          <span class="required-badge">
-            {{
-              translation.text().presidentReview.required
-            }}
-          </span>
-        </div>
-
-        <div class="action-list">
-          @for (
-            action of visibleActions();
-            track action.code
-          ) {
-            <button
-              class="action-option"
-              type="button"
-              [class.action-option--selected]="
-                actionSelected(action.code)
-              "
-              (click)="toggleAction(action.code)"
-            >
-              <span class="action-option__check">
-                @if (
-                  actionSelected(action.code)
-                ) {
-                  <svg
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path d="m6 12 4 4 8-9" />
-                  </svg>
+            " (input)="onOtherRecipientInput($event)" />
                 }
-              </span>
+            </section>
 
-              <span>
-                {{ actionLabel(action) }}
-              </span>
-            </button>
-          }
-        </div>
+            <section class="decision-section">
+                <div class="decision-section__heading">
+                    <div>
+                        <span class="decision-section__number">
+                            02
+                        </span>
 
-        @if (!showAllActions()) {
-          <button
-            class="text-action"
-            type="button"
-            (click)="showAllActions.set(true)"
-          >
-            {{
-              translation.text()
-                .presidentReview.showAllActions
-            }}
-          </button>
-        } @else {
-          <button
-            class="text-action"
-            type="button"
-            (click)="showAllActions.set(false)"
-          >
-            {{
-              translation.text()
-                .presidentReview.showFewerActions
-            }}
-          </button>
-        }
+                        <h3>
+                            {{
+                            translation.text()
+                            .presidentReview.requiredAction
+                            }}
+                        </h3>
+                    </div>
 
-        @if (otherActionSelected()) {
-          <input
-            class="inline-other-input"
-            type="text"
-            [value]="otherAction()"
-            [placeholder]="
+                    <span class="required-badge">
+                        {{
+                        translation.text().presidentReview.required
+                        }}
+                    </span>
+                </div>
+
+                <div class="action-list">
+                    @for (
+                    action of visibleActions();
+                    track action.code
+                    ) {
+                    <button class="action-option" type="button" [class.action-option--selected]="
+                actionSelected(action.code)
+              " (click)="toggleAction(action.code)">
+                        <span class="action-option__check">
+                            @if (
+                            actionSelected(action.code)
+                            ) {
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m6 12 4 4 8-9" />
+                            </svg>
+                            }
+                        </span>
+
+                        <span>
+                            {{ actionLabel(action) }}
+                        </span>
+                    </button>
+                    }
+                </div>
+
+                @if (!showAllActions()) {
+                <button class="text-action" type="button" (click)="showAllActions.set(true)">
+                    {{
+                    translation.text()
+                    .presidentReview.showAllActions
+                    }}
+                </button>
+                } @else {
+                <button class="text-action" type="button" (click)="showAllActions.set(false)">
+                    {{
+                    translation.text()
+                    .presidentReview.showFewerActions
+                    }}
+                </button>
+                }
+
+                @if (otherActionSelected()) {
+                <input class="inline-other-input" type="text" [value]="otherAction()" [placeholder]="
               translation.text()
                 .presidentReview.otherActionPlaceholder
-            "
-            (input)="onOtherActionInput($event)"
-          />
-        }
-      </section>
+            " (input)="onOtherActionInput($event)" />
+                }
+            </section>
 
-      <section class="copy-section">
-        <button
-          class="copy-section__toggle"
-          type="button"
-          [attr.aria-expanded]="showCopyTo()"
-          (click)="showCopyTo.update(value => !value)"
-        >
-          <span>
-            +
-            {{
-              translation.text().presidentReview.copyTo
-            }}
-          </span>
+            <section class="copy-section">
+                <button class="copy-section__toggle" type="button" [attr.aria-expanded]="showCopyTo()"
+                    (click)="showCopyTo.update(value => !value)">
+                    <span>
+                        +
+                        {{
+                        translation.text().presidentReview.copyTo
+                        }}
+                    </span>
 
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            [class.copy-section__chevron--open]="
+                    <svg viewBox="0 0 24 24" aria-hidden="true" [class.copy-section__chevron--open]="
               showCopyTo()
-            "
-          >
-            <path d="m8 10 4 4 4-4" />
-          </svg>
-        </button>
+            ">
+                        <path d="m8 10 4 4 4-4" />
+                    </svg>
+                </button>
 
-        @if (showCopyTo()) {
-          <div class="choice-grid choice-grid--compact">
-            @for (
-              recipient of recipients;
-              track recipient.id
-            ) {
-              <button
-                class="choice-chip"
-                type="button"
-                [class.choice-chip--selected]="
+                @if (showCopyTo()) {
+                <div class="choice-grid choice-grid--compact">
+                    @for (
+                    recipient of recipients;
+                    track recipient.id
+                    ) {
+                    <button class="choice-chip" type="button" [class.choice-chip--selected]="
                   copyRecipientSelected(recipient.id)
-                "
-                (click)="
+                " (click)="
                   toggleCopyRecipient(recipient.id)
-                "
-              >
-                {{ recipientLabel(recipient) }}
-              </button>
-            }
-          </div>
-        }
-      </section>
+                ">
+                        {{ recipientLabel(recipient) }}
+                    </button>
+                    }
+                </div>
+                }
+            </section>
 
-      <footer class="decision-panel__footer">
-        <button
-          class="handoff-button"
-          type="button"
-          [disabled]="!canHandoff()"
-          (click)="handoff()"
-        >
-          <span>
-            {{
-              translation.text()
-                .presidentReview.sendToOffice
-            }}
-          </span>
+            <footer class="decision-panel__footer">
+                <button class="handoff-button" type="button" [disabled]="!canHandoff()" (click)="handoff()">
+                    <span>
+                        {{
+                        translation.text()
+                        .presidentReview.sendToOffice
+                        }}
+                    </span>
 
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path d="M5 12h14" />
-            <path d="m14 7 5 5-5 5" />
-          </svg>
-        </button>
-      </footer>
-    </aside>
-  </div>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m14 7 5 5-5 5" />
+                    </svg>
+                </button>
+            </footer>
+        </aside>
+    </div>
 </section>
