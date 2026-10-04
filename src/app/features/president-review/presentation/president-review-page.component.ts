@@ -7,8 +7,16 @@ import {
 } from '@angular/core';
 
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { PdfWorkspaceComponent } from '../../../shared/ui/pdf-workspace/pdf-workspace.component';
 
+import { PdfWorkspaceComponent } from '../../../shared/ui/pdf-workspace/pdf-workspace.component';
+import {
+  createEmptyPresidentExplanationInkDocument,
+  PresidentExplanationInkDocument,
+} from '../domain/president-explanation.model';
+
+import {
+  PresidentExplanationInkComponent,
+} from './president-explanation-ink/president-explanation-ink.component';
 type ExplanationMode = 'pen' | 'keyboard';
 
 type RequiredActionCode =
@@ -53,6 +61,7 @@ interface RequiredActionOption {
   standalone: true,
   imports: [
     PdfWorkspaceComponent,
+    PresidentExplanationInkComponent,
   ],
   templateUrl: './president-review-page.component.html',
   styleUrl: './president-review-page.component.scss',
@@ -218,6 +227,11 @@ export class PresidentReviewPageComponent {
 
   readonly typedExplanation = signal('');
 
+  readonly explanationInkDocument =
+    signal<PresidentExplanationInkDocument>(
+      createEmptyPresidentExplanationInkDocument(),
+    );
+
   readonly selectedRecipientIds =
     signal<ReadonlySet<string>>(new Set());
 
@@ -356,6 +370,14 @@ export class PresidentReviewPageComponent {
     return this.translation.language() === 'ar'
       ? attachment.nameAr
       : attachment.nameEn;
+  }
+
+  onExplanationInkDocumentChange(
+    document: PresidentExplanationInkDocument,
+  ): void {
+    this.explanationInkDocument.set(
+      document,
+    );
   }
 
   onTypedExplanationInput(

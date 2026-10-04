@@ -198,6 +198,13 @@ const AR_TRANSLATIONS = {
     otherActionPlaceholder: 'اكتب الإجراء المطلوب...',
     copyTo: 'نسخة إلى',
     sendToOffice: 'إرسال إلى مكتب الرئيس',
+    eraser: 'ممحاة',
+    undo: 'تراجع',
+    redo: 'إعادة',
+    page: 'صفحة',
+    previousPage: 'الصفحة السابقة',
+    nextPage: 'الصفحة التالية',
+    addPage: 'صفحة إضافية',
   },
 } as const;
 
@@ -393,6 +400,13 @@ const EN_TRANSLATIONS = {
     otherActionPlaceholder: 'Enter required action...',
     copyTo: 'Copy To',
     sendToOffice: 'Send to President Office',
+    eraser: 'Eraser',
+    undo: 'Undo',
+    redo: 'Redo',
+    page: 'Page',
+    previousPage: 'Previous page',
+    nextPage: 'Next page',
+    addPage: 'Add page',
   },
 } as const satisfies TranslationShape<typeof AR_TRANSLATIONS>;
 

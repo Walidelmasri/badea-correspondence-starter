@@ -1,0 +1,239 @@
+@if (activePage(); as page) {
+  <div class="explanation-ink">
+    <div class="explanation-ink__toolbar">
+      <div class="explanation-ink__tools">
+        <button
+          type="button"
+          class="ink-tool"
+          [class.ink-tool--active]="
+            tool() === 'pen'
+          "
+          (click)="setTool('pen')"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="m4 20 4-1 10-10-3-3L5 16Z"
+            />
+            <path d="m13 8 3 3" />
+          </svg>
+
+          <span>
+            {{
+              translation.text()
+                .presidentReview.pen
+            }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="ink-tool"
+          [class.ink-tool--active]="
+            tool() === 'eraser'
+          "
+          (click)="setTool('eraser')"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="m7 20-3-3 10-10 6 6-7 7Z"
+            />
+            <path d="m11 10 6 6" />
+          </svg>
+
+          <span>
+            {{
+              translation.text()
+                .presidentReview.eraser
+            }}
+          </span>
+        </button>
+
+        <span
+          class="explanation-ink__divider"
+        ></span>
+
+        <button
+          type="button"
+          class="ink-icon-button"
+          [disabled]="!canUndo()"
+          [attr.aria-label]="
+            translation.text()
+              .presidentReview.undo
+          "
+          [title]="
+            translation.text()
+              .presidentReview.undo
+          "
+          (click)="undo()"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M9 7 4 12l5 5" />
+            <path
+              d="M5 12h8a6 6 0 0 1 6 6"
+            />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          class="ink-icon-button"
+          [disabled]="!canRedo()"
+          [attr.aria-label]="
+            translation.text()
+              .presidentReview.redo
+          "
+          [title]="
+            translation.text()
+              .presidentReview.redo
+          "
+          (click)="redo()"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m15 7 5 5-5 5" />
+            <path
+              d="M19 12h-8a6 6 0 0 0-6 6"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="explanation-ink__pages">
+        <button
+          type="button"
+          class="ink-icon-button"
+          [disabled]="!canGoPrevious()"
+          [attr.aria-label]="
+            translation.text()
+              .presidentReview.previousPage
+          "
+          (click)="previousPage()"
+        >
+          <svg
+            class="page-nav-icon page-nav-icon--previous"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m15 6-6 6 6 6" />
+          </svg>
+        </button>
+
+        <span class="explanation-ink__page-number">
+          {{
+            translation.text()
+              .presidentReview.page
+          }}
+          {{ activePageIndex() + 1 }}
+          /
+          {{ pageCount() }}
+        </span>
+
+        <button
+          type="button"
+          class="ink-icon-button"
+          [disabled]="!canGoNext()"
+          [attr.aria-label]="
+            translation.text()
+              .presidentReview.nextPage
+          "
+          (click)="nextPage()"
+        >
+          <svg
+            class="page-nav-icon page-nav-icon--next"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          class="add-page-button"
+          (click)="addPage()"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+
+          <span>
+            {{
+              translation.text()
+                .presidentReview.addPage
+            }}
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="explanation-ink__surface"
+      [class.explanation-ink__surface--eraser]="
+        tool() === 'eraser'
+      "
+    >
+      <app-ink-surface
+        [strokes]="page.strokes"
+        [tool]="tool()"
+        [surfaceKey]="page.id"
+        [ariaLabel]="
+          translation.text()
+            .presidentReview.writeWithPencil
+        "
+        (strokesChange)="
+          onStrokesChange($event)
+        "
+      />
+
+      @if (
+        page.strokes.length === 0 &&
+        tool() === 'pen'
+      ) {
+        <div class="explanation-ink__hint">
+          <span class="explanation-ink__hint-icon">
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                d="m4 20 4-1 10-10-3-3L5 16Z"
+              />
+              <path d="m13 8 3 3" />
+            </svg>
+          </span>
+
+          <div>
+            <strong>
+              {{
+                translation.text()
+                  .presidentReview.writeWithPencil
+              }}
+            </strong>
+
+            <span>
+              {{
+                translation.text()
+                  .presidentReview.writeWithPencilHint
+              }}
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

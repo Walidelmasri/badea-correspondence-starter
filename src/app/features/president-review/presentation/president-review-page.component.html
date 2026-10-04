@@ -132,37 +132,14 @@
                 </header>
 
                 @if (explanationMode() === 'pen') {
-                <div class="handwriting-surface">
-                    <div class="handwriting-surface__hint">
-                        <span class="handwriting-surface__icon">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m4 20 4-1 10-10-3-3L5 16Z" />
-                                <path d="m13 8 3 3" />
-                            </svg>
-                        </span>
-
-                        <div>
-                            <strong>
-                                {{
-                                translation.text()
-                                .presidentReview.writeWithPencil
-                                }}
-                            </strong>
-
-                            <span>
-                                {{
-                                translation.text()
-                                .presidentReview.writeWithPencilHint
-                                }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                <app-president-explanation-ink [document]="explanationInkDocument()" (documentChange)="
+      onExplanationInkDocumentChange($event)
+    " />
                 } @else {
                 <textarea class="typed-explanation" rows="5" [value]="typedExplanation()" [placeholder]="
-              translation.text()
-                .presidentReview.explanationPlaceholder
-            " (input)="onTypedExplanationInput($event)"></textarea>
+      translation.text()
+        .presidentReview.explanationPlaceholder
+    " (input)="onTypedExplanationInput($event)"></textarea>
                 }
             </section>
         </main>

@@ -1,0 +1,8 @@
+<canvas
+  #canvas
+  class="ink-surface__canvas"
+  [class.ink-surface__canvas--eraser]="
+    tool() === 'eraser'
+  "
+  [attr.aria-label]="ariaLabel()"
+></canvas>

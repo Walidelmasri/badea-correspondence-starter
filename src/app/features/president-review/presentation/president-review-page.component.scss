@@ -379,12 +379,11 @@
 }
 
 .handwriting-surface {
+  position: relative;
+
   min-height: 10rem;
 
-  display: grid;
-  place-items: center;
-
-  padding: 1rem;
+  overflow: hidden;
 
   border: 1px dashed var(--color-border-strong);
   border-radius: 0.9rem;
@@ -400,14 +399,33 @@
     #fdfdfb;
 }
 
+.handwriting-surface__canvas {
+  position: absolute;
+
+  inset: 0;
+
+  z-index: 1;
+}
+
 .handwriting-surface__hint {
+  position: absolute;
+
+  inset: 0;
+
+  z-index: 2;
+
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
+
+  padding: 1rem;
 
   color: var(--color-text-secondary);
 
   text-align: center;
+
+  pointer-events: none;
 }
 
 .handwriting-surface__hint > div {

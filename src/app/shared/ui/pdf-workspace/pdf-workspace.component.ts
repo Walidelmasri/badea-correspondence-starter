@@ -748,7 +748,7 @@ export class PdfWorkspaceComponent implements OnDestroy {
      * At this stage this exports the PDF.js document and any
      * PDF.js Text annotations only.
      *
-     * Our custom ink/highlighter data is intentionally NOT
+     * This custom ink/highlighter data is intentionally NOT
      * flattened into the PDF during this input-reliability spike.
      */
     return this.pdfViewerService
