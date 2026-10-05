@@ -120,3 +120,25 @@ p {
   background: var(--color-primary-100);
   color: var(--color-primary-950);
 }
+/*
+ * ngx-extended-pdf-viewer / PDF.js print boundary.
+ *
+ * PDF.js prepares dedicated high-resolution
+ * print pages inside #printContainer.
+ *
+ * These rules intentionally live globally
+ * because #printContainer is created by the
+ * third-party PDF viewer outside Angular
+ * component style encapsulation.
+ */
+@media print {
+  #printContainer > div {
+    display: inline !important;
+
+    overflow-y: visible !important;
+  }
+
+  #printContainer > .printedPage {
+    width: 99% !important;
+  }
+}

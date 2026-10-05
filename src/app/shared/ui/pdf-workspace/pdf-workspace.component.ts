@@ -10,19 +10,15 @@ import {
 } from '@angular/core';
 
 import {
-  IEventBus,
   NgxExtendedPdfViewerModule,
   NgxExtendedPdfViewerService,
-  PdfSidebarView,
-  PDFNotificationService,
   PdfDocumentInfo,
   PdfDocumentPropertiesExtractor,
+  PdfSidebarView,
+  PDFNotificationService,
 } from 'ngx-extended-pdf-viewer';
 
 import { TranslationService } from '../../../core/i18n/translation.service';
-
-import { PdfInkTool } from '../../annotation/domain/ink.model';
-import { PdfInkOverlayDirective } from '../../annotation/pdf/pdf-ink-overlay.directive';
 
 import {
   PdfEditorTool,
@@ -35,182 +31,179 @@ import {
   PdfPropertiesDialogComponent,
 } from './pdf-properties-dialog/pdf-properties-dialog.component';
 
-type PdfZoomSetting = 'page-width' | number | undefined;
+import { PdfInkTool } from '../../annotation/domain/ink.model';
 
-type HistoryOwner = 'pdf' | 'ink';
+import { PdfInkOverlayDirective } from '../../annotation/pdf/pdf-ink-overlay.directive';
 
+type PdfZoomSetting =
+  | 'page-width'
+  | number
+  | undefined;
 const PDF_EDITOR_MODE_NONE = 0;
-const PDF_EDITOR_MODE_TEXT = 3;
+interface FindMatchesCount {
+  readonly current: number;
+  readonly total: number;
+}
 
 @Component({
   selector: 'app-pdf-workspace',
   standalone: true,
+
   imports: [
     NgxExtendedPdfViewerModule,
     PdfToolbarComponent,
     PdfPropertiesDialogComponent,
     PdfInkOverlayDirective,
   ],
-  templateUrl: './pdf-workspace.component.html',
-  styleUrl: './pdf-workspace.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-})
-export class PdfWorkspaceComponent implements OnDestroy {
-  // Dependencies
 
+  templateUrl:
+    './pdf-workspace.component.html',
+
+  styleUrl:
+    './pdf-workspace.component.scss',
+
+  changeDetection:
+    ChangeDetectionStrategy.OnPush,
+})
+export class PdfWorkspaceComponent
+  implements OnDestroy {
   private readonly pdfViewerService =
-    inject(NgxExtendedPdfViewerService);
+    inject(
+      NgxExtendedPdfViewerService,
+    );
 
   private readonly pdfNotificationService =
-    inject(PDFNotificationService);
+    inject(
+      PDFNotificationService,
+    );
 
   private readonly propertiesExtractor =
     new PdfDocumentPropertiesExtractor();
 
-  readonly translation = inject(TranslationService);
+  readonly translation =
+    inject(TranslationService);
 
-  // Inputs
+  readonly src =
+    input.required<string>();
 
-  readonly src = input.required<string>();
-
-  readonly filename = input.required<string>();
+  readonly filename =
+    input.required<string>();
 
   /**
-   * Logical document/attachment identity.
+   * Stable logical identity for annotation state.
    *
-   * Do not use src as the identity because separate attachments
-   * can legitimately point at the same physical PDF during testing.
+   * Do not use the URL because multiple mock
+   * attachments currently share one PDF source.
    */
-  readonly documentKey = input.required<string>();
+  readonly documentKey =
+    input.required<string>();
 
-  // Document state
+  readonly page =
+    signal(1);
 
-  readonly page = signal(1);
-
-  readonly pageCount = signal(0);
+  readonly pageCount =
+    signal(0);
 
   readonly zoom =
-    signal<PdfZoomSetting>('page-width');
+    signal<PdfZoomSetting>(
+      'page-width',
+    );
 
   private readonly currentZoomFactor =
     signal(1);
 
-  // Editor state
+  private readonly inkOverlay =
+    viewChild(
+      PdfInkOverlayDirective,
+    );
 
   readonly activeTool =
-    signal<PdfEditorTool | null>(null);
-
-  private readonly editorLayerReady =
-    signal(false);
-
-  private pendingTool: PdfEditorTool | null = null;
-
-  /**
-   * Custom ink overlay rendered above the PDF.js page layers.
-   */
-  private readonly inkOverlay =
-    viewChild(PdfInkOverlayDirective);
-
-  /**
-   * PDF.js owns history for the Text editor.
-   */
-  private readonly pdfCanUndo = signal(false);
-
-  private readonly pdfCanRedo = signal(false);
-
-  /**
-   * Tracks which annotation engine most recently changed state.
-   *
-   * This allows the shared toolbar to expose one Undo/Redo pair
-   * while Text remains PDF.js-based and Pen/Highlighter use our
-   * custom ink engine.
-   */
-  private readonly lastHistoryOwner =
-    signal<HistoryOwner>('pdf');
+    signal<PdfEditorTool | null>(
+      null,
+    );
 
   readonly inkTool =
-    computed<PdfInkTool | null>(() => {
-      switch (this.activeTool()) {
-        case 'draw':
-          return 'pen';
+    computed<PdfInkTool | null>(
+      () => {
+        switch (
+        this.activeTool()
+        ) {
+          case 'draw':
+            return 'pen';
 
-        case 'highlight':
-          return 'highlighter';
+          case 'highlight':
+            return 'highlighter';
 
-        default:
-          return null;
-      }
-    });
-
-  readonly canUndo = computed(() => {
-    return (
-      this.pdfCanUndo() ||
-      (this.inkOverlay()?.canUndo() ?? false)
+          default:
+            return null;
+        }
+      },
     );
-  });
 
-  readonly canRedo = computed(() => {
-    return (
-      this.pdfCanRedo() ||
-      (this.inkOverlay()?.canRedo() ?? false)
+  readonly canUndo =
+    computed(
+      () =>
+        this.inkOverlay()
+          ?.canUndo() ??
+        false,
     );
-  });
 
-  // PDF.js annotation history
-
-  private historyEventBus: IEventBus | null = null;
-
-  private readonly onEditingStatesChanged = (
-    event: {
-      details?: {
-        hasSomethingToUndo?: boolean;
-        hasSomethingToRedo?: boolean;
-      };
-    },
-  ): void => {
-    const details = event?.details;
-
-    if (
-      typeof details?.hasSomethingToUndo ===
-      'boolean'
-    ) {
-      this.pdfCanUndo.set(
-        details.hasSomethingToUndo,
-      );
-    }
-
-    if (
-      typeof details?.hasSomethingToRedo ===
-      'boolean'
-    ) {
-      this.pdfCanRedo.set(
-        details.hasSomethingToRedo,
-      );
-    }
-  };
-
-  // Sidebar
+  readonly canRedo =
+    computed(
+      () =>
+        this.inkOverlay()
+          ?.canRedo() ??
+        false,
+    );
 
   readonly sidebarVisible =
-    signal<boolean | undefined>(false);
+    signal<
+      boolean | undefined
+    >(false);
 
-  readonly sidebarView = PdfSidebarView.THUMBS;
-
-  // Search and rotation
-
-  readonly findbarVisible = signal(false);
+  readonly sidebarView =
+    PdfSidebarView.THUMBS;
 
   readonly rotation =
-    signal<0 | 90 | 180 | 270>(0);
+    signal<
+      0 | 90 | 180 | 270
+    >(0);
 
-  // Document properties
+  /*
+   * Search UI is ours.
+   *
+   * PDF.js remains responsible only for
+   * finding, highlighting and navigating
+   * actual PDF text.
+   */
+  readonly searchVisible =
+    signal(false);
+
+  readonly searchQuery =
+    signal('');
+
+  readonly searchCurrent =
+    signal(0);
+
+  readonly searchTotal =
+    signal(0);
+
+  private searchTimer:
+    ReturnType<
+      typeof setTimeout
+    > | null = null;
 
   readonly documentProperties =
-    signal<PdfDocumentProperties | null>(null);
+    signal<
+      PdfDocumentProperties | null
+    >(null);
 
-  readonly propertiesVisible = signal(false);
+  readonly propertiesVisible =
+    signal(false);
 
-  // Sidebar actions
+  ngOnDestroy(): void {
+    this.clearSearchTimer();
+  }
 
   toggleSidebar(): void {
     this.sidebarVisible.update(
@@ -218,135 +211,27 @@ export class PdfWorkspaceComponent implements OnDestroy {
     );
   }
 
-  // Undo / redo
-
   undo(): void {
-    if (!this.canUndo()) {
-      return;
-    }
-
-    const inkOverlay = this.inkOverlay();
-
-    const preferInk =
-      this.lastHistoryOwner() === 'ink';
-
-    if (
-      inkOverlay?.canUndo() &&
-      (preferInk || !this.pdfCanUndo())
-    ) {
-      inkOverlay.undo();
-
-      this.lastHistoryOwner.set('ink');
-
-      return;
-    }
-
-    if (!this.pdfCanUndo()) {
-      return;
-    }
-
-    this.historyEventBus?.dispatch(
-      'editingaction',
-      {
-        source: this,
-        name: 'undo',
-      },
-    );
-
-    this.lastHistoryOwner.set('pdf');
+    this.inkOverlay()?.undo();
   }
 
   redo(): void {
-    if (!this.canRedo()) {
-      return;
-    }
-
-    const inkOverlay = this.inkOverlay();
-
-    const preferInk =
-      this.lastHistoryOwner() === 'ink';
-
-    if (
-      inkOverlay?.canRedo() &&
-      (preferInk || !this.pdfCanRedo())
-    ) {
-      inkOverlay.redo();
-
-      this.lastHistoryOwner.set('ink');
-
-      return;
-    }
-
-    if (!this.pdfCanRedo()) {
-      return;
-    }
-
-    this.historyEventBus?.dispatch(
-      'editingaction',
-      {
-        source: this,
-        name: 'redo',
-      },
-    );
-
-    this.lastHistoryOwner.set('pdf');
+    this.inkOverlay()?.redo();
   }
-
-  /**
-   * Called whenever our custom ink engine commits a completed
-   * Pen or Highlighter stroke.
-   */
-  onInkStrokeCommitted(): void {
-    this.lastHistoryOwner.set('ink');
-  }
-
-  private connectAnnotationHistory(): void {
-    this.disconnectAnnotationHistory();
-
-    const application =
-      this.pdfNotificationService
-        .onPDFJSInitSignal();
-
-    if (!application?.pdfDocument) {
-      return;
-    }
-
-    this.historyEventBus =
-      application.eventBus;
-
-    this.historyEventBus.on(
-      'editingstateschanged',
-      this.onEditingStatesChanged,
-    );
-  }
-
-  private disconnectAnnotationHistory(): void {
-    this.historyEventBus?.off(
-      'editingstateschanged',
-      this.onEditingStatesChanged,
-    );
-
-    this.historyEventBus = null;
-
-    this.pdfCanUndo.set(false);
-    this.pdfCanRedo.set(false);
-  }
-
-  ngOnDestroy(): void {
-    this.disconnectAnnotationHistory();
-  }
-
-  // Page navigation
 
   previousPage(): void {
     this.page.update(
       (currentPage) =>
-        Math.max(1, currentPage - 1),
+        Math.max(
+          1,
+          currentPage - 1,
+        ),
     );
   }
 
   nextPage(): void {
-    const totalPages = this.pageCount();
+    const totalPages =
+      this.pageCount();
 
     if (totalPages < 1) {
       return;
@@ -362,20 +247,23 @@ export class PdfWorkspaceComponent implements OnDestroy {
   }
 
   onPageChange(
-    pageNumber: number | undefined,
+    pageNumber:
+      number | undefined,
   ): void {
     if (
       pageNumber === undefined ||
-      !Number.isInteger(pageNumber) ||
+      !Number.isInteger(
+        pageNumber,
+      ) ||
       pageNumber < 1
     ) {
       return;
     }
 
-    this.page.set(pageNumber);
+    this.page.set(
+      pageNumber,
+    );
   }
-
-  // Zoom
 
   zoomOut(): void {
     this.adjustZoom(-0.1);
@@ -388,230 +276,458 @@ export class PdfWorkspaceComponent implements OnDestroy {
   fitPageWidth(): void {
     this.zoom.set(undefined);
 
-    requestAnimationFrame(() => {
-      this.zoom.set('page-width');
-    });
+    requestAnimationFrame(
+      () => {
+        this.zoom.set(
+          'page-width',
+        );
+      },
+    );
   }
 
   onCurrentZoomFactorChange(
     zoomFactor: number,
   ): void {
     if (
-      !Number.isFinite(zoomFactor) ||
+      !Number.isFinite(
+        zoomFactor,
+      ) ||
       zoomFactor <= 0
     ) {
       return;
     }
 
-    this.currentZoomFactor.set(zoomFactor);
+    this.currentZoomFactor.set(
+      zoomFactor,
+    );
   }
 
-  private adjustZoom(delta: number): void {
-    const currentZoom = this.zoom();
+  private adjustZoom(
+    delta: number,
+  ): void {
+    const currentZoom =
+      this.zoom();
 
     const currentFactor =
-      typeof currentZoom === 'number'
+      typeof currentZoom ===
+        'number'
         ? currentZoom / 100
         : this.currentZoomFactor();
 
-    const nextFactor = Math.min(
-      4,
-      Math.max(
-        0.25,
-        currentFactor + delta,
-      ),
-    );
+    const nextFactor =
+      Math.min(
+        4,
+        Math.max(
+          0.25,
+          currentFactor +
+          delta,
+        ),
+      );
 
     this.zoom.set(
-      Math.round(nextFactor * 100),
+      Math.round(
+        nextFactor * 100,
+      ),
     );
   }
 
-  // Annotation tools
-
-  selectTool(tool: PdfEditorTool): void {
-    /**
-     * Clicking the active tool again exits annotation mode.
-     *
-     * This is particularly important on iPad:
-     *
-     * Draw ON  -> canvas receives touch/Pencil input.
-     * Draw OFF -> PDF receives normal scroll/navigation input.
-     */
-    if (this.activeTool() === tool) {
-      this.deactivateEditor();
-
-      return;
-    }
-
-    /**
-     * Pen and Highlighter no longer use PDF.js's annotation
-     * editor. They use our custom overlay.
-     */
-    if (
-      tool === 'draw' ||
-      tool === 'highlight'
-    ) {
-      this.activateInkEditor(tool);
-
-      return;
-    }
-
-    /**
-     * Text remains implemented by PDF.js because it already
-     * behaved acceptably during the physical iPad test.
-     */
-    this.activateTextEditorWhenReady();
-  }
-
-  onAnnotationEditorLayerRendered(): void {
-    if (this.editorLayerReady()) {
-      return;
-    }
-
-    this.editorLayerReady.set(true);
-
-    /**
-     * Only Text requires PDF.js's annotation-editor layer.
-     *
-     * Pen and Highlighter are completely independent of it.
-     */
-    if (this.pendingTool !== 'text') {
-      return;
-    }
-
-    this.pendingTool = null;
-
-    queueMicrotask(() => {
-      this.activateTextEditor();
-    });
-  }
-
-  private activateInkEditor(
-    tool: Extract<
-      PdfEditorTool,
-      'draw' | 'highlight'
-    >,
+  selectTool(
+    tool: PdfEditorTool,
   ): void {
-    this.pendingTool = null;
+    if (
+      this.activeTool() === tool
+    ) {
+      this.deactivateInkTool();
 
-    /**
-     * Ensure PDF.js is not running its own annotation editor
-     * while our canvas owns the interaction.
+      return;
+    }
+
+    /*
+     * Draw and Highlight use our custom canvas layer.
+     * Keep PDF.js annotation editing disabled so it
+     * cannot compete for desktop mouse interaction.
      */
     this.pdfViewerService
       .switchAnnotationEdtorMode(
         PDF_EDITOR_MODE_NONE,
       );
-
-    this.lastHistoryOwner.set('ink');
 
     this.activeTool.set(tool);
   }
 
-  private activateTextEditorWhenReady(): void {
-    /**
-     * Disable any existing PDF.js editor first so transitions
-     * between our ink layer and PDF.js Text remain deterministic.
-     */
+  private deactivateInkTool(): void {
+    this.activeTool.set(null);
+
     this.pdfViewerService
       .switchAnnotationEdtorMode(
         PDF_EDITOR_MODE_NONE,
       );
+  }
 
-    /**
-     * Setting activeTool to null immediately disables our custom
-     * canvas interaction while Text is being activated.
+  onPdfLoaded(): void {
+    this.activeTool.set(
+      null,
+    );
+
+    this.documentProperties.set(
+      null,
+    );
+
+    this.propertiesVisible.set(
+      false,
+    );
+
+    this.resetSearchState();
+  }
+
+  /* Search */
+
+  openSearch(): void {
+    this.searchVisible.set(
+      true,
+    );
+  }
+
+  closeSearch(): void {
+    this.clearSearchTimer();
+
+    this.searchVisible.set(
+      false,
+    );
+
+    this.searchQuery.set('');
+
+    this.searchCurrent.set(0);
+
+    this.searchTotal.set(0);
+
+    /*
+     * Empty search clears the PDF.js
+     * search highlights.
+     *
+     * Guard it because the viewer may be
+     * in the middle of changing documents.
      */
-    this.activeTool.set(null);
+    if (this.pdfReady()) {
+      this.pdfViewerService.find(
+        '',
+      );
+    }
+  }
 
-    this.lastHistoryOwner.set('pdf');
+  onSearchQueryChange(
+    query: string,
+  ): void {
+    this.searchQuery.set(
+      query,
+    );
 
-    if (!this.editorLayerReady()) {
-      this.pendingTool = 'text';
+    this.searchCurrent.set(0);
+
+    this.searchTotal.set(0);
+
+    this.clearSearchTimer();
+
+    const normalized =
+      query.trim();
+
+    if (!normalized) {
+      if (this.pdfReady()) {
+        this.pdfViewerService.find(
+          '',
+        );
+      }
 
       return;
     }
 
-    this.pendingTool = null;
+    /*
+     * PDF text search is asynchronous.
+     *
+     * Don't start a full-document search
+     * for every single keyboard event.
+     */
+    this.searchTimer =
+      setTimeout(
+        () => {
+          this.searchTimer =
+            null;
 
-    this.activateTextEditor();
+          this.runSearch(
+            normalized,
+          );
+        },
+        180,
+      );
   }
 
-  private activateTextEditor(): void {
+  searchNext(): void {
+    if (
+      !this.searchQuery()
+        .trim()
+    ) {
+      return;
+    }
+
+    /*
+     * If the user hits Enter before the
+     * debounce expires, execute the first
+     * search instead of accidentally
+     * skipping directly to result #2.
+     */
+    if (
+      this.flushPendingSearch()
+    ) {
+      return;
+    }
+
+    if (!this.pdfReady()) {
+      return;
+    }
+
+    this.pdfViewerService.findNext();
+  }
+
+  searchPrevious(): void {
+    if (
+      !this.searchQuery()
+        .trim()
+    ) {
+      return;
+    }
+
+    if (
+      this.flushPendingSearch()
+    ) {
+      return;
+    }
+
+    if (!this.pdfReady()) {
+      return;
+    }
+
     this.pdfViewerService
-      .switchAnnotationEdtorMode(
-        PDF_EDITOR_MODE_TEXT,
+      .findPrevious();
+  }
+
+  onFindMatchesCount(
+    event: unknown,
+  ): void {
+    const count =
+      this.extractFindMatchesCount(
+        event,
       );
 
-    this.activeTool.set('text');
+    if (!count) {
+      return;
+    }
+
+    this.searchCurrent.set(
+      count.current,
+    );
+
+    this.searchTotal.set(
+      count.total,
+    );
   }
 
-  private deactivateEditor(): void {
-    this.pdfViewerService
-      .switchAnnotationEdtorMode(
-        PDF_EDITOR_MODE_NONE,
+  private runSearch(
+    query: string,
+  ): void {
+    if (!this.pdfReady()) {
+      return;
+    }
+
+    this.pdfViewerService.find(
+      query,
+    );
+  }
+
+  private flushPendingSearch():
+    boolean {
+    if (
+      this.searchTimer ===
+      null
+    ) {
+      return false;
+    }
+
+    this.clearSearchTimer();
+
+    const query =
+      this.searchQuery()
+        .trim();
+
+    if (
+      query &&
+      this.pdfReady()
+    ) {
+      this.pdfViewerService.find(
+        query,
       );
+    }
 
-    this.activeTool.set(null);
-
-    this.pendingTool = null;
+    return true;
   }
 
-  // Document lifecycle
+  private clearSearchTimer():
+    void {
+    if (
+      this.searchTimer ===
+      null
+    ) {
+      return;
+    }
 
-  onPdfLoaded(): void {
-    this.editorLayerReady.set(false);
+    clearTimeout(
+      this.searchTimer,
+    );
 
-    this.pendingTool = null;
-
-    this.activeTool.set(null);
-
-    this.lastHistoryOwner.set('pdf');
-
-    this.documentProperties.set(null);
-
-    this.propertiesVisible.set(false);
-
-    this.connectAnnotationHistory();
+    this.searchTimer = null;
   }
 
-  // More menu
+  private resetSearchState():
+    void {
+    this.clearSearchTimer();
+
+    this.searchVisible.set(
+      false,
+    );
+
+    this.searchQuery.set('');
+
+    this.searchCurrent.set(0);
+
+    this.searchTotal.set(0);
+  }
+
+  private extractFindMatchesCount(
+    event: unknown,
+  ): FindMatchesCount | null {
+    if (
+      !event ||
+      typeof event !== 'object'
+    ) {
+      return null;
+    }
+
+    const wrapper =
+      event as Record<
+        string,
+        unknown
+      >;
+
+    const nested =
+      wrapper['matchesCount'];
+
+    const source =
+      nested &&
+        typeof nested ===
+        'object'
+        ? nested as Record<
+          string,
+          unknown
+        >
+        : wrapper;
+
+    const current =
+      source['current'];
+
+    const total =
+      source['total'];
+
+    if (
+      typeof current !==
+      'number' ||
+      typeof total !==
+      'number'
+    ) {
+      return null;
+    }
+
+    return {
+      current:
+        Math.max(
+          0,
+          Math.trunc(
+            current,
+          ),
+        ),
+
+      total:
+        Math.max(
+          0,
+          Math.trunc(
+            total,
+          ),
+        ),
+    };
+  }
+
+  private pdfReady():
+    boolean {
+    return Boolean(
+      this.pdfNotificationService
+        .onPDFJSInitSignal()
+        ?.pdfDocument,
+    );
+  }
+
+  /* More menu */
 
   handleMoreAction(
     action: PdfMoreAction,
   ): void {
     switch (action) {
-      case 'search':
-        this.findbarVisible.set(true);
-        break;
-
       case 'rotate-clockwise':
-        this.rotateDocument(90);
+        this.rotateDocument(
+          90,
+        );
         break;
 
       case 'rotate-counterclockwise':
-        this.rotateDocument(-90);
+        this.rotateDocument(
+          -90,
+        );
         break;
 
       case 'properties':
-        void this.openDocumentProperties();
+        void this
+          .openDocumentProperties();
+
         break;
 
       case 'print':
-        this.pdfViewerService.print();
+        this.printDocument();
         break;
     }
+  }
+
+  private printDocument():
+    void {
+    if (!this.pdfReady()) {
+      return;
+    }
+
+    /*
+     * Always use the PDF viewer print
+     * service.
+     *
+     * Never call window.print() here:
+     * that would print the Angular page.
+     */
+    this.pdfViewerService.print();
   }
 
   private rotateDocument(
     degrees: 90 | -90,
   ): void {
     const nextRotation =
-      (this.rotation() +
+      (
+        this.rotation() +
         degrees +
-        360) %
-      360;
+        360
+      ) % 360;
 
     if (
       nextRotation === 0 ||
@@ -619,13 +735,16 @@ export class PdfWorkspaceComponent implements OnDestroy {
       nextRotation === 180 ||
       nextRotation === 270
     ) {
-      this.rotation.set(nextRotation);
+      this.rotation.set(
+        nextRotation,
+      );
     }
   }
 
-  // Custom document properties
+  /* Properties */
 
-  async openDocumentProperties(): Promise<void> {
+  async openDocumentProperties():
+    Promise<void> {
     const application =
       this.pdfNotificationService
         .onPDFJSInitSignal();
@@ -633,14 +752,22 @@ export class PdfWorkspaceComponent implements OnDestroy {
     const document =
       application?.pdfDocument;
 
-    if (!application || !document) {
+    if (
+      !application ||
+      !document
+    ) {
       return;
     }
 
-    const basicProperties: PdfDocumentProperties = {
-      filename: this.filename(),
+    const basicProperties:
+      PdfDocumentProperties = {
+      filename:
+        this.filename(),
+
       sizeBytes: null,
-      pageCount: document.numPages,
+
+      pageCount:
+        document.numPages,
     };
 
     this.documentProperties.set(
@@ -651,31 +778,26 @@ export class PdfWorkspaceComponent implements OnDestroy {
       const [
         rawMetadata,
         downloadInfo,
-      ] = await Promise.all([
-        this.propertiesExtractor
-          .getDocumentProperties(
-            application,
-          ),
+      ] =
+        await Promise.all([
+          this.propertiesExtractor
+            .getDocumentProperties(
+              application,
+            ),
 
-        document.getDownloadInfo(),
-      ]);
+          document
+            .getDownloadInfo(),
+        ]);
 
-      /*
-       * The library's extractor returns Promise<any>.
-       * Its published PdfDocumentInfo interface describes
-       * the supported metadata fields.
-       *
-       * Keep that conversion at this integration boundary.
-       */
       const metadata =
-        rawMetadata as PdfDocumentInfo;
-
-      // The user may have opened another document meanwhile.
+        rawMetadata as
+        PdfDocumentInfo;
 
       if (
         this.pdfNotificationService
           .onPDFJSInitSignal()
-          ?.pdfDocument !== document
+          ?.pdfDocument !==
+        document
       ) {
         return;
       }
@@ -683,40 +805,43 @@ export class PdfWorkspaceComponent implements OnDestroy {
       this.documentProperties.set({
         ...basicProperties,
 
-        sizeBytes: downloadInfo.length,
+        sizeBytes:
+          downloadInfo.length,
 
         title:
-          metadata.title ?? null,
+          metadata.title ??
+          null,
 
         author:
-          metadata.author ?? null,
+          metadata.author ??
+          null,
 
         createdAt:
-          metadata.creationDate instanceof Date &&
-          Number.isFinite(
-            metadata.creationDate.getTime(),
-          )
+          metadata.creationDate
+            instanceof Date &&
+            Number.isFinite(
+              metadata.creationDate
+                .getTime(),
+            )
             ? metadata.creationDate
             : null,
 
         modifiedAt:
-          metadata.modificationDate instanceof Date &&
-          Number.isFinite(
-            metadata.modificationDate.getTime(),
-          )
+          metadata.modificationDate
+            instanceof Date &&
+            Number.isFinite(
+              metadata.modificationDate
+                .getTime(),
+            )
             ? metadata.modificationDate
             : null,
       });
     } catch {
-      /*
-       * Optional metadata must not prevent the user
-       * from viewing basic document information.
-       */
-
       if (
         this.pdfNotificationService
           .onPDFJSInitSignal()
-          ?.pdfDocument !== document
+          ?.pdfDocument !==
+        document
       ) {
         return;
       }
@@ -726,40 +851,47 @@ export class PdfWorkspaceComponent implements OnDestroy {
       );
     }
 
-    this.propertiesVisible.set(true);
+    this.propertiesVisible.set(
+      true,
+    );
   }
 
-  closeDocumentProperties(): void {
-    this.propertiesVisible.set(false);
+  closeDocumentProperties():
+    void {
+    this.propertiesVisible.set(
+      false,
+    );
   }
 
-  // Document export
+  /* Export */
 
-  async exportDocument(): Promise<
-    Blob | undefined
-  > {
-    this.deactivateEditor();
-
-    await this.waitForNextFrame();
-
-    /**
-     * Important:
-     *
-     * At this stage this exports the PDF.js document and any
-     * PDF.js Text annotations only.
-     *
-     * This custom ink/highlighter data is intentionally NOT
-     * flattened into the PDF during this input-reliability spike.
+  async exportDocument():
+    Promise<
+      Blob | undefined
+    > {
+    /*
+     * Disable the custom drawing surface
+     * before export.
      */
+    this.deactivateInkTool();
+
+    await this
+      .waitForNextFrame();
+
     return this.pdfViewerService
       .getCurrentDocumentAsBlob();
   }
 
-  private waitForNextFrame(): Promise<void> {
-    return new Promise((resolve) => {
-      requestAnimationFrame(() => {
-        resolve();
-      });
-    });
+  private waitForNextFrame():
+    Promise<void> {
+    return new Promise(
+      (resolve) => {
+        requestAnimationFrame(
+          () => {
+            resolve();
+          },
+        );
+      },
+    );
   }
 }
