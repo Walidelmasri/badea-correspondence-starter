@@ -18,6 +18,8 @@ const AR_TRANSLATIONS = {
     sent: 'المرسل',
     drafts: 'المسودات',
     completed: 'المكتمل',
+    presidentReview: 'مراجعة الرئيس',
+
   },
 
   inbox: {
@@ -221,6 +223,7 @@ const EN_TRANSLATIONS = {
     sent: 'Sent',
     drafts: 'Drafts',
     completed: 'Completed',
+    presidentReview: 'President Review',
   },
 
   inbox: {

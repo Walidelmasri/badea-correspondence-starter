@@ -2,7 +2,7 @@ export type NavigationKey =
   | 'inbox'
   | 'sent'
   | 'drafts'
-  // | 'completed';
+  | 'presidentReview';
 
 export interface NavigationItem {
   readonly key: NavigationKey;

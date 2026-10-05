@@ -13,6 +13,10 @@ export const MAIN_NAVIGATION: readonly NavigationItem[] = [
     key: 'drafts',
     route: '/drafts',
   },
+  {
+    key:'presidentReview',
+    route:'/president-review',
+  },
   // {
   //   key: 'completed',
   //   route: '/completed',
