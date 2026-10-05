@@ -1,0 +1,67 @@
+<section class="correspondence-summary">
+  <header class="correspondence-summary__header">
+    <span class="correspondence-summary__eyebrow">
+      {{ labels().correspondence }}
+    </span>
+
+    <h2>
+      {{ correspondence().subject }}
+    </h2>
+
+    @if (
+      correspondence().senderName ||
+      correspondence().senderDepartment
+    ) {
+      <div class="correspondence-summary__sender">
+        <span>
+          {{ labels().from }}
+        </span>
+
+        <strong>
+          @if (correspondence().senderName) {
+            {{ correspondence().senderName }}
+          }
+
+          @if (
+            correspondence().senderName &&
+            correspondence().senderDepartment
+          ) {
+            <span aria-hidden="true"> · </span>
+          }
+
+          @if (correspondence().senderDepartment) {
+            {{ correspondence().senderDepartment }}
+          }
+        </strong>
+      </div>
+    }
+  </header>
+
+  @if (correspondence().message) {
+    <div class="correspondence-summary__message">
+      {{ correspondence().message }}
+    </div>
+  }
+
+  <footer class="correspondence-summary__meta">
+    <div>
+      <span>
+        {{ labels().reference }}
+      </span>
+
+      <strong dir="ltr">
+        {{ correspondence().reference }}
+      </strong>
+    </div>
+
+    <div>
+      <span>
+        {{ labels().date }}
+      </span>
+
+      <strong dir="ltr">
+        {{ correspondence().dateLabel }}
+      </strong>
+    </div>
+  </footer>
+</section>

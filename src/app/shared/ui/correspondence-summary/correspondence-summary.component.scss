@@ -1,0 +1,143 @@
+:host {
+  display: block;
+}
+
+.correspondence-summary {
+  overflow: hidden;
+
+  margin-block-end: 1rem;
+
+  border:
+    1px solid var(--color-border);
+
+  border-radius: 1rem;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgb(31 112 93 / 4%),
+      transparent 22rem
+    ),
+    var(--color-surface);
+}
+
+.correspondence-summary__header {
+  padding:
+    1rem 1.05rem 0.8rem;
+}
+
+.correspondence-summary__eyebrow {
+  display: block;
+
+  margin-block-end: 0.3rem;
+
+  color:
+    var(--color-primary-700);
+
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.correspondence-summary h2 {
+  margin: 0;
+
+  color:
+    var(--color-text-primary);
+
+  font-size: 1rem;
+  font-weight: 800;
+
+  line-height: 1.55;
+}
+
+.correspondence-summary__sender {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+
+  gap: 0.35rem;
+
+  margin-block-start: 0.45rem;
+
+  color:
+    var(--color-text-tertiary);
+
+  font-size: 0.72rem;
+}
+
+.correspondence-summary__sender strong {
+  color:
+    var(--color-text-secondary);
+
+  font-weight: 700;
+}
+
+.correspondence-summary__message {
+  margin-inline:
+    1.05rem;
+
+  padding:
+    0.85rem 0;
+
+  border-block-start:
+    1px solid var(--color-border);
+
+  color:
+    var(--color-text-secondary);
+
+  font-size: 0.82rem;
+
+  line-height: 1.9;
+
+  white-space: pre-wrap;
+
+  overflow-wrap: anywhere;
+}
+
+.correspondence-summary__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap:
+    0.75rem 2rem;
+
+  padding:
+    0.75rem 1.05rem;
+
+  border-block-start:
+    1px solid var(--color-border);
+
+  background:
+    rgb(31 112 93 / 2.5%);
+}
+
+.correspondence-summary__meta > div {
+  display: flex;
+  align-items: baseline;
+
+  gap: 0.45rem;
+}
+
+.correspondence-summary__meta span {
+  color:
+    var(--color-text-tertiary);
+
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.correspondence-summary__meta strong {
+  color:
+    var(--color-text-primary);
+
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+@media (max-width: 42rem) {
+  .correspondence-summary__meta {
+    justify-content:
+      space-between;
+  }
+}

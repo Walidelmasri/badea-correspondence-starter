@@ -13,7 +13,10 @@ import {
   createEmptyPresidentExplanationInkDocument,
   PresidentExplanationInkDocument,
 } from '../domain/president-explanation.model';
-
+import {
+  CorrespondenceSummaryComponent,
+  CorrespondenceSummaryViewModel,
+} from '../../../shared/ui/correspondence-summary/correspondence-summary.component';
 import {
   PresidentExplanationInkComponent,
 } from './president-explanation-ink/president-explanation-ink.component';
@@ -62,6 +65,7 @@ interface RequiredActionOption {
   imports: [
     PdfWorkspaceComponent,
     PresidentExplanationInkComponent,
+    CorrespondenceSummaryComponent,
   ],
   templateUrl: './president-review-page.component.html',
   styleUrl: './president-review-page.component.scss',
@@ -69,7 +73,39 @@ interface RequiredActionOption {
 })
 export class PresidentReviewPageComponent {
   readonly translation = inject(TranslationService);
+  readonly correspondence =
+    computed<CorrespondenceSummaryViewModel>(
+      () => {
+        const arabic =
+          this.translation.language() === 'ar';
 
+        return {
+          reference:
+            'PR-2026-0184',
+
+          dateLabel:
+            '30 Sep 2026',
+
+          subject:
+            arabic
+              ? 'طلب مراجعة المستندات المرفقة'
+              : 'Review of attached documents',
+
+          senderName:
+            null,
+
+          senderDepartment:
+            arabic
+              ? 'إدارة الاستراتيجية'
+              : 'Strategy Department',
+
+          message:
+            arabic
+              ? 'يرجى التكرم بالاطلاع على المراسلة والمستندات المرفقة والتوجيه بما ترونه مناسباً.'
+              : 'Please review the attached correspondence and supporting documents and provide your direction.',
+        };
+      },
+    );
   readonly attachments: readonly PresidentReviewAttachment[] = [
     {
       id: 'main-letter',

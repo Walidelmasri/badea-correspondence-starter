@@ -2,35 +2,45 @@
     <header class="president-review__header">
         <div>
             <span class="president-review__eyebrow">
-                {{ translation.text().presidentReview.eyebrow }}
+                {{
+                translation.text()
+                .presidentReview.eyebrow
+                }}
             </span>
 
             <h1>
-                {{ translation.text().presidentReview.title }}
+                {{
+                translation.text()
+                .presidentReview.title
+                }}
             </h1>
-        </div>
-
-        <div class="president-review__meta">
-            <div>
-                <span>
-                    {{ translation.text().presidentReview.reference }}
-                </span>
-
-                <strong>PR-2026-0184</strong>
-            </div>
-
-            <div>
-                <span>
-                    {{ translation.text().presidentReview.date }}
-                </span>
-
-                <strong>30 Sep 2026</strong>
-            </div>
         </div>
     </header>
 
     <div class="president-review__workspace">
         <main class="document-desk">
+            <app-correspondence-summary [correspondence]="
+        correspondence()
+      " [labels]="{
+        correspondence:
+          translation.language() === 'ar'
+            ? 'المراسلة'
+            : 'Correspondence',
+
+        from:
+          translation.language() === 'ar'
+            ? 'من'
+            : 'From',
+
+        reference:
+          translation.text()
+            .presidentReview.reference,
+
+        date:
+          translation.text()
+            .presidentReview.date
+      }" />
+
             <section class="attachment-section">
                 <div class="section-heading">
                     <div>
