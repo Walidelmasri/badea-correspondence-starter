@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnDestroy,
   computed,
   inject,
@@ -32,50 +33,54 @@ import {
 } from './pdf-properties-dialog/pdf-properties-dialog.component';
 
 import { PdfInkTool } from '../../annotation/domain/ink.model';
-
 import { PdfInkOverlayDirective } from '../../annotation/pdf/pdf-ink-overlay.directive';
 
 type PdfZoomSetting =
   | 'page-width'
   | number
   | undefined;
-const PDF_EDITOR_MODE_NONE = 0;
+
 interface FindMatchesCount {
   readonly current: number;
   readonly total: number;
 }
 
+interface ElementScrollSnapshot {
+  readonly element: HTMLElement;
+  readonly scrollLeft: number;
+  readonly scrollTop: number;
+}
+
+interface OuterScrollSnapshot {
+  readonly windowX: number;
+  readonly windowY: number;
+  readonly elements: readonly ElementScrollSnapshot[];
+}
+
+const PDF_EDITOR_MODE_NONE = 0;
+
 @Component({
   selector: 'app-pdf-workspace',
   standalone: true,
-
   imports: [
     NgxExtendedPdfViewerModule,
     PdfToolbarComponent,
     PdfPropertiesDialogComponent,
     PdfInkOverlayDirective,
   ],
-
-  templateUrl:
-    './pdf-workspace.component.html',
-
-  styleUrl:
-    './pdf-workspace.component.scss',
-
-  changeDetection:
-    ChangeDetectionStrategy.OnPush,
+  templateUrl: './pdf-workspace.component.html',
+  styleUrl: './pdf-workspace.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PdfWorkspaceComponent
-  implements OnDestroy {
+export class PdfWorkspaceComponent implements OnDestroy {
   private readonly pdfViewerService =
-    inject(
-      NgxExtendedPdfViewerService,
-    );
+    inject(NgxExtendedPdfViewerService);
 
   private readonly pdfNotificationService =
-    inject(
-      PDFNotificationService,
-    );
+    inject(PDFNotificationService);
+
+  private readonly hostElement =
+    inject<ElementRef<HTMLElement>>(ElementRef);
 
   private readonly propertiesExtractor =
     new PdfDocumentPropertiesExtractor();
@@ -92,8 +97,8 @@ export class PdfWorkspaceComponent
   /**
    * Stable logical identity for annotation state.
    *
-   * Do not use the URL because multiple mock
-   * attachments currently share one PDF source.
+   * Do not use the source URL because multiple
+   * mock attachments can share the same PDF.
    */
   readonly documentKey =
     input.required<string>();
@@ -105,76 +110,59 @@ export class PdfWorkspaceComponent
     signal(0);
 
   readonly zoom =
-    signal<PdfZoomSetting>(
-      'page-width',
-    );
+    signal<PdfZoomSetting>('page-width');
 
   private readonly currentZoomFactor =
     signal(1);
 
   private readonly inkOverlay =
-    viewChild(
-      PdfInkOverlayDirective,
-    );
+    viewChild(PdfInkOverlayDirective);
 
   readonly activeTool =
-    signal<PdfEditorTool | null>(
-      null,
-    );
+    signal<PdfEditorTool | null>(null);
 
   readonly inkTool =
-    computed<PdfInkTool | null>(
-      () => {
-        switch (
-        this.activeTool()
-        ) {
-          case 'draw':
-            return 'pen';
+    computed<PdfInkTool | null>(() => {
+      switch (this.activeTool()) {
+        case 'draw':
+          return 'pen';
 
-          case 'highlight':
-            return 'highlighter';
+        case 'highlight':
+          return 'highlighter';
 
-          default:
-            return null;
-        }
-      },
-    );
+        default:
+          return null;
+      }
+    });
 
   readonly canUndo =
     computed(
       () =>
-        this.inkOverlay()
-          ?.canUndo() ??
+        this.inkOverlay()?.canUndo() ??
         false,
     );
 
   readonly canRedo =
     computed(
       () =>
-        this.inkOverlay()
-          ?.canRedo() ??
+        this.inkOverlay()?.canRedo() ??
         false,
     );
 
   readonly sidebarVisible =
-    signal<
-      boolean | undefined
-    >(false);
+    signal<boolean | undefined>(false);
 
   readonly sidebarView =
     PdfSidebarView.THUMBS;
 
   readonly rotation =
-    signal<
-      0 | 90 | 180 | 270
-    >(0);
+    signal<0 | 90 | 180 | 270>(0);
 
   /*
-   * Search UI is ours.
+   * Search UI is owned by this component.
    *
-   * PDF.js remains responsible only for
-   * finding, highlighting and navigating
-   * actual PDF text.
+   * PDF.js remains responsible for finding,
+   * highlighting and navigating PDF text.
    */
   readonly searchVisible =
     signal(false);
@@ -189,20 +177,41 @@ export class PdfWorkspaceComponent
     signal(0);
 
   private searchTimer:
-    ReturnType<
-      typeof setTimeout
-    > | null = null;
+    ReturnType<typeof setTimeout> | null =
+    null;
+
+  /*
+   * PDF.js legitimately scrolls its own internal
+   * viewer to make a match visible.
+   *
+   * What we do not want is that navigation
+   * dragging the surrounding President page.
+   */
+  private outerScrollSnapshot:
+    OuterScrollSnapshot | null =
+    null;
+
+  private outerScrollRestoreFrame:
+    number | null =
+    null;
+
+  private outerScrollRestoreTimer:
+    ReturnType<typeof setTimeout> | null =
+    null;
 
   readonly documentProperties =
-    signal<
-      PdfDocumentProperties | null
-    >(null);
+    signal<PdfDocumentProperties | null>(
+      null,
+    );
 
   readonly propertiesVisible =
     signal(false);
 
   ngOnDestroy(): void {
     this.clearSearchTimer();
+    this.cancelOuterScrollRestoreTasks();
+
+    this.outerScrollSnapshot = null;
   }
 
   toggleSidebar(): void {
@@ -247,22 +256,17 @@ export class PdfWorkspaceComponent
   }
 
   onPageChange(
-    pageNumber:
-      number | undefined,
+    pageNumber: number | undefined,
   ): void {
     if (
       pageNumber === undefined ||
-      !Number.isInteger(
-        pageNumber,
-      ) ||
+      !Number.isInteger(pageNumber) ||
       pageNumber < 1
     ) {
       return;
     }
 
-    this.page.set(
-      pageNumber,
-    );
+    this.page.set(pageNumber);
   }
 
   zoomOut(): void {
@@ -276,22 +280,18 @@ export class PdfWorkspaceComponent
   fitPageWidth(): void {
     this.zoom.set(undefined);
 
-    requestAnimationFrame(
-      () => {
-        this.zoom.set(
-          'page-width',
-        );
-      },
-    );
+    requestAnimationFrame(() => {
+      this.zoom.set(
+        'page-width',
+      );
+    });
   }
 
   onCurrentZoomFactorChange(
     zoomFactor: number,
   ): void {
     if (
-      !Number.isFinite(
-        zoomFactor,
-      ) ||
+      !Number.isFinite(zoomFactor) ||
       zoomFactor <= 0
     ) {
       return;
@@ -309,8 +309,7 @@ export class PdfWorkspaceComponent
       this.zoom();
 
     const currentFactor =
-      typeof currentZoom ===
-        'number'
+      typeof currentZoom === 'number'
         ? currentZoom / 100
         : this.currentZoomFactor();
 
@@ -319,8 +318,7 @@ export class PdfWorkspaceComponent
         4,
         Math.max(
           0.25,
-          currentFactor +
-          delta,
+          currentFactor + delta,
         ),
       );
 
@@ -331,6 +329,10 @@ export class PdfWorkspaceComponent
     );
   }
 
+  /*
+   * Annotation tools
+   */
+
   selectTool(
     tool: PdfEditorTool,
   ): void {
@@ -338,14 +340,14 @@ export class PdfWorkspaceComponent
       this.activeTool() === tool
     ) {
       this.deactivateInkTool();
-
       return;
     }
 
     /*
-     * Draw and Highlight use our custom canvas layer.
-     * Keep PDF.js annotation editing disabled so it
-     * cannot compete for desktop mouse interaction.
+     * Draw and Highlight use our custom canvas.
+     *
+     * Keep PDF.js annotation editing disabled so
+     * it cannot compete for mouse/touch events.
      */
     this.pdfViewerService
       .switchAnnotationEdtorMode(
@@ -364,10 +366,12 @@ export class PdfWorkspaceComponent
       );
   }
 
+  /*
+   * Document lifecycle
+   */
+
   onPdfLoaded(): void {
-    this.activeTool.set(
-      null,
-    );
+    this.activeTool.set(null);
 
     this.documentProperties.set(
       null,
@@ -380,50 +384,63 @@ export class PdfWorkspaceComponent
     this.resetSearchState();
   }
 
-  /* Search */
+  /*
+   * Search
+   */
 
   openSearch(): void {
-    this.searchVisible.set(
-      true,
-    );
+    this.searchVisible.set(true);
+
+    /*
+     * Deliberately do not autofocus.
+     *
+     * Safari/iPad can alter the viewport when
+     * an input receives programmatic focus.
+     */
   }
 
   closeSearch(): void {
     this.clearSearchTimer();
 
-    this.searchVisible.set(
-      false,
-    );
+    this.searchVisible.set(false);
 
     this.searchQuery.set('');
-
     this.searchCurrent.set(0);
-
     this.searchTotal.set(0);
 
-    /*
-     * Empty search clears the PDF.js
-     * search highlights.
-     *
-     * Guard it because the viewer may be
-     * in the middle of changing documents.
-     */
-    if (this.pdfReady()) {
-      this.pdfViewerService.find(
-        '',
-      );
+    if (!this.pdfReady()) {
+      return;
     }
+
+    /*
+     * Empty query removes PDF.js highlights.
+     */
+    this.runPdfSearch('');
+  }
+
+  onSearchInput(
+    event: Event,
+  ): void {
+    const target =
+      event.target;
+
+    if (
+      !(target instanceof HTMLInputElement)
+    ) {
+      return;
+    }
+
+    this.onSearchQueryChange(
+      target.value,
+    );
   }
 
   onSearchQueryChange(
     query: string,
   ): void {
-    this.searchQuery.set(
-      query,
-    );
+    this.searchQuery.set(query);
 
     this.searchCurrent.set(0);
-
     this.searchTotal.set(0);
 
     this.clearSearchTimer();
@@ -433,27 +450,22 @@ export class PdfWorkspaceComponent
 
     if (!normalized) {
       if (this.pdfReady()) {
-        this.pdfViewerService.find(
-          '',
-        );
+        this.runPdfSearch('');
       }
 
       return;
     }
 
     /*
-     * PDF text search is asynchronous.
-     *
-     * Don't start a full-document search
-     * for every single keyboard event.
+     * Avoid running a full PDF text search
+     * for every individual keystroke.
      */
     this.searchTimer =
       setTimeout(
         () => {
-          this.searchTimer =
-            null;
+          this.searchTimer = null;
 
-          this.runSearch(
+          this.runPdfSearch(
             normalized,
           );
         },
@@ -462,18 +474,17 @@ export class PdfWorkspaceComponent
   }
 
   searchNext(): void {
-    if (
-      !this.searchQuery()
-        .trim()
-    ) {
+    const query =
+      this.searchQuery().trim();
+
+    if (!query) {
       return;
     }
 
     /*
-     * If the user hits Enter before the
-     * debounce expires, execute the first
-     * search instead of accidentally
-     * skipping directly to result #2.
+     * Enter may be pressed before the debounce
+     * timer fires. In that case perform the first
+     * search rather than jumping to result #2.
      */
     if (
       this.flushPendingSearch()
@@ -485,14 +496,19 @@ export class PdfWorkspaceComponent
       return;
     }
 
-    this.pdfViewerService.findNext();
+    this.captureOuterScroll();
+
+    this.pdfViewerService
+      .findNext();
+
+    this.scheduleOuterScrollRestore();
   }
 
   searchPrevious(): void {
-    if (
-      !this.searchQuery()
-        .trim()
-    ) {
+    const query =
+      this.searchQuery().trim();
+
+    if (!query) {
       return;
     }
 
@@ -506,8 +522,12 @@ export class PdfWorkspaceComponent
       return;
     }
 
+    this.captureOuterScroll();
+
     this.pdfViewerService
       .findPrevious();
+
+    this.scheduleOuterScrollRestore();
   }
 
   onFindMatchesCount(
@@ -531,23 +551,37 @@ export class PdfWorkspaceComponent
     );
   }
 
-  private runSearch(
+  onFindStateChange(): void {
+    /*
+     * PDF.js can finish moving its internal
+     * viewer after the original find call.
+     *
+     * Restore only the scroll positions outside
+     * this PDF workspace.
+     */
+    this.scheduleOuterScrollRestore();
+  }
+
+  private runPdfSearch(
     query: string,
   ): void {
     if (!this.pdfReady()) {
       return;
     }
 
+    this.captureOuterScroll();
+
     this.pdfViewerService.find(
       query,
     );
+
+    this.scheduleOuterScrollRestore();
   }
 
   private flushPendingSearch():
     boolean {
     if (
-      this.searchTimer ===
-      null
+      this.searchTimer === null
     ) {
       return false;
     }
@@ -555,14 +589,13 @@ export class PdfWorkspaceComponent
     this.clearSearchTimer();
 
     const query =
-      this.searchQuery()
-        .trim();
+      this.searchQuery().trim();
 
     if (
       query &&
       this.pdfReady()
     ) {
-      this.pdfViewerService.find(
+      this.runPdfSearch(
         query,
       );
     }
@@ -573,8 +606,7 @@ export class PdfWorkspaceComponent
   private clearSearchTimer():
     void {
     if (
-      this.searchTimer ===
-      null
+      this.searchTimer === null
     ) {
       return;
     }
@@ -589,16 +621,204 @@ export class PdfWorkspaceComponent
   private resetSearchState():
     void {
     this.clearSearchTimer();
+    this.cancelOuterScrollRestoreTasks();
+
+    this.outerScrollSnapshot =
+      null;
 
     this.searchVisible.set(
       false,
     );
 
     this.searchQuery.set('');
-
     this.searchCurrent.set(0);
-
     this.searchTotal.set(0);
+  }
+
+  /*
+   * Capture every scrollable ancestor outside
+   * the PDF workspace.
+   *
+   * The PDF viewer itself is a descendant of
+   * this component, so it is intentionally not
+   * captured. PDF.js remains free to scroll it.
+   */
+  private captureOuterScroll():
+    void {
+    const elements:
+      ElementScrollSnapshot[] =
+      [];
+
+    let current =
+      this.hostElement
+        .nativeElement
+        .parentElement;
+
+    while (current) {
+      if (
+        this.isScrollableElement(
+          current,
+        )
+      ) {
+        elements.push({
+          element: current,
+
+          scrollLeft:
+            current.scrollLeft,
+
+          scrollTop:
+            current.scrollTop,
+        });
+      }
+
+      current =
+        current.parentElement;
+    }
+
+    this.outerScrollSnapshot = {
+      windowX:
+        window.scrollX,
+
+      windowY:
+        window.scrollY,
+
+      elements,
+    };
+  }
+
+  private isScrollableElement(
+    element: HTMLElement,
+  ): boolean {
+    const style =
+      getComputedStyle(
+        element,
+      );
+
+    const permitsScroll = (
+      overflow: string,
+    ): boolean =>
+      overflow === 'auto' ||
+      overflow === 'scroll' ||
+      overflow === 'overlay';
+
+    const scrollableX =
+      permitsScroll(
+        style.overflowX,
+      ) &&
+      element.scrollWidth >
+        element.clientWidth;
+
+    const scrollableY =
+      permitsScroll(
+        style.overflowY,
+      ) &&
+      element.scrollHeight >
+        element.clientHeight;
+
+    return (
+      scrollableX ||
+      scrollableY
+    );
+  }
+
+  private scheduleOuterScrollRestore():
+    void {
+    if (
+      !this.outerScrollSnapshot
+    ) {
+      return;
+    }
+
+    this.cancelOuterScrollRestoreTasks();
+
+    /*
+     * First restoration catches the immediate
+     * PDF.js find navigation.
+     */
+    this.outerScrollRestoreFrame =
+      requestAnimationFrame(
+        () => {
+          this.outerScrollRestoreFrame =
+            null;
+
+          this.restoreOuterScroll();
+        },
+      );
+
+    /*
+     * PDF.js performs part of find navigation
+     * asynchronously. Restore again after that
+     * second phase.
+     */
+    this.outerScrollRestoreTimer =
+      setTimeout(
+        () => {
+          this.outerScrollRestoreTimer =
+            null;
+
+          this.restoreOuterScroll();
+        },
+        80,
+      );
+  }
+
+  private cancelOuterScrollRestoreTasks():
+    void {
+    if (
+      this.outerScrollRestoreFrame !==
+      null
+    ) {
+      cancelAnimationFrame(
+        this.outerScrollRestoreFrame,
+      );
+
+      this.outerScrollRestoreFrame =
+        null;
+    }
+
+    if (
+      this.outerScrollRestoreTimer !==
+      null
+    ) {
+      clearTimeout(
+        this.outerScrollRestoreTimer,
+      );
+
+      this.outerScrollRestoreTimer =
+        null;
+    }
+  }
+
+  private restoreOuterScroll():
+    void {
+    const snapshot =
+      this.outerScrollSnapshot;
+
+    if (!snapshot) {
+      return;
+    }
+
+    for (
+      const entry of
+      snapshot.elements
+    ) {
+      if (
+        !entry.element.isConnected
+      ) {
+        continue;
+      }
+
+      entry.element.scrollLeft =
+        entry.scrollLeft;
+
+      entry.element.scrollTop =
+        entry.scrollTop;
+    }
+
+    window.scrollTo(
+      snapshot.windowX,
+      snapshot.windowY,
+    );
   }
 
   private extractFindMatchesCount(
@@ -622,12 +842,11 @@ export class PdfWorkspaceComponent
 
     const source =
       nested &&
-        typeof nested ===
-        'object'
+      typeof nested === 'object'
         ? nested as Record<
-          string,
-          unknown
-        >
+            string,
+            unknown
+          >
         : wrapper;
 
     const current =
@@ -637,10 +856,8 @@ export class PdfWorkspaceComponent
       source['total'];
 
     if (
-      typeof current !==
-      'number' ||
-      typeof total !==
-      'number'
+      typeof current !== 'number' ||
+      typeof total !== 'number'
     ) {
       return null;
     }
@@ -649,17 +866,13 @@ export class PdfWorkspaceComponent
       current:
         Math.max(
           0,
-          Math.trunc(
-            current,
-          ),
+          Math.trunc(current),
         ),
 
       total:
         Math.max(
           0,
-          Math.trunc(
-            total,
-          ),
+          Math.trunc(total),
         ),
     };
   }
@@ -673,7 +886,9 @@ export class PdfWorkspaceComponent
     );
   }
 
-  /* More menu */
+  /*
+   * More menu
+   */
 
   handleMoreAction(
     action: PdfMoreAction,
@@ -703,19 +918,16 @@ export class PdfWorkspaceComponent
     }
   }
 
+  /*
+   * Print stays untouched for this change.
+   * We fix iPad printing next.
+   */
   private printDocument():
     void {
     if (!this.pdfReady()) {
       return;
     }
 
-    /*
-     * Always use the PDF viewer print
-     * service.
-     *
-     * Never call window.print() here:
-     * that would print the Angular page.
-     */
     this.pdfViewerService.print();
   }
 
@@ -741,7 +953,9 @@ export class PdfWorkspaceComponent
     }
   }
 
-  /* Properties */
+  /*
+   * Properties
+   */
 
   async openDocumentProperties():
     Promise<void> {
@@ -793,6 +1007,10 @@ export class PdfWorkspaceComponent
         rawMetadata as
         PdfDocumentInfo;
 
+      /*
+       * The attachment may have changed while
+       * metadata was loading.
+       */
       if (
         this.pdfNotificationService
           .onPDFJSInitSignal()
@@ -819,24 +1037,28 @@ export class PdfWorkspaceComponent
         createdAt:
           metadata.creationDate
             instanceof Date &&
-            Number.isFinite(
-              metadata.creationDate
-                .getTime(),
-            )
+          Number.isFinite(
+            metadata.creationDate
+              .getTime(),
+          )
             ? metadata.creationDate
             : null,
 
         modifiedAt:
           metadata.modificationDate
             instanceof Date &&
-            Number.isFinite(
-              metadata.modificationDate
-                .getTime(),
-            )
+          Number.isFinite(
+            metadata.modificationDate
+              .getTime(),
+          )
             ? metadata.modificationDate
             : null,
       });
     } catch {
+      /*
+       * Optional metadata failure should never
+       * prevent basic properties being shown.
+       */
       if (
         this.pdfNotificationService
           .onPDFJSInitSignal()
@@ -863,15 +1085,17 @@ export class PdfWorkspaceComponent
     );
   }
 
-  /* Export */
+  /*
+   * Export
+   */
 
   async exportDocument():
-    Promise<
-      Blob | undefined
-    > {
+    Promise<Blob | undefined> {
     /*
-     * Disable the custom drawing surface
-     * before export.
+     * Disable the custom drawing surface before
+     * asking PDF.js for the underlying document.
+     *
+     * Custom ink persistence/flattening comes later.
      */
     this.deactivateInkTool();
 

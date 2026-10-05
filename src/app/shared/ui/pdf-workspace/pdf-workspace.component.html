@@ -5,38 +5,17 @@
     [activeTool]="activeTool()"
     [canUndo]="canUndo()"
     [canRedo]="canRedo()"
-    [searchVisible]="searchVisible()"
-    [searchQuery]="searchQuery()"
-    [searchCurrent]="searchCurrent()"
-    [searchTotal]="searchTotal()"
-
     (previousPage)="previousPage()"
     (nextPage)="nextPage()"
-
     (zoomOut)="zoomOut()"
     (zoomIn)="zoomIn()"
     (fitPageWidth)="fitPageWidth()"
-
     (selectTool)="selectTool($event)"
-
     (toggleSidebar)="toggleSidebar()"
-
+    (openSearch)="openSearch()"
+    (moreAction)="handleMoreAction($event)"
     (undo)="undo()"
     (redo)="redo()"
-
-    (openSearch)="openSearch()"
-    (closeSearch)="closeSearch()"
-
-    (searchQueryChange)="
-      onSearchQueryChange($event)
-    "
-
-    (searchNext)="searchNext()"
-    (searchPrevious)="searchPrevious()"
-
-    (moreAction)="
-      handleMoreAction($event)
-    "
   />
 </ng-template>
 
@@ -50,79 +29,125 @@
   <ngx-extended-pdf-viewer
     [src]="src()"
     [height]="'100%'"
-
     [zoom]="zoom()"
     [page]="page()"
-
     [textLayer]="true"
-
-    [customToolbar]="
-      customToolbar
-    "
-
-    [language]="
-      translation.language() === 'ar'
-        ? 'ar'
-        : 'en-US'
-    "
-
+    [customToolbar]="customToolbar"
+    [language]="translation.language() === 'ar' ? 'ar' : 'en-US'"
     [showOpenFileButton]="false"
     [showFindButton]="false"
-
-    [replaceBrowserPrint]="true"
-
-    [(sidebarVisible)]="
-      sidebarVisible
-    "
-
-    [activeSidebarView]="
-      sidebarView
-    "
-
-    [(rotation)]="
-      rotation
-    "
-
-    (pdfLoaded)="
-      onPdfLoaded()
-    "
-
-    (pageChange)="
-      onPageChange($event)
-    "
-
-    (pagesLoaded)="
-      pageCount.set(
-        $event.pagesCount
-      )
-    "
-
-    (currentZoomFactor)="
-      onCurrentZoomFactorChange(
-        $event
-      )
-    "
-
-    (updateFindMatchesCount)="
-      onFindMatchesCount(
-        $event
-      )
-    "
+    [showPrintButton]="false"
+    [(sidebarVisible)]="sidebarVisible"
+    [activeSidebarView]="sidebarView"
+    [(rotation)]="rotation"
+    (pdfLoaded)="onPdfLoaded()"
+    (pageChange)="onPageChange($event)"
+    (pagesLoaded)="pageCount.set($event.pagesCount)"
+    (currentZoomFactor)="onCurrentZoomFactorChange($event)"
+    (updateFindMatchesCount)="onFindMatchesCount($event)"
+    (updateFindState)="onFindStateChange()"
   />
+
+  @if (searchVisible()) {
+    <section
+      class="pdf-workspace__search"
+      role="search"
+    >
+      <div
+        class="pdf-workspace__search-field"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <circle
+            cx="11"
+            cy="11"
+            r="6"
+          />
+
+          <path
+            d="m16 16 4 4"
+          />
+        </svg>
+
+        <input
+          type="search"
+          [value]="searchQuery()"
+          [placeholder]="
+            translation.text()
+              .pdf.toolbar.searchPlaceholder
+          "
+          autocomplete="off"
+          spellcheck="false"
+          (input)="onSearchInput($event)"
+          (keydown.enter)="searchNext()"
+          (keydown.escape)="closeSearch()"
+        />
+      </div>
+
+      <span
+        class="pdf-workspace__search-count"
+        aria-live="polite"
+      >
+        {{ searchCurrent() }}
+        /
+        {{ searchTotal() }}
+      </span>
+
+      <button
+        type="button"
+        class="pdf-workspace__search-button"
+        [attr.aria-label]="
+          translation.text()
+            .pdf.toolbar.previousMatch
+        "
+        [disabled]="
+          !searchQuery().trim()
+        "
+        (click)="searchPrevious()"
+      >
+        ↑
+      </button>
+
+      <button
+        type="button"
+        class="pdf-workspace__search-button"
+        [attr.aria-label]="
+          translation.text()
+            .pdf.toolbar.nextMatch
+        "
+        [disabled]="
+          !searchQuery().trim()
+        "
+        (click)="searchNext()"
+      >
+        ↓
+      </button>
+
+      <button
+        type="button"
+        class="
+          pdf-workspace__search-button
+          pdf-workspace__search-close
+        "
+        [attr.aria-label]="
+          translation.text()
+            .pdf.toolbar.closeSearch
+        "
+        (click)="closeSearch()"
+      >
+        ×
+      </button>
+    </section>
+  }
 </div>
 
 @if (propertiesVisible()) {
-  @if (
-    documentProperties();
-    as properties
-  ) {
+  @if (documentProperties(); as properties) {
     <app-pdf-properties-dialog
-      [properties]="
-        properties
-      "
-      (closed)="
-        closeDocumentProperties()
-      "
+      [properties]="properties"
+      (closed)="closeDocumentProperties()"
     />
   }
 }
