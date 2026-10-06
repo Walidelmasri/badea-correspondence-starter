@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "build:correspondence": "ng build --base-href /correspondence/",
-    "test": "ng test"
+    "test": "ng test",
+    "test:integration": "vitest run --config tests/vitest.integration.config.ts"
   },
   "dependencies": {
     "@angular/common": "22.2.0",
@@ -25,6 +26,7 @@
     "@angular/build": "22.2.0",
     "@angular/cli": "22.2.0",
     "@angular/compiler-cli": "22.2.0",
+    "@types/node": "^26.6.4",
     "jsdom": "^30.1.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.3"
