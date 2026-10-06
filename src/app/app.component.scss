@@ -239,20 +239,7 @@
   gap: 0.75rem;
 }
 
-.app-header__user-text {
-  min-width: 0;
-
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.1rem;
-}
-
-html[dir='ltr'] .app-header__user-text {
-  align-items: flex-start;
-}
-
-.app-header__user-text strong {
+.app-header__user-name {
   overflow: hidden;
 
   color: var(--color-text-primary);
@@ -264,15 +251,10 @@ html[dir='ltr'] .app-header__user-text {
   white-space: nowrap;
 }
 
-.app-header__user-text span {
-  overflow: hidden;
-
-  color: var(--color-text-tertiary);
-
-  font-size: 0.72rem;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.app-header__session-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .app-header__avatar {
@@ -321,7 +303,7 @@ html[dir='ltr'] .app-header__user-text {
     padding-inline: 0.7rem;
   }
 
-  .app-header__user-text {
+  .app-header__user-name {
     display: none;
   }
 }

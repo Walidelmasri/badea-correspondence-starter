@@ -2,25 +2,17 @@
   <div class="app-shell">
     <header class="app-header">
       <div class="app-header__brand">
-        <span
-          class="app-header__brand-name"
-        >
+        <span class="app-header__brand-name">
           BADEA
         </span>
 
         <div class="app-header__title">
           <strong>
-            {{
-              translation.text()
-                .app.name
-            }}
+            {{ translation.text().app.name }}
           </strong>
 
           <span>
-            {{
-              translation.text()
-                .app.nameEnglish
-            }}
+            {{ translation.text().app.nameEnglish }}
           </span>
         </div>
       </div>
@@ -29,57 +21,25 @@
         class="app-navigation"
         aria-label="Main navigation"
       >
-        @for (
-          item of navigation;
-          track item.key
-        ) {
+        @for (item of navigation; track item.key) {
           <a
             class="app-navigation__item"
             [routerLink]="item.route"
-            routerLinkActive="
-              app-navigation__item--active
-            "
+            routerLinkActive="app-navigation__item--active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            ariaCurrentWhenActive="page"
           >
-            {{
-              translation.text()
-                .navigation[item.key]
-            }}
+            {{ translation.text().navigation[item.key] }}
           </a>
         }
       </nav>
 
       <div class="app-header__actions">
-        <button
-          class="app-header__language"
-          type="button"
-          (click)="toggleLanguage()"
-        >
-          @if (
-            translation.language()
-              === 'ar'
-          ) {
-            EN
-          } @else {
-            عربي
-          }
-        </button>
-
-        @if (
-          auth.currentUser();
-          as user
-        ) {
+        @if (auth.currentUser(); as user) {
           <div class="app-header__user">
-            <div
-              class="app-header__user-text"
-            >
-              <strong>
-                {{ user.displayName }}
-              </strong>
-
-              <span>
-                {{ user.id }}
-              </span>
-            </div>
+            <strong class="app-header__user-name">
+              {{ user.displayName }}
+            </strong>
 
             <div
               class="app-header__avatar"
@@ -90,16 +50,27 @@
           </div>
         }
 
-        <button
-          class="app-header__logout"
-          type="button"
-          (click)="logout()"
-        >
-          {{
-            translation.text()
-              .auth.signOut
-          }}
-        </button>
+        <div class="app-header__session-actions">
+          <button
+            class="app-header__language"
+            type="button"
+            (click)="toggleLanguage()"
+          >
+            @if (translation.language() === 'ar') {
+              EN
+            } @else {
+              عربي
+            }
+          </button>
+
+          <button
+            class="app-header__logout"
+            type="button"
+            (click)="logout()"
+          >
+            {{ translation.text().auth.signOut }}
+          </button>
+        </div>
       </div>
     </header>
 
