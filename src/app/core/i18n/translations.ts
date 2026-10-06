@@ -171,6 +171,37 @@ const AR_TRANSLATIONS = {
       failed: 'تعذر الحفظ',
     },
   },
+  auth: {
+    eyebrow: 'مراسلات الرئاسة',
+
+    title: 'تسجيل الدخول',
+
+    description:
+      'استخدم حساب BADEA للدخول إلى نظام مراسلات الرئاسة.',
+
+    username: 'اسم المستخدم',
+
+    usernamePlaceholder:
+      'مثال: firstname.lastname',
+
+    password: 'كلمة المرور',
+
+    passwordPlaceholder:
+      'أدخل كلمة المرور',
+
+    signIn: 'تسجيل الدخول',
+
+    signingIn:
+      'جارٍ تسجيل الدخول...',
+
+    signOut: 'تسجيل الخروج',
+
+    invalidCredentials:
+      'اسم المستخدم أو كلمة المرور غير صحيحة.',
+
+    unavailable:
+      'تعذر الاتصال بخدمة تسجيل الدخول. حاول مرة أخرى.',
+  },
   user: {
     office: 'مكتب الرئيس',
   },
@@ -378,6 +409,37 @@ const EN_TRANSLATIONS = {
   },
   user: {
     office: 'President Office',
+  },
+  auth: {
+    eyebrow:
+      'Presidency Correspondence',
+
+    title: 'Sign in',
+
+    description:
+      'Use your BADEA account to access Presidency Correspondence.',
+
+    username: 'Username',
+
+    usernamePlaceholder:
+      'e.g. firstname.lastname',
+
+    password: 'Password',
+
+    passwordPlaceholder:
+      'Enter your password',
+
+    signIn: 'Sign in',
+
+    signingIn: 'Signing in...',
+
+    signOut: 'Sign out',
+
+    invalidCredentials:
+      'The username or password is incorrect.',
+
+    unavailable:
+      'The sign-in service could not be reached. Try again.',
   },
   presidentReview: {
     eyebrow: 'President Workspace',

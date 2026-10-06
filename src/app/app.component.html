@@ -1,69 +1,112 @@
-<div class="app-shell">
-  <header class="app-header">
-    <div class="app-header__brand">
-      <span class="app-header__brand-name">
-        BADEA
-      </span>
-
-      <div class="app-header__title">
-        <strong>
-          {{ translation.text().app.name }}
-        </strong>
-
-        <span>
-          {{ translation.text().app.nameEnglish }}
-        </span>
-      </div>
-    </div>
-
-    <nav
-      class="app-navigation"
-      aria-label="Main navigation"
-    >
-      @for (item of navigation; track item.key) {
-        <a
-          class="app-navigation__item"
-          [routerLink]="item.route"
-          routerLinkActive="app-navigation__item--active"
+@if (auth.isAuthenticated()) {
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__brand">
+        <span
+          class="app-header__brand-name"
         >
-          {{ translation.text().navigation[item.key] }}
-        </a>
-      }
-    </nav>
+          BADEA
+        </span>
 
-    <div class="app-header__actions">
-      <button
-        class="app-header__language"
-        type="button"
-        (click)="toggleLanguage()"
-      >
-        @if (translation.language() === 'ar') {
-          EN
-        } @else {
-          عربي
-        }
-      </button>
-
-      <div class="app-header__user">
-        <div class="app-header__user-text">
-          <strong>Walid Salem</strong>
+        <div class="app-header__title">
+          <strong>
+            {{
+              translation.text()
+                .app.name
+            }}
+          </strong>
 
           <span>
-            {{ translation.text().user.office }}
+            {{
+              translation.text()
+                .app.nameEnglish
+            }}
           </span>
         </div>
-
-        <div
-          class="app-header__avatar"
-          aria-hidden="true"
-        >
-          WS
-        </div>
       </div>
-    </div>
-  </header>
 
-  <main class="app-content">
-    <router-outlet />
-  </main>
-</div>
+      <nav
+        class="app-navigation"
+        aria-label="Main navigation"
+      >
+        @for (
+          item of navigation;
+          track item.key
+        ) {
+          <a
+            class="app-navigation__item"
+            [routerLink]="item.route"
+            routerLinkActive="
+              app-navigation__item--active
+            "
+          >
+            {{
+              translation.text()
+                .navigation[item.key]
+            }}
+          </a>
+        }
+      </nav>
+
+      <div class="app-header__actions">
+        <button
+          class="app-header__language"
+          type="button"
+          (click)="toggleLanguage()"
+        >
+          @if (
+            translation.language()
+              === 'ar'
+          ) {
+            EN
+          } @else {
+            عربي
+          }
+        </button>
+
+        @if (
+          auth.currentUser();
+          as user
+        ) {
+          <div class="app-header__user">
+            <div
+              class="app-header__user-text"
+            >
+              <strong>
+                {{ user.displayName }}
+              </strong>
+
+              <span>
+                {{ user.id }}
+              </span>
+            </div>
+
+            <div
+              class="app-header__avatar"
+              aria-hidden="true"
+            >
+              {{ auth.initials() }}
+            </div>
+          </div>
+        }
+
+        <button
+          class="app-header__logout"
+          type="button"
+          (click)="logout()"
+        >
+          {{
+            translation.text()
+              .auth.signOut
+          }}
+        </button>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <router-outlet />
+    </main>
+  </div>
+} @else {
+  <router-outlet />
+}

@@ -1,0 +1,122 @@
+<main class="login-page">
+  <section
+    class="login-card"
+    aria-labelledby="login-heading"
+  >
+    <div class="login-card__topbar">
+      <span class="login-card__brand">
+        BADEA
+      </span>
+
+      <button
+        class="login-card__language"
+        type="button"
+        (click)="toggleLanguage()"
+      >
+        @if (
+          translation.language() === 'ar'
+        ) {
+          EN
+        } @else {
+          عربي
+        }
+      </button>
+    </div>
+
+    <div class="login-card__heading">
+      <span class="login-card__eyebrow">
+        {{
+          translation.text().auth.eyebrow
+        }}
+      </span>
+
+      <h1 id="login-heading">
+        {{
+          translation.text().auth.title
+        }}
+      </h1>
+
+      <p>
+        {{
+          translation.text().auth.description
+        }}
+      </p>
+    </div>
+
+    <form
+      class="login-form"
+      [formGroup]="form"
+      (ngSubmit)="submit()"
+    >
+      <label class="login-field">
+        <span>
+          {{
+            translation.text()
+              .auth.username
+          }}
+        </span>
+
+        <input
+          type="text"
+          formControlName="userId"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          [placeholder]="
+            translation.text()
+              .auth.usernamePlaceholder
+          "
+        />
+      </label>
+
+      <label class="login-field">
+        <span>
+          {{
+            translation.text()
+              .auth.password
+          }}
+        </span>
+
+        <input
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+          [placeholder]="
+            translation.text()
+              .auth.passwordPlaceholder
+          "
+        />
+      </label>
+
+      @if (
+        errorMessage();
+        as error
+      ) {
+        <div
+          class="login-form__error"
+          role="alert"
+        >
+          {{ error }}
+        </div>
+      }
+
+      <button
+        class="login-form__submit"
+        type="submit"
+        [disabled]="isSubmitting()"
+      >
+        @if (isSubmitting()) {
+          {{
+            translation.text()
+              .auth.signingIn
+          }}
+        } @else {
+          {{
+            translation.text()
+              .auth.signIn
+          }}
+        }
+      </button>
+    </form>
+  </section>
+</main>
