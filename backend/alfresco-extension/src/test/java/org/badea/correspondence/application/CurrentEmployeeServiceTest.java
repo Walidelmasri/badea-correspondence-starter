@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.badea.correspondence.directory.DepartmentCode;
+import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectory;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
@@ -130,9 +131,13 @@ class CurrentEmployeeServiceTest {
             new DirectoryUsername("adil.amin"),
             "Adil Mustafa Amin",
             "عادل مصطفى امين",
-            new DepartmentCode("117"),
-            "Information Technology",
-            "تقنية المعلومات"
+            Optional.of(
+                new DepartmentDirectoryEntry(
+                    new DepartmentCode("117"),
+                    "Information Technology",
+                    "تقنية المعلومات"
+                )
+            )
         );
     }
 }

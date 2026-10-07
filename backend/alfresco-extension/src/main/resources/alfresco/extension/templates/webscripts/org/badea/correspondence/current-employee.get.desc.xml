@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>BADEA Correspondence Current Employee</shortname>
+
+    <description>
+        Returns the BADEA employee profile associated with the
+        currently authenticated Alfresco user.
+    </description>
+
+    <url>/badea/correspondence/me</url>
+
+    <authentication>user</authentication>
+
+    <transaction>none</transaction>
+
+    <format default="json">argument</format>
+</webscript>

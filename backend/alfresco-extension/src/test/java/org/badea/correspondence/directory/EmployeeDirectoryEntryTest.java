@@ -3,6 +3,9 @@ package org.badea.correspondence.directory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,9 +21,13 @@ class EmployeeDirectoryEntryTest {
                 ),
                 "Adil Mustafa Amin",
                 "عادل مصطفى امين",
-                new DepartmentCode("117"),
-                "Information Technology",
-                "تقنية المعلومات"
+                Optional.of(
+                    new DepartmentDirectoryEntry(
+                        new DepartmentCode("117"),
+                        "Information Technology",
+                        "تقنية المعلومات"
+                    )
+                )
             );
 
         assertEquals(
@@ -43,23 +50,40 @@ class EmployeeDirectoryEntryTest {
             employee.nameArabic()
         );
 
+        DepartmentDirectoryEntry department =
+            employee.department().orElseThrow();
+
         assertEquals(
             "117",
-            employee.departmentCode().value()
+            department.code().value()
+        );
+
+        assertEquals(
+            "Information Technology",
+            department.nameEnglish()
+        );
+
+        assertEquals(
+            "تقنية المعلومات",
+            department.nameArabic()
         );
     }
 
     @Test
-    void trimsNames() {
+    void trimsEmployeeNames() {
         EmployeeDirectoryEntry employee =
             new EmployeeDirectoryEntry(
                 new EmployeeId("17257"),
                 new DirectoryUsername("adil.amin"),
                 "  Adil Mustafa Amin  ",
                 "  عادل مصطفى امين  ",
-                new DepartmentCode("117"),
-                "  Information Technology  ",
-                "  تقنية المعلومات  "
+                Optional.of(
+                    new DepartmentDirectoryEntry(
+                        new DepartmentCode("117"),
+                        "Information Technology",
+                        "تقنية المعلومات"
+                    )
+                )
             );
 
         assertEquals(
@@ -71,28 +95,40 @@ class EmployeeDirectoryEntryTest {
             "عادل مصطفى امين",
             employee.nameArabic()
         );
-
-        assertEquals(
-            "Information Technology",
-            employee.departmentNameEnglish()
-        );
     }
 
     @Test
-    void allowsMissingArabicNames() {
+    void allowsMissingArabicEmployeeName() {
         EmployeeDirectoryEntry employee =
             new EmployeeDirectoryEntry(
                 new EmployeeId("17257"),
                 new DirectoryUsername("adil.amin"),
                 "Adil Mustafa Amin",
                 null,
-                new DepartmentCode("117"),
-                "Information Technology",
-                "   "
+                Optional.of(
+                    new DepartmentDirectoryEntry(
+                        new DepartmentCode("117"),
+                        "Information Technology",
+                        null
+                    )
+                )
             );
 
         assertNull(employee.nameArabic());
-        assertNull(employee.departmentNameArabic());
+    }
+
+    @Test
+    void allowsEmployeeWithoutCurrentDepartment() {
+        EmployeeDirectoryEntry employee =
+            new EmployeeDirectoryEntry(
+                new EmployeeId("0685"),
+                new DirectoryUsername("employee.user"),
+                "Example Employee",
+                null,
+                Optional.empty()
+            );
+
+        assertTrue(employee.department().isEmpty());
     }
 
     @Test
@@ -104,25 +140,7 @@ class EmployeeDirectoryEntryTest {
                 new DirectoryUsername("adil.amin"),
                 "   ",
                 null,
-                new DepartmentCode("117"),
-                "Information Technology",
-                null
-            )
-        );
-    }
-
-    @Test
-    void rejectsBlankEnglishDepartmentName() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> new EmployeeDirectoryEntry(
-                new EmployeeId("17257"),
-                new DirectoryUsername("adil.amin"),
-                "Adil Mustafa Amin",
-                null,
-                new DepartmentCode("117"),
-                "   ",
-                null
+                Optional.empty()
             )
         );
     }

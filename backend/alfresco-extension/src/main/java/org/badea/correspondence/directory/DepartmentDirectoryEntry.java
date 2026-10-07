@@ -1,46 +1,28 @@
 package org.badea.correspondence.directory;
 
 import java.util.Objects;
-import java.util.Optional;
 
 /**
- * Resolved employee information from BADEA's employee directory.
- *
- * <p>The employee ID is the canonical application identity after
- * directory resolution. Username is retained only as the directory
- * binding identity.</p>
+ * Current BADEA department information resolved from the employee directory.
  */
-public record EmployeeDirectoryEntry(
-    EmployeeId employeeId,
-    DirectoryUsername username,
+public record DepartmentDirectoryEntry(
+    DepartmentCode code,
     String nameEnglish,
-    String nameArabic,
-    Optional<DepartmentDirectoryEntry> department
+    String nameArabic
 ) {
 
-    public EmployeeDirectoryEntry {
+    public DepartmentDirectoryEntry {
         Objects.requireNonNull(
-            employeeId,
-            "Employee ID must not be null."
-        );
-
-        Objects.requireNonNull(
-            username,
-            "Directory username must not be null."
+            code,
+            "Department code must not be null."
         );
 
         nameEnglish = requireText(
             nameEnglish,
-            "English employee name"
+            "English department name"
         );
 
         nameArabic = normalizeOptionalText(nameArabic);
-
-        department = Objects.requireNonNull(
-            department,
-            "Department must not be null. Use Optional.empty() "
-                + "when no current department is assigned."
-        );
     }
 
     private static String requireText(

@@ -7,4 +7,80 @@
         http://www.springframework.org/schema/beans
         http://www.springframework.org/schema/beans/spring-beans.xsd">
 
+    <!--
+        Alfresco authentication adapter.
+
+        Authentication itself remains owned by Alfresco/AD.
+        This bean only exposes the currently authenticated username
+        to the correspondence application layer.
+    -->
+    <bean
+        id="badeaCorrespondenceAuthenticatedUserProvider"
+        class="org.badea.correspondence.infrastructure.alfresco.AlfrescoAuthenticatedUserProvider"
+        lazy-init="true">
+
+        <constructor-arg ref="AuthenticationService" />
+    </bean>
+
+    <!--
+        Oracle UCP data source used only by the correspondence module.
+
+        Credentials and connection details are supplied by the container
+        environment. Nothing sensitive is stored in this repository.
+
+        lazy-init is intentional: missing Oracle configuration must not
+        prevent Alfresco or the existing BADEA DMS extension from starting.
+    -->
+    <bean
+        id="badeaCorrespondenceEmployeeDirectoryDataSource"
+        class="org.badea.correspondence.infrastructure.oracle.OracleEmployeeDirectoryDataSourceFactory"
+        factory-method="create"
+        lazy-init="true">
+
+        <constructor-arg
+            value="#{systemEnvironment['BADEA_CORRESPONDENCE_DB_URL']}" />
+
+        <constructor-arg
+            value="#{systemEnvironment['BADEA_CORRESPONDENCE_DB_USERNAME']}" />
+
+        <constructor-arg
+            value="#{systemEnvironment['BADEA_CORRESPONDENCE_DB_PASSWORD']}" />
+    </bean>
+
+    <!--
+        Oracle implementation of the employee-directory boundary.
+    -->
+    <bean
+        id="badeaCorrespondenceEmployeeDirectory"
+        class="org.badea.correspondence.infrastructure.oracle.OracleEmployeeDirectory"
+        lazy-init="true">
+
+        <constructor-arg
+            ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
+    </bean>
+
+    <!--
+        Application service:
+        authenticated Alfresco username -> Oracle directory -> EMP_ID.
+    -->
+    <bean
+        id="badeaCorrespondenceCurrentEmployeeService"
+        class="org.badea.correspondence.application.CurrentEmployeeService"
+        lazy-init="true">
+
+        <constructor-arg
+            ref="badeaCorrespondenceAuthenticatedUserProvider" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceEmployeeDirectory" />
+    </bean>
+    <bean
+        id="webscript.org.badea.correspondence.current-employee.get"
+        class="org.badea.correspondence.webscript.CurrentEmployeeWebScript"
+        parent="webscript"
+        lazy-init="true">
+
+        <constructor-arg
+            ref="badeaCorrespondenceCurrentEmployeeService" />
+    </bean>
 </beans>
