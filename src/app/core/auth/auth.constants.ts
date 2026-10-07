@@ -6,3 +6,6 @@ export const ALFRESCO_CURRENT_TICKET_URL =
 
 export const ALFRESCO_CURRENT_USER_URL =
   '/alfresco/api/-default-/public/alfresco/versions/1/people/-me-';
+
+export const BADEA_CURRENT_EMPLOYEE_URL =
+  '/alfresco/service/badea/correspondence/me';

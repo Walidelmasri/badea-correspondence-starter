@@ -1,83 +1,75 @@
 @if (auth.isAuthenticated()) {
-  <div class="app-shell">
-    <header class="app-header">
-      <div class="app-header__brand">
-        <span class="app-header__brand-name">
-          BADEA
+<div class="app-shell">
+  <header class="app-header">
+    <div class="app-header__brand">
+      <span class="app-header__brand-name">
+        BADEA
+      </span>
+
+      <div class="app-header__title">
+        <strong>
+          {{ translation.text().app.name }}
+        </strong>
+
+        <span>
+          {{ translation.text().app.nameEnglish }}
         </span>
+      </div>
+    </div>
 
-        <div class="app-header__title">
-          <strong>
-            {{ translation.text().app.name }}
-          </strong>
+    <nav class="app-navigation" aria-label="Main navigation">
+      @for (item of navigation; track item.key) {
+      <a class="app-navigation__item" [routerLink]="item.route" routerLinkActive="app-navigation__item--active"
+        [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+        {{ translation.text().navigation[item.key] }}
+      </a>
+      }
+    </nav>
 
-          <span>
-            {{ translation.text().app.nameEnglish }}
-          </span>
+    <div class="app-header__actions">
+      @if (auth.currentUser(); as user) {
+      <div class="app-header__user">
+        <strong class="app-header__user-name">
+          @if (translation.language() === 'ar') {
+          {{
+          user.employeeProfile?.nameArabic
+          || user.employeeProfile?.nameEnglish
+          || user.displayName
+          }}
+          } @else {
+          {{
+          user.employeeProfile?.nameEnglish
+          || user.displayName
+          }}
+          }
+        </strong>
+
+        <div class="app-header__avatar" aria-hidden="true">
+          {{ auth.initials() }}
         </div>
       </div>
+      }
 
-      <nav
-        class="app-navigation"
-        aria-label="Main navigation"
-      >
-        @for (item of navigation; track item.key) {
-          <a
-            class="app-navigation__item"
-            [routerLink]="item.route"
-            routerLinkActive="app-navigation__item--active"
-            [routerLinkActiveOptions]="{ exact: true }"
-            ariaCurrentWhenActive="page"
-          >
-            {{ translation.text().navigation[item.key] }}
-          </a>
-        }
-      </nav>
+      <div class="app-header__session-actions">
+        <button class="app-header__language" type="button" (click)="toggleLanguage()">
+          @if (translation.language() === 'ar') {
+          EN
+          } @else {
+          عربي
+          }
+        </button>
 
-      <div class="app-header__actions">
-        @if (auth.currentUser(); as user) {
-          <div class="app-header__user">
-            <strong class="app-header__user-name">
-              {{ user.displayName }}
-            </strong>
-
-            <div
-              class="app-header__avatar"
-              aria-hidden="true"
-            >
-              {{ auth.initials() }}
-            </div>
-          </div>
-        }
-
-        <div class="app-header__session-actions">
-          <button
-            class="app-header__language"
-            type="button"
-            (click)="toggleLanguage()"
-          >
-            @if (translation.language() === 'ar') {
-              EN
-            } @else {
-              عربي
-            }
-          </button>
-
-          <button
-            class="app-header__logout"
-            type="button"
-            (click)="logout()"
-          >
-            {{ translation.text().auth.signOut }}
-          </button>
-        </div>
+        <button class="app-header__logout" type="button" (click)="logout()">
+          {{ translation.text().auth.signOut }}
+        </button>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <main class="app-content">
-      <router-outlet />
-    </main>
-  </div>
+  <main class="app-content">
+    <router-outlet />
+  </main>
+</div>
 } @else {
-  <router-outlet />
+<router-outlet />
 }

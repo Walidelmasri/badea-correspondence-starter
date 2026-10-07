@@ -2,10 +2,12 @@ import {
   HttpClient,
   HttpErrorResponse,
 } from '@angular/common/http';
+
 import {
   inject,
   Injectable,
 } from '@angular/core';
+
 import {
   catchError,
   finalize,
@@ -22,12 +24,14 @@ import {
   ALFRESCO_CURRENT_TICKET_URL,
   ALFRESCO_CURRENT_USER_URL,
   ALFRESCO_TICKETS_URL,
+  BADEA_CURRENT_EMPLOYEE_URL,
 } from './auth.constants';
 
 import {
   AlfrescoEntryResponse,
   AlfrescoTicket,
   CurrentUser,
+  EmployeeProfile,
   LoginCredentials,
 } from './auth.model';
 
@@ -182,9 +186,51 @@ export class AuthService {
             response.entry,
         ),
 
+        switchMap((user) =>
+          this.loadEmployeeProfile()
+            .pipe(
+              map((employeeProfile) => {
+                if (!employeeProfile) {
+                  return user;
+                }
+
+                return {
+                  ...user,
+                  employeeProfile,
+                };
+              }),
+            ),
+        ),
+
         tap((user) => {
           this.session.setCurrentUser(
             user,
+          );
+        }),
+      );
+  }
+
+  private loadEmployeeProfile():
+    Observable<EmployeeProfile | null> {
+    return this.http
+      .get<EmployeeProfile>(
+        BADEA_CURRENT_EMPLOYEE_URL,
+      )
+      .pipe(
+        catchError((error: unknown) => {
+          if (
+            error instanceof
+              HttpErrorResponse &&
+            (
+              error.status === 404 ||
+              error.status === 503
+            )
+          ) {
+            return of(null);
+          }
+
+          return throwError(
+            () => error,
           );
         }),
       );

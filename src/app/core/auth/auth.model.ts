@@ -18,6 +18,20 @@ export interface CurrentUserCapabilities {
   readonly isMutable: boolean;
 }
 
+export interface EmployeeDepartment {
+  readonly code: string;
+  readonly nameEnglish: string;
+  readonly nameArabic: string | null;
+}
+
+export interface EmployeeProfile {
+  readonly employeeId: string;
+  readonly username: string;
+  readonly nameEnglish: string;
+  readonly nameArabic: string | null;
+  readonly department: EmployeeDepartment | null;
+}
+
 export interface CurrentUser {
   readonly id: string;
   readonly firstName: string;
@@ -26,4 +40,13 @@ export interface CurrentUser {
   readonly email?: string;
   readonly enabled: boolean;
   readonly capabilities: CurrentUserCapabilities;
+
+  /**
+   * BADEA employee-directory information.
+   *
+   * This is optional because authentication is owned by Alfresco/AD.
+   * An authenticated user may not have a matching active Oracle
+   * employee record.
+   */
+  readonly employeeProfile?: EmployeeProfile;
 }

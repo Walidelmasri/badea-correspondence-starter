@@ -24,10 +24,12 @@ import {
   ALFRESCO_CURRENT_TICKET_URL,
   ALFRESCO_CURRENT_USER_URL,
   ALFRESCO_TICKETS_URL,
+  BADEA_CURRENT_EMPLOYEE_URL,
 } from './auth.constants';
 
 import {
   CurrentUser,
+  EmployeeProfile,
 } from './auth.model';
 
 import {
@@ -50,6 +52,23 @@ const currentUser: CurrentUser = {
     isGuest: false,
     isAdmin: false,
     isMutable: false,
+  },
+};
+
+const employeeProfile: EmployeeProfile = {
+  employeeId: '18280',
+  username: 'almunder.salih',
+  nameEnglish:
+    'Almunder Salih Melod Sahboun',
+  nameArabic:
+    'المنذر صالح ميلود سحبون',
+
+  department: {
+    code: '111',
+    nameEnglish:
+      'Strategy Department',
+    nameArabic:
+      'إدارة الاستراتيجية',
   },
 };
 
@@ -90,7 +109,7 @@ describe('AuthService', () => {
     sessionStorage.clear();
   });
 
-  it('logs in with Alfresco and loads the authenticated user', () => {
+  it('logs in with Alfresco and enriches the authenticated user from the employee directory', () => {
     const next = vi.fn();
     const error = vi.fn();
 
@@ -149,6 +168,24 @@ describe('AuthService', () => {
       entry: currentUser,
     });
 
+    const employeeRequest =
+      http.expectOne(
+        BADEA_CURRENT_EMPLOYEE_URL,
+      );
+
+    expect(
+      employeeRequest.request.method,
+    ).toBe('GET');
+
+    employeeRequest.flush(
+      employeeProfile,
+    );
+
+    const expectedUser: CurrentUser = {
+      ...currentUser,
+      employeeProfile,
+    };
+
     expect(error)
       .not
       .toHaveBeenCalled();
@@ -158,13 +195,13 @@ describe('AuthService', () => {
 
     expect(next)
       .toHaveBeenCalledWith(
-        currentUser,
+        expectedUser,
       );
 
     expect(
       session.currentUser(),
     ).toEqual(
-      currentUser,
+      expectedUser,
     );
 
     expect(
@@ -195,11 +232,6 @@ describe('AuthService', () => {
         error,
       });
 
-    /*
-     * login() must clear any previous
-     * authentication before attempting
-     * a new login.
-     */
     expect(
       session.ticket(),
     ).toBeNull();
@@ -247,7 +279,7 @@ describe('AuthService', () => {
     ).toBe(false);
   });
 
-  it('restores the authenticated user from an existing ticket', () => {
+  it('restores the authenticated user when no Oracle employee mapping exists', () => {
     const next = vi.fn();
 
     session.setTicket(
@@ -274,6 +306,25 @@ describe('AuthService', () => {
     userRequest.flush({
       entry: currentUser,
     });
+
+    const employeeRequest =
+      http.expectOne(
+        BADEA_CURRENT_EMPLOYEE_URL,
+      );
+
+    employeeRequest.flush(
+      {
+        code:
+          'EMPLOYEE_NOT_FOUND',
+        message:
+          'No active employee profile was found for the authenticated user.',
+      },
+      {
+        status: 404,
+        statusText:
+          'Not Found',
+      },
+    );
 
     expect(next)
       .toHaveBeenCalledOnce();
