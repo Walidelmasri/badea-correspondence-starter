@@ -63,3 +63,6 @@ deployment/private/
 # Local PDF files used for development/testing
 /src/assets/pdf/local/
 /public/pdf/local/
+
+# Maven build output
+backend/alfresco-extension/target/

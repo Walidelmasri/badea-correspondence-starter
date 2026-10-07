@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project
+    xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://maven.apache.org/POM/4.0.0
+        https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.badea</groupId>
+    <artifactId>badea-correspondence</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>BADEA Presidency Correspondence</name>
+    <description>
+        Alfresco repository extension for BADEA Presidency correspondence.
+    </description>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <alfresco.version>26.1.0.61</alfresco.version>
+
+        <junit.version>5.11.4</junit.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>alfresco-public</id>
+            <name>Alfresco Public Repository</name>
+            <url>
+                https://artifacts.alfresco.com/nexus/content/groups/public
+            </url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <dependencies>
+
+        <!--
+            Alfresco provides these libraries at runtime.
+            They must not be packaged into the correspondence JAR.
+        -->
+        <dependency>
+            <groupId>org.alfresco</groupId>
+            <artifactId>alfresco-repository</artifactId>
+            <version>${alfresco.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.alfresco</groupId>
+            <artifactId>alfresco-data-model</artifactId>
+            <version>${alfresco.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>
