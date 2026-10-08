@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+
+    <shortname>Create Correspondence</shortname>
+
+    <description>
+        Creates a draft BADEA Presidency correspondence for the
+        authenticated employee.
+    </description>
+
+    <url>/badea/correspondence</url>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+
+    <format default="json">extension</format>
+
+</webscript>

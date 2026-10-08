@@ -115,12 +115,18 @@ public final class AlfrescoCorrespondenceRepository {
         String technicalId =
                 UUID.randomUUID().toString();
 
+        String folderName =
+                buildFolderName(
+                        command.originDepartmentCode().value(),
+                        technicalId,
+                        command.subject());
+
         Map<QName, Serializable> properties =
                 new HashMap<>();
 
         properties.put(
                 ContentModel.PROP_NAME,
-                technicalId);
+                folderName);
 
         properties.put(
                 PROP_TECHNICAL_ID,
@@ -197,6 +203,45 @@ public final class AlfrescoCorrespondenceRepository {
         }
 
         return technicalId;
+    }
+
+    private static String buildFolderName(
+            String originDepartmentCode,
+            String technicalId,
+            String subject) {
+
+        String safeSubject =
+                sanitizeFolderNamePart(subject);
+
+        return originDepartmentCode
+                + " - "
+                + technicalId
+                + " - "
+                + safeSubject;
+    }
+
+    private static String sanitizeFolderNamePart(
+            String value) {
+
+        String sanitized = value
+                .replace("/", "-")
+                .replace("\\", "-")
+                .replace(":", "-")
+                .replace("*", "-")
+                .replace("?", "")
+                .replace("\"", "'")
+                .replace("<", "")
+                .replace(">", "")
+                .replace("|", "-")
+                .trim();
+
+        if (sanitized.length() > 120) {
+            return sanitized
+                    .substring(0, 120)
+                    .trim();
+        }
+
+        return sanitized;
     }
 
     private static void putIfPresent(

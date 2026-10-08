@@ -123,4 +123,13 @@
     <constructor-arg ref="badeaCorrespondenceFolderLocator" />
 
 </bean>
+<bean
+    id="webscript.org.badea.correspondence.create-correspondence.post"
+    class="org.badea.correspondence.webscript.CreateCorrespondenceWebScript"
+    parent="webscript">
+
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceRepository" />
+
+</bean>
 </beans>
