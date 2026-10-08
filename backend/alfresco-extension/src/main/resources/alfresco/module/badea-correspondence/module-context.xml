@@ -92,13 +92,11 @@
         parent="dictionaryModelBootstrap"
         depends-on="dictionaryBootstrap">
 
-        <property name="models">
-            <list>
-                <value>
-                    alfresco/module/badea-correspondence/model/correspondence-model.xml
-                </value>
-            </list>
-        </property>
+       <property name="models">
+    <list>
+        <value>alfresco/module/badea-correspondence/model/correspondence-model.xml</value>
+    </list>
+</property>
 
     </bean>
 </beans>
