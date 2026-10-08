@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<model
+    name="bc:correspondenceModel"
+    xmlns="http://www.alfresco.org/model/dictionary/1.0">
+
+    <description>
+        BADEA Presidency Correspondence content model
+    </description>
+
+    <author>BADEA</author>
+
+    <version>1.0</version>
+
+    <imports>
+        <import
+            uri="http://www.alfresco.org/model/dictionary/1.0"
+            prefix="d" />
+
+        <import
+            uri="http://www.alfresco.org/model/content/1.0"
+            prefix="cm" />
+    </imports>
+
+    <namespaces>
+        <namespace
+            uri="http://www.badea.org/model/correspondence/1.0"
+            prefix="bc" />
+    </namespaces>
+
+    <types>
+
+        <!--
+            Root folder representing one correspondence.
+
+            Documents, attachments, generated action-sheet PDFs and
+            immutable workflow-history records are stored beneath this node.
+        -->
+        <type name="bc:correspondence">
+
+            <title>Correspondence</title>
+
+            <parent>cm:folder</parent>
+
+            <properties>
+
+                <!--
+                    Stable system-owned identity.
+
+                    This is independent from the eventual official
+                    BADEA business-reference-number policy.
+                -->
+                <property name="bc:technicalId">
+                    <title>Technical ID</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+
+                    <index enabled="true">
+                        <atomic>true</atomic>
+                        <stored>true</stored>
+                        <tokenised>false</tokenised>
+                    </index>
+                </property>
+
+
+                <!-- Main correspondence content -->
+
+                <property name="bc:subject">
+                    <title>Subject</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:bodyText">
+                    <title>Body Text</title>
+                    <type>d:mltext</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+                <property name="bc:documentNumber">
+                    <title>Document Number</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+                <property name="bc:documentDate">
+                    <title>Document Date</title>
+                    <type>d:date</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+                <!--
+                    Covers the action-sheet field:
+                    Country / Entity / Department.
+                -->
+                <property name="bc:sourceText">
+                    <title>Country / Entity / Department</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+
+                <!-- Origin -->
+
+                <property name="bc:originDepartmentCode">
+                    <title>Origin Department Code</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+
+                    <index enabled="true">
+                        <atomic>true</atomic>
+                        <stored>true</stored>
+                        <tokenised>false</tokenised>
+                    </index>
+                </property>
+
+
+                <!-- Current workflow position -->
+
+                <property name="bc:state">
+                    <title>Workflow State</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+
+                    <index enabled="true">
+                        <atomic>true</atomic>
+                        <stored>true</stored>
+                        <tokenised>false</tokenised>
+                    </index>
+                </property>
+
+                <property name="bc:assignedRole">
+                    <title>Assigned Role</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+
+                    <index enabled="true">
+                        <atomic>true</atomic>
+                        <stored>true</stored>
+                        <tokenised>false</tokenised>
+                    </index>
+                </property>
+
+                <property name="bc:assignedDepartmentCode">
+                    <title>Assigned Department Code</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+
+                    <index enabled="true">
+                        <atomic>true</atomic>
+                        <stored>true</stored>
+                        <tokenised>false</tokenised>
+                    </index>
+                </property>
+
+
+                <!--
+                    Creator identity.
+
+                    EMP_ID is the canonical internal identity.
+                    Names are snapshots so historical records do not
+                    silently change if Oracle directory names change later.
+                -->
+                <property name="bc:createdByEmployeeId">
+                    <title>Created By Employee ID</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:createdByNameEnglish">
+                    <title>Created By English Name</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:createdByNameArabic">
+                    <title>Created By Arabic Name</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+
+                <!--
+                    Monotonic correspondence-local history sequence.
+                -->
+                <property name="bc:lastActionSequence">
+                    <title>Last Action Sequence</title>
+                    <type>d:long</type>
+                    <mandatory>true</mandatory>
+                    <default>0</default>
+                </property>
+
+            </properties>
+
+        </type>
+
+
+        <!--
+            Immutable record representing one workflow transition.
+
+            Application code creates these append-only.
+        -->
+        <type name="bc:workflowAction">
+
+            <title>Correspondence Workflow Action</title>
+
+            <parent>cm:content</parent>
+
+            <properties>
+
+                <property name="bc:actionSequence">
+                    <title>Action Sequence</title>
+                    <type>d:long</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:actionType">
+                    <title>Action</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:fromState">
+                    <title>From State</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:toState">
+                    <title>To State</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+
+                <!-- Actor identity snapshot -->
+
+                <property name="bc:actorEmployeeId">
+                    <title>Actor Employee ID</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:actorNameEnglish">
+                    <title>Actor English Name</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:actorNameArabic">
+                    <title>Actor Arabic Name</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+                <property name="bc:actorRole">
+                    <title>Actor Role</title>
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+                <property name="bc:actedAt">
+                    <title>Action Timestamp</title>
+                    <type>d:datetime</type>
+                    <mandatory>true</mandatory>
+                </property>
+
+
+                <!--
+                    Snapshot of the action-sheet explanation supplied
+                    for this workflow round.
+                -->
+                <property name="bc:explanation">
+                    <title>Explanation</title>
+                    <type>d:mltext</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+                <!--
+                    Required by application logic only when the
+                    action is ADMINISTRATIVE_CLOSE.
+                -->
+                <property name="bc:closureReason">
+                    <title>Administrative Closure Reason</title>
+                    <type>d:mltext</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+            </properties>
+
+        </type>
+
+    </types>
+
+</model>

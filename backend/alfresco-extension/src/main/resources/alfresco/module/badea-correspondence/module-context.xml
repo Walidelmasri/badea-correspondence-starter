@@ -83,4 +83,22 @@
         <constructor-arg
             ref="badeaCorrespondenceCurrentEmployeeService" />
     </bean>
+    <!--
+    Registers the BADEA Presidency Correspondence content model
+    with Alfresco's repository dictionary.
+-->
+    <bean
+        id="badeaCorrespondenceDictionaryBootstrap"
+        parent="dictionaryModelBootstrap"
+        depends-on="dictionaryBootstrap">
+
+        <property name="models">
+            <list>
+                <value>
+                    alfresco/module/badea-correspondence/model/correspondence-model.xml
+                </value>
+            </list>
+        </property>
+
+    </bean>
 </beans>
