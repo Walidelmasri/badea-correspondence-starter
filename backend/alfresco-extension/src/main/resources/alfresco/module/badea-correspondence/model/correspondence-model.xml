@@ -72,10 +72,10 @@
                 </property>
 
                 <property name="bc:bodyText">
-                    <title>Body Text</title>
-                    <type>d:mltext</type>
-                    <mandatory>false</mandatory>
-                </property>
+    <title>Body Text</title>
+    <type>d:text</type>
+    <mandatory>false</mandatory>
+</property>
 
                 <property name="bc:documentNumber">
                     <title>Document Number</title>
@@ -232,7 +232,30 @@
                     <mandatory>true</mandatory>
                 </property>
 
+                <!--
+    Immutable snapshot of where this transition was routed.
 
+    These values describe the destination at this point in history;
+    they must not be reconstructed from the correspondence's current
+    assignment because that assignment changes over time.
+-->
+<property name="bc:targetRole">
+    <title>Target Role</title>
+    <type>d:text</type>
+    <mandatory>false</mandatory>
+</property>
+
+<property name="bc:targetDepartmentCode">
+    <title>Target Department Code</title>
+    <type>d:text</type>
+    <mandatory>false</mandatory>
+</property>
+
+<property name="bc:targetEmployeeId">
+    <title>Target Employee ID</title>
+    <type>d:text</type>
+    <mandatory>false</mandatory>
+</property>
                 <!-- Actor identity snapshot -->
 
                 <property name="bc:actorEmployeeId">
@@ -272,7 +295,7 @@
                 -->
                 <property name="bc:explanation">
                     <title>Explanation</title>
-                    <type>d:mltext</type>
+                    <type>d:text</type>
                     <mandatory>false</mandatory>
                 </property>
 
@@ -282,7 +305,7 @@
                 -->
                 <property name="bc:closureReason">
                     <title>Administrative Closure Reason</title>
-                    <type>d:mltext</type>
+                    <type>d:text</type>
                     <mandatory>false</mandatory>
                 </property>
 
