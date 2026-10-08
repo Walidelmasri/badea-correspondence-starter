@@ -132,4 +132,12 @@
     <constructor-arg ref="badeaCorrespondenceRepository" />
 
 </bean>
+<bean
+    id="badeaCorrespondenceNodeLocator"
+    class="org.badea.correspondence.infrastructure.alfresco.CorrespondenceNodeLocator">
+
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="badeaCorrespondenceFolderLocator" />
+
+</bean>
 </beans>
