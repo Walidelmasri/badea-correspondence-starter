@@ -99,4 +99,20 @@
 </property>
 
     </bean>
+    <bean
+    id="badeaCorrespondenceFolderLocator"
+    class="org.badea.correspondence.infrastructure.alfresco.CorrespondenceFolderLocator">
+
+    <constructor-arg ref="siteService" />
+    <constructor-arg ref="nodeService" />
+
+    <!--
+        Existing Alfresco site short name.
+        Preserve the actual repository ID, including its existing spelling.
+    -->
+    <constructor-arg value="badea-instituional-documents" />
+
+    <constructor-arg value="Correspondence" />
+
+</bean>
 </beans>
