@@ -189,7 +189,25 @@
                     <mandatory>true</mandatory>
                     <default>0</default>
                 </property>
+<property name="bc:presidentReviewState">
+    <title>President Review State</title>
+    <type>d:content</type>
+</property>
 
+<property name="bc:presidentReviewRevision">
+    <title>President Review Revision</title>
+    <type>d:long</type>
+</property>
+
+<property name="bc:presidentReviewUpdatedByEmployeeId">
+    <title>President Review Updated By Employee ID</title>
+    <type>d:text</type>
+</property>
+
+<property name="bc:presidentReviewUpdatedAt">
+    <title>President Review Updated At</title>
+    <type>d:datetime</type>
+</property>
             </properties>
 
         </type>
