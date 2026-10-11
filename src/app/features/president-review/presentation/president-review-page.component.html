@@ -217,7 +217,7 @@
 
                 <div class="choice-grid">
                     @for (
-                    recipient of recipients;
+                    recipient of recipients();
                     track recipient.id
                     ) {
                     <button class="choice-chip" type="button" [class.choice-chip--selected]="
@@ -337,7 +337,7 @@
                 @if (showCopyTo()) {
                 <div class="choice-grid choice-grid--compact">
                     @for (
-                    recipient of recipients;
+                    recipient of recipients();
                     track recipient.id
                     ) {
                     <button class="choice-chip" type="button" [class.choice-chip--selected]="
