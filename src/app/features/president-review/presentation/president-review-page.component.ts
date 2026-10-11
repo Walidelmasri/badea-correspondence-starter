@@ -498,42 +498,16 @@ export class PresidentReviewPageComponent {
           ),
     );
 
-  /*
-   * "To" is already satisfied by President Office,
-   * which is always part of the workflow.
-   *
-   * At President stage the remaining mandatory
-   * business decision is at least one Required Action.
-   */
-  readonly canHandoff =
-    computed(
-      () => {
-        if (
-          this.selectedActionCodes()
-            .size === 0
-        ) {
-          return false;
-        }
-
-        if (
-          this.otherActionSelected() &&
-          !this.otherAction()
-            .trim()
-        ) {
-          return false;
-        }
-
-        if (
-          this.otherRecipientSelected() &&
-          !this.otherRecipient()
-            .trim()
-        ) {
-          return false;
-        }
-
-        return true;
-      },
-    );
+/*
+ * The President may leave every action-sheet field blank.
+ *
+ * Completion and validation rules apply at the
+ * President Office / later workflow stage.
+ */
+readonly canHandoff =
+  computed(
+    () => true,
+  );
 
   selectAttachment(
     id: string,
