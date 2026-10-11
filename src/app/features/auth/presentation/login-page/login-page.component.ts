@@ -5,6 +5,7 @@ import {
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -23,6 +24,8 @@ import {
 
 import {
   finalize,
+  from,
+  switchMap,
   take,
 } from 'rxjs';
 
@@ -36,13 +39,17 @@ import {
 
 @Component({
   selector: 'app-login-page',
+
   imports: [
     ReactiveFormsModule,
   ],
+
   templateUrl:
     './login-page.component.html',
+
   styleUrl:
     './login-page.component.scss',
+
   changeDetection:
     ChangeDetectionStrategy.OnPush,
 })
@@ -59,8 +66,18 @@ export class LoginPageComponent {
   readonly translation =
     inject(TranslationService);
 
+  readonly isCheckingSession =
+    signal(true);
+
   readonly isSubmitting =
     signal(false);
+
+  readonly isBusy =
+    computed(
+      () =>
+        this.isCheckingSession() ||
+        this.isSubmitting(),
+    );
 
   readonly errorMessage =
     signal<string | null>(null);
@@ -71,6 +88,7 @@ export class LoginPageComponent {
         '',
         {
           nonNullable: true,
+
           validators: [
             Validators.required,
           ],
@@ -81,6 +99,7 @@ export class LoginPageComponent {
         '',
         {
           nonNullable: true,
+
           validators: [
             Validators.required,
           ],
@@ -94,22 +113,76 @@ export class LoginPageComponent {
       .pipe(
         take(1),
       )
-      .subscribe(
-        (isAuthenticated) => {
+      .subscribe({
+        next: (
+          isAuthenticated,
+        ) => {
           if (
-            isAuthenticated
+            !isAuthenticated
           ) {
-            void this
-              .navigateAfterLogin();
+            this.isCheckingSession.set(
+              false,
+            );
+
+            return;
           }
+
+          void this
+            .navigateAfterLogin()
+            .then(
+              (
+                navigated,
+              ) => {
+                if (
+                  !navigated
+                ) {
+                  this.errorMessage.set(
+                    this.translation
+                      .text()
+                      .auth
+                      .unavailable,
+                  );
+                }
+              },
+            )
+            .catch(
+              () => {
+                this.errorMessage.set(
+                  this.translation
+                    .text()
+                    .auth
+                    .unavailable,
+                );
+              },
+            )
+            .finally(
+              () => {
+                this.isCheckingSession.set(
+                  false,
+                );
+              },
+            );
         },
-      );
+
+        error: () => {
+          this.isCheckingSession.set(
+            false,
+          );
+
+          this.errorMessage.set(
+            this.translation
+              .text()
+              .auth
+              .unavailable,
+          );
+        },
+      });
   }
 
   submit(): void {
     if (
       this.form.invalid ||
-      this.isSubmitting()
+      this.isBusy()
     ) {
       this.form
         .markAllAsTouched();
@@ -117,24 +190,56 @@ export class LoginPageComponent {
       return;
     }
 
-    this.isSubmitting.set(true);
-    this.errorMessage.set(null);
+    this.isSubmitting.set(
+      true,
+    );
+
+    this.errorMessage.set(
+      null,
+    );
 
     this.auth
       .login(
         this.form.getRawValue(),
       )
       .pipe(
-        finalize(() => {
-          this.isSubmitting.set(
-            false,
-          );
-        }),
+        /*
+         * Keep the loading state active until routing
+         * has actually finished.
+         *
+         * Previously login() completed after currentUser
+         * was populated but before navigateByUrl()
+         * finished, causing the login form to flash back.
+         */
+        switchMap(
+          () =>
+            from(
+              this.navigateAfterLogin(),
+            ),
+        ),
+
+        finalize(
+          () => {
+            this.isSubmitting.set(
+              false,
+            );
+          },
+        ),
       )
       .subscribe({
-        next: () => {
-          void this
-            .navigateAfterLogin();
+        next: (
+          navigated,
+        ) => {
+          if (
+            !navigated
+          ) {
+            this.errorMessage.set(
+              this.translation
+                .text()
+                .auth
+                .unavailable,
+            );
+          }
         },
 
         error: (
@@ -168,7 +273,9 @@ export class LoginPageComponent {
       this.route
         .snapshot
         .queryParamMap
-        .get('returnUrl');
+        .get(
+          'returnUrl',
+        );
 
     if (
       !returnUrl ||

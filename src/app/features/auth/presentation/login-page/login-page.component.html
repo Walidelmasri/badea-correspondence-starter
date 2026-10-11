@@ -2,6 +2,7 @@
   <section
     class="login-card"
     aria-labelledby="login-heading"
+    [attr.aria-busy]="isBusy()"
   >
     <div class="login-card__topbar">
       <span class="login-card__brand">
@@ -23,100 +24,115 @@
       </button>
     </div>
 
-    <div class="login-card__heading">
-      <span class="login-card__eyebrow">
-        {{
-          translation.text().auth.eyebrow
-        }}
-      </span>
-
-      <h1 id="login-heading">
-        {{
-          translation.text().auth.title
-        }}
-      </h1>
-
-      <p>
-        {{
-          translation.text().auth.description
-        }}
-      </p>
-    </div>
-
-    <form
-      class="login-form"
-      [formGroup]="form"
-      (ngSubmit)="submit()"
-    >
-      <label class="login-field">
-        <span>
-          {{
-            translation.text()
-              .auth.username
-          }}
-        </span>
-
-        <input
-          type="text"
-          formControlName="userId"
-          autocomplete="username"
-          autocapitalize="none"
-          spellcheck="false"
-          [placeholder]="
-            translation.text()
-              .auth.usernamePlaceholder
-          "
-        />
-      </label>
-
-      <label class="login-field">
-        <span>
-          {{
-            translation.text()
-              .auth.password
-          }}
-        </span>
-
-        <input
-          type="password"
-          formControlName="password"
-          autocomplete="current-password"
-          [placeholder]="
-            translation.text()
-              .auth.passwordPlaceholder
-          "
-        />
-      </label>
-
-      @if (
-        errorMessage();
-        as error
-      ) {
-        <div
-          class="login-form__error"
-          role="alert"
-        >
-          {{ error }}
-        </div>
-      }
-
-      <button
-        class="login-form__submit"
-        type="submit"
-        [disabled]="isSubmitting()"
+    @if (isBusy()) {
+      <div
+        class="login-loading"
+        role="status"
+        aria-live="polite"
       >
-        @if (isSubmitting()) {
+        <span
+          class="login-loading__spinner"
+          aria-hidden="true"
+        ></span>
+
+        <strong>
           {{
             translation.text()
               .auth.signingIn
           }}
-        } @else {
+        </strong>
+      </div>
+    } @else {
+      <div class="login-card__heading">
+        <span class="login-card__eyebrow">
+          {{
+            translation.text()
+              .auth.eyebrow
+          }}
+        </span>
+
+        <h1 id="login-heading">
+          {{
+            translation.text()
+              .auth.title
+          }}
+        </h1>
+
+        <p>
+          {{
+            translation.text()
+              .auth.description
+          }}
+        </p>
+      </div>
+
+      <form
+        class="login-form"
+        [formGroup]="form"
+        (ngSubmit)="submit()"
+      >
+        <label class="login-field">
+          <span>
+            {{
+              translation.text()
+                .auth.username
+            }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="userId"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            [placeholder]="
+              translation.text()
+                .auth.usernamePlaceholder
+            "
+          />
+        </label>
+
+        <label class="login-field">
+          <span>
+            {{
+              translation.text()
+                .auth.password
+            }}
+          </span>
+
+          <input
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            [placeholder]="
+              translation.text()
+                .auth.passwordPlaceholder
+            "
+          />
+        </label>
+
+        @if (
+          errorMessage();
+          as error
+        ) {
+          <div
+            class="login-form__error"
+            role="alert"
+          >
+            {{ error }}
+          </div>
+        }
+
+        <button
+          class="login-form__submit"
+          type="submit"
+        >
           {{
             translation.text()
               .auth.signIn
           }}
-        }
-      </button>
-    </form>
+        </button>
+      </form>
+    }
   </section>
 </main>

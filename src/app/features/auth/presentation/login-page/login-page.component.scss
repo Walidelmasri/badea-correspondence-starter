@@ -87,6 +87,48 @@
   cursor: pointer;
 }
 
+.login-loading {
+  min-height: 18rem;
+
+  display: grid;
+  place-items: center;
+  align-content: center;
+
+  gap: 1rem;
+
+  text-align: center;
+
+  color:
+    var(--color-text-secondary);
+}
+
+.login-loading strong {
+  color:
+    var(--color-text-primary);
+
+  font-size: 0.95rem;
+}
+
+.login-loading__spinner {
+  width: 2.75rem;
+  height: 2.75rem;
+
+  border:
+    3px solid
+    var(--color-primary-100);
+
+  border-block-start-color:
+    var(--color-primary-700);
+
+  border-radius: 50%;
+
+  animation:
+    login-spinner
+    0.8s
+    linear
+    infinite;
+}
+
 .login-card__heading {
   margin-block-end: 2rem;
 }
@@ -233,15 +275,9 @@
       var(--transition-fast);
 }
 
-.login-form__submit:hover:not(:disabled) {
+.login-form__submit:hover {
   background:
     var(--color-primary-900);
-}
-
-.login-form__submit:disabled {
-  opacity: 0.6;
-
-  cursor: wait;
 }
 
 .login-card__language:focus-visible,
@@ -251,4 +287,20 @@
     var(--color-primary-100);
 
   outline-offset: 2px;
+}
+
+@keyframes login-spinner {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+@media (
+  prefers-reduced-motion:
+    reduce
+) {
+  .login-loading__spinner {
+    animation: none;
+  }
 }

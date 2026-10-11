@@ -1,4 +1,7 @@
-@if (auth.isAuthenticated()) {
+@if (
+  auth.isAuthenticated() &&
+  !isLoginRoute()
+) {
 <div class="app-shell">
   <header class="app-header">
     <div class="app-header__brand">
