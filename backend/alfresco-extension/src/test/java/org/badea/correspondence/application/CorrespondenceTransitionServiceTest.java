@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeId;
+import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceAction;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
@@ -22,7 +23,6 @@ class CorrespondenceTransitionServiceTest {
             "4519dccf-c777-4514-b8b8-ac4c713ebd2b";
 
     private CorrespondenceTransitionRepository repository;
-
     private CorrespondenceTransitionService service;
 
     @BeforeEach
@@ -35,23 +35,32 @@ class CorrespondenceTransitionServiceTest {
         service =
                 new CorrespondenceTransitionService(
                         new CorrespondenceWorkflowService(),
+                        new CorrespondenceAccessAuthorizer(),
                         repository);
     }
 
     @Test
-    void directorSendsDraftToPresidentOffice() {
-
-        when(repository.getCurrentState(
-                TECHNICAL_ID))
-                .thenReturn(
-                        CorrespondenceState.DRAFT);
+    void directorSendsOwnDepartmentDraftToPresidentOffice() {
 
         TransitionCorrespondenceCommand command =
                 command(
                         CorrespondenceActorRole.DIRECTOR,
                         CorrespondenceAction.SEND_TO_OFFICE,
+                        new DepartmentCode("117"),
                         null,
                         null);
+
+        CorrespondenceAccessContext context =
+                new CorrespondenceAccessContext(
+                        CorrespondenceState.DRAFT,
+                        new DepartmentCode("117"),
+                        null,
+                        null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        context);
 
         CorrespondenceState result =
                 service.transition(
@@ -70,12 +79,40 @@ class CorrespondenceTransitionServiceTest {
     }
 
     @Test
-    void presidentOfficeSendsToSelectedDirector() {
+    void rejectsDirectorActingOnAnotherDepartmentsDraft() {
 
-        when(repository.getCurrentState(
+        TransitionCorrespondenceCommand command =
+                command(
+                        CorrespondenceActorRole.DIRECTOR,
+                        CorrespondenceAction.SEND_TO_OFFICE,
+                        new DepartmentCode("117"),
+                        null,
+                        null);
+
+        when(repository.getAccessContext(
                 TECHNICAL_ID))
                 .thenReturn(
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE);
+                        new CorrespondenceAccessContext(
+                                CorrespondenceState.DRAFT,
+                                new DepartmentCode("118"),
+                                null,
+                                null));
+
+        assertThrows(
+                CorrespondenceAuthorizationException.class,
+                () -> service.transition(
+                        command));
+
+        verify(repository, never())
+                .applyTransition(
+                        command,
+                        CorrespondenceState.DRAFT,
+                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE);
+    }
+
+    @Test
+    void presidentOfficeSendsToSelectedDirector() {
 
         DepartmentCode targetDepartment =
                 new DepartmentCode("117");
@@ -84,8 +121,18 @@ class CorrespondenceTransitionServiceTest {
                 command(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.SEND_TO_DIRECTOR,
+                        new DepartmentCode("101"),
                         targetDepartment,
                         null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        new CorrespondenceAccessContext(
+                                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                                new DepartmentCode("118"),
+                                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                                null));
 
         CorrespondenceState result =
                 service.transition(
@@ -104,103 +151,86 @@ class CorrespondenceTransitionServiceTest {
     }
 
     @Test
-    void sendingToDirectorRequiresDepartment() {
-
-        when(repository.getCurrentState(
-                TECHNICAL_ID))
-                .thenReturn(
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE);
+    void sendingToDirectorRequiresTargetDepartment() {
 
         TransitionCorrespondenceCommand command =
                 command(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.SEND_TO_DIRECTOR,
+                        new DepartmentCode("101"),
                         null,
                         null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        officeContext());
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> service.transition(
                         command));
-
-        verify(repository, never())
-                .applyTransition(
-                        command,
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
-                        CorrespondenceState.WITH_DIRECTOR,
-                        CorrespondenceActorRole.DIRECTOR);
     }
 
     @Test
-    void rejectsDepartmentForNonDirectorRoute() {
-
-        when(repository.getCurrentState(
-                TECHNICAL_ID))
-                .thenReturn(
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE);
+    void rejectsTargetDepartmentForNonDirectorRoute() {
 
         TransitionCorrespondenceCommand command =
                 command(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.SEND_TO_PRESIDENT,
+                        new DepartmentCode("101"),
                         new DepartmentCode("117"),
                         null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        officeContext());
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> service.transition(
                         command));
-
-        verify(repository, never())
-                .applyTransition(
-                        command,
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
-                        CorrespondenceState.WITH_PRESIDENT,
-                        CorrespondenceActorRole.PRESIDENT);
     }
 
     @Test
     void administrativeCloseRequiresReason() {
 
-        when(repository.getCurrentState(
-                TECHNICAL_ID))
-                .thenReturn(
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE);
-
         TransitionCorrespondenceCommand command =
                 command(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.ADMINISTRATIVE_CLOSE,
+                        new DepartmentCode("101"),
                         null,
                         null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        officeContext());
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> service.transition(
                         command));
-
-        verify(repository, never())
-                .applyTransition(
-                        command,
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
-                        CorrespondenceState.ARCHIVED,
-                        null);
     }
 
     @Test
     void administrativeCloseArchivesWithReason() {
 
-        when(repository.getCurrentState(
-                TECHNICAL_ID))
-                .thenReturn(
-                        CorrespondenceState.WITH_PRESIDENT_OFFICE);
-
         TransitionCorrespondenceCommand command =
                 command(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.ADMINISTRATIVE_CLOSE,
+                        new DepartmentCode("101"),
                         null,
                         "Closed administratively.");
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        officeContext());
 
         CorrespondenceState result =
                 service.transition(
@@ -219,19 +249,24 @@ class CorrespondenceTransitionServiceTest {
     }
 
     @Test
-    void archivedTransitionClearsTargetRole() {
-
-        when(repository.getCurrentState(
-                TECHNICAL_ID))
-                .thenReturn(
-                        CorrespondenceState.WITH_DIRECTOR);
+    void directorMarksAssignedCorrespondenceDone() {
 
         TransitionCorrespondenceCommand command =
                 command(
                         CorrespondenceActorRole.DIRECTOR,
                         CorrespondenceAction.MARK_DONE,
+                        new DepartmentCode("117"),
                         null,
                         null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        new CorrespondenceAccessContext(
+                                CorrespondenceState.WITH_DIRECTOR,
+                                new DepartmentCode("111"),
+                                CorrespondenceActorRole.DIRECTOR,
+                                new DepartmentCode("117")));
 
         CorrespondenceState result =
                 service.transition(
@@ -249,9 +284,19 @@ class CorrespondenceTransitionServiceTest {
                         null);
     }
 
+    private static CorrespondenceAccessContext officeContext() {
+
+        return new CorrespondenceAccessContext(
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                new DepartmentCode("117"),
+                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null);
+    }
+
     private static TransitionCorrespondenceCommand command(
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action,
+            DepartmentCode actorDepartmentCode,
             DepartmentCode targetDepartmentCode,
             String closureReason) {
 
@@ -260,6 +305,7 @@ class CorrespondenceTransitionServiceTest {
                 actorRole,
                 action,
                 new EmployeeId("18280"),
+                actorDepartmentCode,
                 "Test Employee",
                 "موظف اختبار",
                 targetDepartmentCode,

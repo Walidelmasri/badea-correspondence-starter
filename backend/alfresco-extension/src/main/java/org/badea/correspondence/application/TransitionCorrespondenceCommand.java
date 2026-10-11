@@ -12,6 +12,7 @@ public record TransitionCorrespondenceCommand(
         CorrespondenceActorRole actorRole,
         CorrespondenceAction action,
         EmployeeId actorEmployeeId,
+        DepartmentCode actorDepartmentCode,
         String actorNameEnglish,
         String actorNameArabic,
         DepartmentCode targetDepartmentCode,

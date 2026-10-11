@@ -10,16 +10,23 @@ import org.badea.correspondence.workflow.CorrespondenceWorkflowService;
 public final class CorrespondenceTransitionService {
 
     private final CorrespondenceWorkflowService workflowService;
+    private final CorrespondenceAccessAuthorizer accessAuthorizer;
     private final CorrespondenceTransitionRepository repository;
 
     public CorrespondenceTransitionService(
             CorrespondenceWorkflowService workflowService,
+            CorrespondenceAccessAuthorizer accessAuthorizer,
             CorrespondenceTransitionRepository repository) {
 
         this.workflowService =
                 Objects.requireNonNull(
                         workflowService,
                         "workflowService must not be null");
+
+        this.accessAuthorizer =
+                Objects.requireNonNull(
+                        accessAuthorizer,
+                        "accessAuthorizer must not be null");
 
         this.repository =
                 Objects.requireNonNull(
@@ -34,13 +41,18 @@ public final class CorrespondenceTransitionService {
                 command,
                 "command must not be null");
 
-        CorrespondenceState currentState =
-                repository.getCurrentState(
+        CorrespondenceAccessContext accessContext =
+                repository.getAccessContext(
                         command.technicalId());
+
+        accessAuthorizer.authorizeTransition(
+                accessContext,
+                command.actorRole(),
+                command.actorDepartmentCode());
 
         CorrespondenceState nextState =
                 workflowService.nextState(
-                        currentState,
+                        accessContext.state(),
                         command.actorRole(),
                         command.action());
 
@@ -54,7 +66,7 @@ public final class CorrespondenceTransitionService {
 
         repository.applyTransition(
                 command,
-                currentState,
+                accessContext.state(),
                 nextState,
                 targetRole);
 
@@ -72,24 +84,28 @@ public final class CorrespondenceTransitionService {
                 throw new IllegalArgumentException(
                         "targetDepartmentCode is required when sending to a director");
             }
+        } else if (command.targetDepartmentCode() != null) {
 
-            return;
-        }
-
-        if (command.targetDepartmentCode() != null) {
             throw new IllegalArgumentException(
                     "targetDepartmentCode is only allowed when sending to a director");
         }
 
         if (command.action()
-                == CorrespondenceAction.ADMINISTRATIVE_CLOSE
-                && command.closureReason() == null) {
+                == CorrespondenceAction.ADMINISTRATIVE_CLOSE) {
+
+            if (command.closureReason() == null) {
+                throw new IllegalArgumentException(
+                        "closureReason is required for administrative closure");
+            }
+        } else if (command.closureReason() != null) {
 
             throw new IllegalArgumentException(
-                    "closureReason is required for administrative closure");
+                    "closureReason is only allowed for administrative closure");
         }
 
-        if (nextState == CorrespondenceState.WITH_DIRECTOR) {
+        if (nextState == CorrespondenceState.WITH_DIRECTOR
+                && command.targetDepartmentCode() == null) {
+
             throw new IllegalStateException(
                     "A director assignment requires a target department");
         }

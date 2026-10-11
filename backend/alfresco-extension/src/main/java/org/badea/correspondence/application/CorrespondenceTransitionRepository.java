@@ -5,7 +5,7 @@ import org.badea.correspondence.workflow.CorrespondenceState;
 
 public interface CorrespondenceTransitionRepository {
 
-    CorrespondenceState getCurrentState(
+    CorrespondenceAccessContext getAccessContext(
             String technicalId);
 
     void applyTransition(

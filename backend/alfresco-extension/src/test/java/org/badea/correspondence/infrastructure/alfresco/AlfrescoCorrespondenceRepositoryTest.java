@@ -25,6 +25,7 @@ import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.NodeService;
 import org.alfresco.service.namespace.QName;
+import org.badea.correspondence.application.CorrespondenceAccessContext;
 import org.badea.correspondence.application.CreateCorrespondenceCommand;
 import org.badea.correspondence.application.TransitionCorrespondenceCommand;
 import org.badea.correspondence.directory.DepartmentCode;
@@ -209,7 +210,7 @@ class AlfrescoCorrespondenceRepositoryTest {
     }
 
     @Test
-    void readsCurrentPersistedState() {
+    void readsCorrespondenceAccessContext() {
 
         NodeRef correspondence =
                 nodeRef(
@@ -224,15 +225,45 @@ class AlfrescoCorrespondenceRepositoryTest {
                 correspondence,
                 qname("state")))
                 .thenReturn(
-                        CorrespondenceState.WITH_PRESIDENT.name());
+                        CorrespondenceState.WITH_DIRECTOR.name());
 
-        CorrespondenceState state =
-                repository.getCurrentState(
+        when(nodeService.getProperty(
+                correspondence,
+                qname("originDepartmentCode")))
+                .thenReturn(
+                        "111");
+
+        when(nodeService.getProperty(
+                correspondence,
+                qname("assignedRole")))
+                .thenReturn(
+                        CorrespondenceActorRole.DIRECTOR.name());
+
+        when(nodeService.getProperty(
+                correspondence,
+                qname("assignedDepartmentCode")))
+                .thenReturn(
+                        "117");
+
+        CorrespondenceAccessContext context =
+                repository.getAccessContext(
                         TECHNICAL_ID);
 
         assertEquals(
-                CorrespondenceState.WITH_PRESIDENT,
-                state);
+                CorrespondenceState.WITH_DIRECTOR,
+                context.state());
+
+        assertEquals(
+                new DepartmentCode("111"),
+                context.originDepartmentCode());
+
+        assertEquals(
+                CorrespondenceActorRole.DIRECTOR,
+                context.assignedRole());
+
+        assertEquals(
+                new DepartmentCode("117"),
+                context.assignedDepartmentCode());
     }
 
     @Test
@@ -283,6 +314,7 @@ class AlfrescoCorrespondenceRepositoryTest {
                 transitionCommand(
                         CorrespondenceActorRole.DIRECTOR,
                         CorrespondenceAction.SEND_TO_OFFICE,
+                        new DepartmentCode("117"),
                         null,
                         null);
 
@@ -364,7 +396,8 @@ class AlfrescoCorrespondenceRepositoryTest {
                         qname("actedAt")));
 
         assertEquals(
-                Date.from(FIXED_INSTANT),
+                Date.from(
+                        FIXED_INSTANT),
                 properties.get(
                         qname("actedAt")));
 
@@ -439,6 +472,7 @@ class AlfrescoCorrespondenceRepositoryTest {
                 transitionCommand(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.SEND_TO_DIRECTOR,
+                        new DepartmentCode("101"),
                         targetDepartment,
                         null);
 
@@ -517,6 +551,7 @@ class AlfrescoCorrespondenceRepositoryTest {
                 transitionCommand(
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         CorrespondenceAction.SEND_TO_DIRECTOR,
+                        new DepartmentCode("101"),
                         new DepartmentCode("117"),
                         null);
 
@@ -537,6 +572,7 @@ class AlfrescoCorrespondenceRepositoryTest {
     private static TransitionCorrespondenceCommand transitionCommand(
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action,
+            DepartmentCode actorDepartmentCode,
             DepartmentCode targetDepartmentCode,
             String closureReason) {
 
@@ -545,6 +581,7 @@ class AlfrescoCorrespondenceRepositoryTest {
                 actorRole,
                 action,
                 new EmployeeId("18280"),
+                actorDepartmentCode,
                 "Test Employee",
                 "موظف اختبار",
                 targetDepartmentCode,

@@ -13,9 +13,11 @@ import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.NodeService;
 import org.alfresco.service.namespace.QName;
+import org.badea.correspondence.application.CorrespondenceAccessContext;
 import org.badea.correspondence.application.CorrespondenceTransitionRepository;
 import org.badea.correspondence.application.CreateCorrespondenceCommand;
 import org.badea.correspondence.application.TransitionCorrespondenceCommand;
+import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
@@ -249,15 +251,40 @@ public final class AlfrescoCorrespondenceRepository
     }
 
     @Override
-    public CorrespondenceState getCurrentState(
+    public CorrespondenceAccessContext getAccessContext(
             String technicalId) {
 
         NodeRef correspondence =
                 nodeLocator.locate(
                         technicalId);
 
-        return readState(
-                correspondence);
+        CorrespondenceState state =
+                readState(
+                        correspondence);
+
+        DepartmentCode originDepartmentCode =
+                readRequiredDepartmentCode(
+                        correspondence,
+                        PROP_ORIGIN_DEPARTMENT_CODE,
+                        "originDepartmentCode");
+
+        CorrespondenceActorRole assignedRole =
+                readOptionalActorRole(
+                        correspondence,
+                        PROP_ASSIGNED_ROLE,
+                        "assignedRole");
+
+        DepartmentCode assignedDepartmentCode =
+                readOptionalDepartmentCode(
+                        correspondence,
+                        PROP_ASSIGNED_DEPARTMENT_CODE,
+                        "assignedDepartmentCode");
+
+        return new CorrespondenceAccessContext(
+                state,
+                originDepartmentCode,
+                assignedRole,
+                assignedDepartmentCode);
     }
 
     @Override
@@ -328,6 +355,113 @@ public final class AlfrescoCorrespondenceRepository
                 nextSequence);
     }
 
+    private DepartmentCode readRequiredDepartmentCode(
+            NodeRef correspondence,
+            QName property,
+            String propertyName) {
+
+        Serializable value =
+                nodeService.getProperty(
+                        correspondence,
+                        property);
+
+        if (!(value instanceof String text)
+                || text.isBlank()) {
+
+            throw new CorrespondenceRepositoryException(
+                    "Correspondence has no valid "
+                            + propertyName
+                            + ".");
+        }
+
+        try {
+            return new DepartmentCode(
+                    text);
+        } catch (IllegalArgumentException exception) {
+
+            throw new CorrespondenceRepositoryException(
+                    "Correspondence has invalid "
+                            + propertyName
+                            + ": "
+                            + text,
+                    exception);
+        }
+    }
+
+    private DepartmentCode readOptionalDepartmentCode(
+            NodeRef correspondence,
+            QName property,
+            String propertyName) {
+
+        Serializable value =
+                nodeService.getProperty(
+                        correspondence,
+                        property);
+
+        if (value == null) {
+            return null;
+        }
+
+        if (!(value instanceof String text)
+                || text.isBlank()) {
+
+            throw new CorrespondenceRepositoryException(
+                    "Correspondence has invalid "
+                            + propertyName
+                            + ".");
+        }
+
+        try {
+            return new DepartmentCode(
+                    text);
+        } catch (IllegalArgumentException exception) {
+
+            throw new CorrespondenceRepositoryException(
+                    "Correspondence has invalid "
+                            + propertyName
+                            + ": "
+                            + text,
+                    exception);
+        }
+    }
+
+    private CorrespondenceActorRole readOptionalActorRole(
+            NodeRef correspondence,
+            QName property,
+            String propertyName) {
+
+        Serializable value =
+                nodeService.getProperty(
+                        correspondence,
+                        property);
+
+        if (value == null) {
+            return null;
+        }
+
+        if (!(value instanceof String text)
+                || text.isBlank()) {
+
+            throw new CorrespondenceRepositoryException(
+                    "Correspondence has invalid "
+                            + propertyName
+                            + ".");
+        }
+
+        try {
+            return CorrespondenceActorRole.valueOf(
+                    text);
+        } catch (IllegalArgumentException exception) {
+
+            throw new CorrespondenceRepositoryException(
+                    "Correspondence has unknown "
+                            + propertyName
+                            + ": "
+                            + text,
+                    exception);
+        }
+    }
+
     private CorrespondenceState readState(
             NodeRef correspondence) {
 
@@ -347,6 +481,7 @@ public final class AlfrescoCorrespondenceRepository
             return CorrespondenceState.valueOf(
                     stateValue);
         } catch (IllegalArgumentException exception) {
+
             throw new CorrespondenceRepositoryException(
                     "Correspondence has unknown workflow state: "
                             + stateValue,
