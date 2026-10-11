@@ -287,5 +287,75 @@
         <constructor-arg
             ref="badeaCorrespondenceDepartmentService" />
     </bean>
+<!--
+    Editable President review-state persistence.
 
+    State JSON is stored as Alfresco content on the existing
+    bc:correspondence node rather than as visible repository files.
+-->
+<bean
+    id="badeaPresidentReviewStateRepository"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoPresidentReviewStateRepository">
+
+    <constructor-arg
+        ref="nodeService" />
+
+    <constructor-arg
+        ref="contentService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceNodeLocator" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceClock" />
+</bean>
+
+<!--
+    President-stage authorization and review-state orchestration.
+-->
+<bean
+    id="badeaPresidentReviewService"
+    class="org.badea.correspondence.application.PresidentReviewService">
+
+    <constructor-arg
+        ref="badeaCorrespondenceRepository" />
+
+    <constructor-arg
+        ref="badeaPresidentReviewStateRepository" />
+</bean>
+
+<!--
+    Authenticated President review read endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.president-review.get"
+    class="org.badea.correspondence.webscript.GetPresidentReviewWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaPresidentReviewService" />
+</bean>
+
+<!--
+    Authenticated President review save endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.president-review.put"
+    class="org.badea.correspondence.webscript.SavePresidentReviewWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaPresidentReviewService" />
+</bean>
 </beans>

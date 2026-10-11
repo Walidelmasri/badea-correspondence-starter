@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>Get BADEA President Review State</shortname>
+
+    <description>
+        Returns the editable President review state for an
+        authorized Presidency correspondence.
+    </description>
+
+    <url>/badea/correspondence/{technicalId}/president-review</url>
+
+    <format default="json">argument</format>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+</webscript>
