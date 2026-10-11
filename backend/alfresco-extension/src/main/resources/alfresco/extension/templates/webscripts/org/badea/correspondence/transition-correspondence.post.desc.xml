@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>Transition BADEA Correspondence</shortname>
+
+    <description>
+        Performs an authorized Presidency correspondence workflow transition.
+    </description>
+
+    <url>/badea/correspondence/{technicalId}/transition</url>
+
+    <format default="json">argument</format>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+</webscript>

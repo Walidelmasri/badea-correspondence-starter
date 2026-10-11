@@ -7,13 +7,6 @@
         http://www.springframework.org/schema/beans
         http://www.springframework.org/schema/beans/spring-beans.xsd">
 
-    <!--
-        Alfresco authentication adapter.
-
-        Authentication itself remains owned by Alfresco/AD.
-        This bean only exposes the currently authenticated username
-        to the correspondence application layer.
-    -->
     <bean
         id="badeaCorrespondenceAuthenticatedUserProvider"
         class="org.badea.correspondence.infrastructure.alfresco.AlfrescoAuthenticatedUserProvider"
@@ -22,26 +15,17 @@
         <constructor-arg ref="AuthenticationService" />
     </bean>
 
-    <!--
-        Oracle UCP data source used only by the correspondence module.
-
-        Credentials and connection details are supplied by the container
-        environment. Nothing sensitive is stored in this repository.
-
-        lazy-init is intentional: missing Oracle configuration must not
-        prevent Alfresco or the existing BADEA DMS extension from starting.
-    -->
     <bean
-    id="badeaCorrespondenceActorRoleResolver"
-    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceActorRoleResolver"
-    lazy-init="true">
+        id="badeaCorrespondenceActorRoleResolver"
+        class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceActorRoleResolver"
+        lazy-init="true">
 
-    <constructor-arg ref="authorityService" />
+        <constructor-arg ref="authorityService" />
 
-    <constructor-arg
-        ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg
+            ref="badeaCorrespondenceAuthenticatedUserProvider" />
+    </bean>
 
-</bean>
     <bean
         id="badeaCorrespondenceEmployeeDirectoryDataSource"
         class="org.badea.correspondence.infrastructure.oracle.OracleEmployeeDirectoryDataSourceFactory"
@@ -58,9 +42,6 @@
             value="#{systemEnvironment['BADEA_CORRESPONDENCE_DB_PASSWORD']}" />
     </bean>
 
-    <!--
-        Oracle implementation of the employee-directory boundary.
-    -->
     <bean
         id="badeaCorrespondenceEmployeeDirectory"
         class="org.badea.correspondence.infrastructure.oracle.OracleEmployeeDirectory"
@@ -70,10 +51,6 @@
             ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
     </bean>
 
-    <!--
-        Application service:
-        authenticated Alfresco username -> Oracle directory -> EMP_ID.
-    -->
     <bean
         id="badeaCorrespondenceCurrentEmployeeService"
         class="org.badea.correspondence.application.CurrentEmployeeService"
@@ -86,9 +63,6 @@
             ref="badeaCorrespondenceEmployeeDirectory" />
     </bean>
 
-    <!--
-        Authenticated employee profile endpoint.
-    -->
     <bean
         id="webscript.org.badea.correspondence.current-employee.get"
         class="org.badea.correspondence.webscript.CurrentEmployeeWebScript"
@@ -99,10 +73,6 @@
             ref="badeaCorrespondenceCurrentEmployeeService" />
     </bean>
 
-    <!--
-        Registers the BADEA Presidency Correspondence content model
-        with Alfresco's repository dictionary.
-    -->
     <bean
         id="badeaCorrespondenceDictionaryBootstrap"
         parent="dictionaryModelBootstrap"
@@ -115,10 +85,6 @@
         </property>
     </bean>
 
-    <!--
-        Locates the manually provisioned Correspondence root and
-        department folders in the existing BADEA Alfresco site.
-    -->
     <bean
         id="badeaCorrespondenceFolderLocator"
         class="org.badea.correspondence.infrastructure.alfresco.CorrespondenceFolderLocator">
@@ -126,54 +92,66 @@
         <constructor-arg ref="siteService" />
         <constructor-arg ref="nodeService" />
 
-        <!--
-            Existing Alfresco site short name.
-            Preserve the actual repository ID, including its spelling.
-        -->
-        <constructor-arg value="badea-instituional-documents" />
+        <constructor-arg
+            value="badea-instituional-documents" />
 
-        <constructor-arg value="Correspondence" />
+        <constructor-arg
+            value="Correspondence" />
     </bean>
 
-    <!--
-        Locates an existing bc:correspondence by its immutable
-        technical UUID without relying on Solr indexing.
-    -->
     <bean
         id="badeaCorrespondenceNodeLocator"
         class="org.badea.correspondence.infrastructure.alfresco.CorrespondenceNodeLocator">
 
         <constructor-arg ref="nodeService" />
-        <constructor-arg ref="badeaCorrespondenceFolderLocator" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceFolderLocator" />
     </bean>
 
-    <!--
-        UTC audit clock.
-
-        Injecting Clock keeps persisted action timestamps deterministic
-        in unit tests instead of hiding time access inside the repository.
-    -->
     <bean
         id="badeaCorrespondenceClock"
         class="java.time.Clock"
         factory-method="systemUTC" />
 
-    <!--
-        Alfresco correspondence persistence adapter.
-    -->
     <bean
         id="badeaCorrespondenceRepository"
         class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceRepository">
 
         <constructor-arg ref="nodeService" />
-        <constructor-arg ref="badeaCorrespondenceFolderLocator" />
-        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
-        <constructor-arg ref="badeaCorrespondenceClock" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceFolderLocator" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceNodeLocator" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceClock" />
     </bean>
 
-    <!--
-        Authenticated correspondence creation endpoint.
-    -->
+    <bean
+        id="badeaCorrespondenceWorkflowService"
+        class="org.badea.correspondence.workflow.CorrespondenceWorkflowService" />
+
+    <bean
+        id="badeaCorrespondenceAccessAuthorizer"
+        class="org.badea.correspondence.application.CorrespondenceAccessAuthorizer" />
+
+    <bean
+        id="badeaCorrespondenceTransitionService"
+        class="org.badea.correspondence.application.CorrespondenceTransitionService">
+
+        <constructor-arg
+            ref="badeaCorrespondenceWorkflowService" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceAccessAuthorizer" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceRepository" />
+    </bean>
+
     <bean
         id="webscript.org.badea.correspondence.create-correspondence.post"
         class="org.badea.correspondence.webscript.CreateCorrespondenceWebScript"
@@ -185,6 +163,22 @@
 
         <constructor-arg
             ref="badeaCorrespondenceRepository" />
+    </bean>
+
+    <bean
+        id="webscript.org.badea.correspondence.transition-correspondence.post"
+        class="org.badea.correspondence.webscript.TransitionCorrespondenceWebScript"
+        parent="webscript"
+        lazy-init="true">
+
+        <constructor-arg
+            ref="badeaCorrespondenceCurrentEmployeeService" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceActorRoleResolver" />
+
+        <constructor-arg
+            ref="badeaCorrespondenceTransitionService" />
     </bean>
 
 </beans>
