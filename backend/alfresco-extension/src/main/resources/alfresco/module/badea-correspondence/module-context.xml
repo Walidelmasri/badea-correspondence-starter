@@ -32,6 +32,17 @@
         prevent Alfresco or the existing BADEA DMS extension from starting.
     -->
     <bean
+    id="badeaCorrespondenceActorRoleResolver"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceActorRoleResolver"
+    lazy-init="true">
+
+    <constructor-arg ref="authorityService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceAuthenticatedUserProvider" />
+
+</bean>
+    <bean
         id="badeaCorrespondenceEmployeeDirectoryDataSource"
         class="org.badea.correspondence.infrastructure.oracle.OracleEmployeeDirectoryDataSourceFactory"
         factory-method="create"
