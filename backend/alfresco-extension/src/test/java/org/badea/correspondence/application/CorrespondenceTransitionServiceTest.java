@@ -23,6 +23,8 @@ class CorrespondenceTransitionServiceTest {
             "4519dccf-c777-4514-b8b8-ac4c713ebd2b";
 
     private CorrespondenceTransitionRepository repository;
+    private CorrespondenceDepartmentService departmentService;
+
     private CorrespondenceTransitionService service;
 
     @BeforeEach
@@ -32,10 +34,15 @@ class CorrespondenceTransitionServiceTest {
                 mock(
                         CorrespondenceTransitionRepository.class);
 
+        departmentService =
+                mock(
+                        CorrespondenceDepartmentService.class);
+
         service =
                 new CorrespondenceTransitionService(
                         new CorrespondenceWorkflowService(),
                         new CorrespondenceAccessAuthorizer(),
+                        departmentService,
                         repository);
     }
 
@@ -76,6 +83,12 @@ class CorrespondenceTransitionServiceTest {
                         CorrespondenceState.DRAFT,
                         CorrespondenceState.WITH_PRESIDENT_OFFICE,
                         CorrespondenceActorRole.PRESIDENT_OFFICE);
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -109,10 +122,16 @@ class CorrespondenceTransitionServiceTest {
                         CorrespondenceState.DRAFT,
                         CorrespondenceState.WITH_PRESIDENT_OFFICE,
                         CorrespondenceActorRole.PRESIDENT_OFFICE);
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
     }
 
     @Test
-    void presidentOfficeSendsToSelectedDirector() {
+    void presidentOfficeSendsToExistingSelectedDirectorDepartment() {
 
         DepartmentCode targetDepartment =
                 new DepartmentCode("117");
@@ -142,7 +161,55 @@ class CorrespondenceTransitionServiceTest {
                 CorrespondenceState.WITH_DIRECTOR,
                 result);
 
+        verify(departmentService)
+                .requireDepartment(
+                        targetDepartment);
+
         verify(repository)
+                .applyTransition(
+                        command,
+                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                        CorrespondenceState.WITH_DIRECTOR,
+                        CorrespondenceActorRole.DIRECTOR);
+    }
+
+    @Test
+    void rejectsUnknownDirectorTargetDepartment() {
+
+        DepartmentCode targetDepartment =
+                new DepartmentCode("999");
+
+        TransitionCorrespondenceCommand command =
+                command(
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        CorrespondenceAction.SEND_TO_DIRECTOR,
+                        new DepartmentCode("101"),
+                        targetDepartment,
+                        null);
+
+        when(repository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(
+                        officeContext());
+
+        when(departmentService.requireDepartment(
+                targetDepartment))
+                .thenThrow(
+                        new IllegalArgumentException(
+                                "Unknown correspondence department: 999"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.transition(
+                        command));
+
+        verify(departmentService)
+                .requireDepartment(
+                        targetDepartment);
+
+        verify(
+                repository,
+                never())
                 .applyTransition(
                         command,
                         CorrespondenceState.WITH_PRESIDENT_OFFICE,
@@ -170,6 +237,21 @@ class CorrespondenceTransitionServiceTest {
                 IllegalArgumentException.class,
                 () -> service.transition(
                         command));
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
+
+        verify(
+                repository,
+                never())
+                .applyTransition(
+                        command,
+                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                        CorrespondenceState.WITH_DIRECTOR,
+                        CorrespondenceActorRole.DIRECTOR);
     }
 
     @Test
@@ -192,6 +274,12 @@ class CorrespondenceTransitionServiceTest {
                 IllegalArgumentException.class,
                 () -> service.transition(
                         command));
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -214,6 +302,12 @@ class CorrespondenceTransitionServiceTest {
                 IllegalArgumentException.class,
                 () -> service.transition(
                         command));
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -246,6 +340,12 @@ class CorrespondenceTransitionServiceTest {
                         CorrespondenceState.WITH_PRESIDENT_OFFICE,
                         CorrespondenceState.ARCHIVED,
                         null);
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -282,6 +382,12 @@ class CorrespondenceTransitionServiceTest {
                         CorrespondenceState.WITH_DIRECTOR,
                         CorrespondenceState.ARCHIVED,
                         null);
+
+        verify(
+                departmentService,
+                never())
+                .requireDepartment(
+                        org.mockito.ArgumentMatchers.any());
     }
 
     private static CorrespondenceAccessContext officeContext() {

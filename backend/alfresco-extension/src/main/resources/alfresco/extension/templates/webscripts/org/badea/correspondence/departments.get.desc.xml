@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>BADEA Correspondence Departments</shortname>
+
+    <description>
+        Lists departments available for Presidency correspondence routing.
+    </description>
+
+    <url>/badea/correspondence/departments</url>
+
+    <format default="json">argument</format>
+
+    <authentication>user</authentication>
+
+    <transaction>none</transaction>
+</webscript>

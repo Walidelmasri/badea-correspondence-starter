@@ -11,11 +11,13 @@ public final class CorrespondenceTransitionService {
 
     private final CorrespondenceWorkflowService workflowService;
     private final CorrespondenceAccessAuthorizer accessAuthorizer;
+    private final CorrespondenceDepartmentService departmentService;
     private final CorrespondenceTransitionRepository repository;
 
     public CorrespondenceTransitionService(
             CorrespondenceWorkflowService workflowService,
             CorrespondenceAccessAuthorizer accessAuthorizer,
+            CorrespondenceDepartmentService departmentService,
             CorrespondenceTransitionRepository repository) {
 
         this.workflowService =
@@ -27,6 +29,11 @@ public final class CorrespondenceTransitionService {
                 Objects.requireNonNull(
                         accessAuthorizer,
                         "accessAuthorizer must not be null");
+
+        this.departmentService =
+                Objects.requireNonNull(
+                        departmentService,
+                        "departmentService must not be null");
 
         this.repository =
                 Objects.requireNonNull(
@@ -73,7 +80,7 @@ public final class CorrespondenceTransitionService {
         return nextState;
     }
 
-    private static void validateTransitionData(
+    private void validateTransitionData(
             TransitionCorrespondenceCommand command,
             CorrespondenceState nextState) {
 
@@ -84,6 +91,10 @@ public final class CorrespondenceTransitionService {
                 throw new IllegalArgumentException(
                         "targetDepartmentCode is required when sending to a director");
             }
+
+            departmentService.requireDepartment(
+                    command.targetDepartmentCode());
+
         } else if (command.targetDepartmentCode() != null) {
 
             throw new IllegalArgumentException(
@@ -97,6 +108,7 @@ public final class CorrespondenceTransitionService {
                 throw new IllegalArgumentException(
                         "closureReason is required for administrative closure");
             }
+
         } else if (command.closureReason() != null) {
 
             throw new IllegalArgumentException(
