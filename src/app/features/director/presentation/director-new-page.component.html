@@ -1,0 +1,214 @@
+<section class="compose-page">
+  <header class="compose-page__header">
+    <div>
+      <span class="compose-page__eyebrow">
+        {{ labels().eyebrow }}
+      </span>
+
+      <h1>{{ labels().title }}</h1>
+
+      <p>{{ labels().description }}</p>
+    </div>
+  </header>
+
+  <form
+    class="compose-form"
+    [formGroup]="form"
+    (ngSubmit)="saveDraft()"
+  >
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>{{ labels().details }}</h2>
+      </div>
+
+      <label class="form-field">
+        <span class="form-field__label">
+          {{ labels().subject }} *
+        </span>
+
+        <input
+          type="text"
+          formControlName="subject"
+          maxlength="250"
+          autocomplete="off"
+          [attr.aria-invalid]="
+            form.controls.subject.touched &&
+            form.controls.subject.invalid
+          "
+        />
+      </label>
+
+      <div class="compose-grid compose-grid--three">
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ labels().documentNumber }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="documentNumber"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ labels().documentDate }}
+          </span>
+
+          <input
+            type="date"
+            formControlName="documentDate"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ labels().source }}
+          </span>
+
+          <input
+            type="text"
+            formControlName="sourceText"
+          />
+        </label>
+      </div>
+
+      <p class="director-form__hint">
+        {{ labels().automaticDate }}
+      </p>
+
+      <div class="director-form__body">
+        <label class="form-field">
+          <span class="form-field__label">
+            {{ labels().body }}
+          </span>
+
+          <textarea
+            formControlName="bodyText"
+            rows="5"
+          ></textarea>
+        </label>
+      </div>
+
+      <div class="director-form__destination">
+        {{ labels().destination }}
+      </div>
+
+      @if (technicalId(); as id) {
+        <div class="director-form__reference">
+          <strong>{{ labels().savedReference }}</strong>
+          <code>{{ id }}</code>
+        </div>
+
+        <p class="director-form__hint">
+          {{ labels().locked }}
+        </p>
+      }
+    </section>
+
+    <section class="compose-section">
+      <div class="compose-section__header">
+        <h2>{{ labels().attachments }}</h2>
+      </div>
+
+      <label class="attachment-dropzone director-form__upload">
+        <span
+          class="attachment-dropzone__icon"
+          aria-hidden="true"
+        >
+          +
+        </span>
+
+        <strong>{{ labels().chooseFiles }}</strong>
+
+        <span>{{ labels().fileHint }}</span>
+
+        <input
+          type="file"
+          accept=".pdf,application/pdf"
+          multiple
+          [disabled]="busy() || creationUncertain()"
+          (change)="onFilesSelected($event)"
+        />
+      </label>
+
+      @if (documents().length > 0) {
+        <ul class="director-form__documents">
+          @for (document of documents(); track document.id) {
+            <li>
+              <div class="director-form__document-info">
+                <strong>{{ document.file.name }}</strong>
+
+                <span>
+                  {{ formatSize(document.file.size) }}
+                  ·
+                  {{ documentStatus(document.status) }}
+                </span>
+              </div>
+
+              @if (
+                document.status === 'failed' &&
+                !busy()
+              ) {
+                <button
+                  type="button"
+                  (click)="retryDocument(document.id)"
+                >
+                  {{ labels().retry }}
+                </button>
+              }
+
+              @if (
+                (document.status === 'queued' ||
+                document.status === 'failed') &&
+                !busy()
+              ) {
+                <button
+                  type="button"
+                  (click)="removeDocument(document.id)"
+                >
+                  {{ labels().remove }}
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (notice(); as message) {
+      <div
+        class="director-form__notice"
+        [class.director-form__notice--error]="
+          message.type === 'error'
+        "
+        [class.director-form__notice--warning]="
+          message.type === 'warning'
+        "
+        role="status"
+      >
+        {{ message.message }}
+      </div>
+    }
+
+    <footer class="compose-actions">
+      <span class="director-form__footer-note">
+        {{ labels().destination }}
+      </span>
+
+      <div class="compose-actions__primary-group">
+        <button
+          class="compose-actions__send"
+          type="submit"
+          [disabled]="busy() || creationUncertain()"
+        >
+          @if (busy()) {
+            {{ labels().saving }}
+          } @else {
+            {{ labels().save }}
+          }
+        </button>
+      </div>
+    </footer>
+  </form>
+</section>

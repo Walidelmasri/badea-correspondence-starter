@@ -116,7 +116,16 @@ export const routes: Routes = [
               module.PresidentReviewPageComponent,
           ),
       },
+      {
+        path: 'director/new',
 
+        loadComponent: () =>
+          import(
+            './features/director/presentation/director-new-page.component'
+          ).then(
+            (module) => module.DirectorNewPageComponent,
+          ),
+      },
       {
         path: '**',
         redirectTo: 'inbox',
