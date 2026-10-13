@@ -13,6 +13,7 @@ import {
 
 import {
   BADEA_CORRESPONDENCE_DEPARTMENTS_URL,
+  badeaCorrespondencePresidentReviewUrl,
   badeaCorrespondenceTransitionUrl,
 } from './correspondence.constants';
 
@@ -20,6 +21,8 @@ import {
   CorrespondenceDepartment,
   CorrespondenceTransitionRequest,
   CorrespondenceTransitionResponse,
+  PresidentReviewSnapshot,
+  SavePresidentReviewRequest,
 } from './correspondence.model';
 
 @Injectable({
@@ -51,6 +54,41 @@ export class CorrespondenceService {
       CorrespondenceTransitionResponse
     >(
       badeaCorrespondenceTransitionUrl(
+        technicalId,
+      ),
+      request,
+    );
+  }
+
+  getPresidentReview<
+    TState extends object,
+  >(
+    technicalId: string,
+  ): Observable<
+    PresidentReviewSnapshot<TState>
+  > {
+    return this.http.get<
+      PresidentReviewSnapshot<TState>
+    >(
+      badeaCorrespondencePresidentReviewUrl(
+        technicalId,
+      ),
+    );
+  }
+
+  savePresidentReview<
+    TState extends object,
+  >(
+    technicalId: string,
+    request:
+      SavePresidentReviewRequest<TState>,
+  ): Observable<
+    PresidentReviewSnapshot<TState>
+  > {
+    return this.http.put<
+      PresidentReviewSnapshot<TState>
+    >(
+      badeaCorrespondencePresidentReviewUrl(
         technicalId,
       ),
       request,

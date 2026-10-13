@@ -4,8 +4,10 @@ import {
   ElementRef,
   OnDestroy,
   computed,
+  effect,
   inject,
   input,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
@@ -32,7 +34,10 @@ import {
   PdfPropertiesDialogComponent,
 } from './pdf-properties-dialog/pdf-properties-dialog.component';
 
-import { PdfInkTool } from '../../annotation/domain/ink.model';
+import {
+  InkStroke,
+  PdfInkTool,
+} from '../../annotation/domain/ink.model';
 import { PdfInkOverlayDirective } from '../../annotation/pdf/pdf-ink-overlay.directive';
 
 type PdfZoomSetting =
@@ -116,7 +121,19 @@ export class PdfWorkspaceComponent implements OnDestroy {
     signal(1);
 
   private readonly inkOverlay =
-    viewChild(PdfInkOverlayDirective);
+    viewChild(
+      PdfInkOverlayDirective,
+    );
+
+  /*
+   * A persisted review can arrive before Angular has created
+   * the PDF ink directive. Queue restores rather than dropping them.
+   */
+  private readonly pendingInkRestores =
+    new Map<
+      string,
+      readonly InkStroke[]
+    >();
 
   readonly activeTool =
     signal<PdfEditorTool | null>(null);
@@ -206,6 +223,93 @@ export class PdfWorkspaceComponent implements OnDestroy {
 
   readonly propertiesVisible =
     signal(false);
+
+  /*
+   * Raised only for user-driven PDF ink mutations.
+   * Loading persisted strokes does not raise it.
+   */
+  readonly inkStateChanged =
+    output<void>();
+
+  constructor() {
+    effect(
+      () => {
+        const overlay =
+          this.inkOverlay();
+
+        if (!overlay) {
+          return;
+        }
+
+        for (
+          const [
+            documentKey,
+            strokes,
+          ] of
+          this.pendingInkRestores
+        ) {
+          overlay
+            .restoreDocumentStrokes(
+              documentKey,
+              strokes,
+            );
+        }
+
+        this.pendingInkRestores
+          .clear();
+      },
+    );
+  }
+
+  inkStrokes(
+    documentKey:
+      string,
+  ): readonly InkStroke[] {
+    return (
+      this.inkOverlay()
+        ?.documentStrokes(
+          documentKey,
+        ) ??
+      this.pendingInkRestores
+        .get(
+          documentKey,
+        ) ??
+      []
+    );
+  }
+
+  restoreInkStrokes(
+    documentKey:
+      string,
+
+    strokes:
+      readonly InkStroke[],
+  ): void {
+    const overlay =
+      this.inkOverlay();
+
+    /*
+     * Backend state can resolve before the child directive exists.
+     * Preserve it and apply as soon as the directive appears.
+     */
+    if (!overlay) {
+      this.pendingInkRestores
+        .set(
+          documentKey,
+          [
+            ...strokes,
+          ],
+        );
+
+      return;
+    }
+
+    overlay
+      .restoreDocumentStrokes(
+        documentKey,
+        strokes,
+      );
+  }
 
   ngOnDestroy(): void {
     this.clearSearchTimer();

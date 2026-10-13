@@ -19,13 +19,46 @@ export type CorrespondenceState =
   | 'ARCHIVED';
 
 export interface CorrespondenceTransitionRequest {
-  readonly action: CorrespondenceAction;
-  readonly targetDepartmentCode?: string;
-  readonly explanation?: string;
-  readonly closureReason?: string;
+  readonly action:
+    CorrespondenceAction;
+
+  readonly targetDepartmentCode?:
+    string;
+
+  readonly explanation?:
+    string;
+
+  readonly closureReason?:
+    string;
 }
 
 export interface CorrespondenceTransitionResponse {
-  readonly technicalId: string;
-  readonly state: CorrespondenceState;
+  readonly technicalId:
+    string;
+
+  readonly state:
+    CorrespondenceState;
+}
+
+export interface PresidentReviewSnapshot<
+  TState extends object,
+> {
+  readonly technicalId:
+    string;
+
+  readonly revision:
+    number;
+
+  readonly state:
+    TState | null;
+}
+
+export interface SavePresidentReviewRequest<
+  TState extends object,
+> {
+  readonly expectedRevision:
+    number;
+
+  readonly state:
+    TState;
 }

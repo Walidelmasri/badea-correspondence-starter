@@ -1,247 +1,399 @@
 import {
-    describe,
-    expect,
-    it,
+  describe,
+  expect,
+  it,
 } from 'vitest';
 
 import {
-    InkDocumentStore,
+  InkDocumentStore,
 } from './ink-document-store';
 
 import {
-    InkStroke,
-    PdfInkTool,
+  InkStroke,
+  PdfInkTool,
 } from './ink.model';
 
 function createStroke(
-    id: string,
-    pageNumber: number,
-    tool: PdfInkTool = 'pen',
+  id:
+    string,
+
+  pageNumber:
+    number,
+
+  tool:
+    PdfInkTool =
+      'pen',
 ): InkStroke {
-    return {
-        id,
-        pageNumber,
-        tool,
-        points: [
-            {
-                x: 0.25,
-                y: 0.4,
-                pressure: 0.5,
-            },
-            {
-                x: 0.5,
-                y: 0.6,
-                pressure: 0.75,
-            },
-        ],
-    };
+  return {
+    id,
+    pageNumber,
+    tool,
+
+    points: [
+      {
+        x:
+          0.25,
+
+        y:
+          0.4,
+
+        pressure:
+          0.5,
+      },
+      {
+        x:
+          0.5,
+
+        y:
+          0.6,
+
+        pressure:
+          0.75,
+      },
+    ],
+  };
 }
 
-describe('InkDocumentStore', () => {
-    it('keeps strokes isolated by document and page', () => {
+describe(
+  'InkDocumentStore',
+  () => {
+    it(
+      'keeps strokes isolated by document and page',
+      () => {
         const store =
-            new InkDocumentStore();
+          new InkDocumentStore();
 
         const documentAPage1 =
-            createStroke(
-                'document-a-page-1',
-                1,
-            );
+          createStroke(
+            'document-a-page-1',
+            1,
+          );
 
         const documentAPage2 =
-            createStroke(
-                'document-a-page-2',
-                2,
-                'highlighter',
-            );
+          createStroke(
+            'document-a-page-2',
+            2,
+            'highlighter',
+          );
 
         const documentBPage1 =
-            createStroke(
-                'document-b-page-1',
-                1,
-            );
+          createStroke(
+            'document-b-page-1',
+            1,
+          );
 
         store.add(
-            'document-a',
-            documentAPage1,
+          'document-a',
+          documentAPage1,
         );
 
         store.add(
-            'document-a',
-            documentAPage2,
+          'document-a',
+          documentAPage2,
         );
 
         store.add(
+          'document-b',
+          documentBPage1,
+        );
+
+        expect(
+          store.pageStrokes(
+            'document-a',
+            1,
+          ),
+        ).toEqual([
+          documentAPage1,
+        ]);
+
+        expect(
+          store.pageStrokes(
+            'document-a',
+            2,
+          ),
+        ).toEqual([
+          documentAPage2,
+        ]);
+
+        expect(
+          store.pageStrokes(
             'document-b',
-            documentBPage1,
-        );
-
-        expect(
-            store.pageStrokes(
-                'document-a',
-                1,
-            ),
+            1,
+          ),
         ).toEqual([
-            documentAPage1,
+          documentBPage1,
         ]);
 
         expect(
-            store.pageStrokes(
-                'document-a',
-                2,
-            ),
-        ).toEqual([
-            documentAPage2,
-        ]);
-
-        expect(
-            store.pageStrokes(
-                'document-b',
-                1,
-            ),
-        ).toEqual([
-            documentBPage1,
-        ]);
-
-        expect(
-            store.pageStrokes(
-                'document-b',
-                2,
-            ),
+          store.pageStrokes(
+            'document-b',
+            2,
+          ),
         ).toEqual([]);
-    });
+      },
+    );
 
-    it('undoes and redoes strokes in the correct order', () => {
+    it(
+      'undoes and redoes strokes in the correct order',
+      () => {
         const store =
-            new InkDocumentStore();
+          new InkDocumentStore();
 
         const firstStroke =
-            createStroke(
-                'stroke-1',
-                1,
-            );
+          createStroke(
+            'stroke-1',
+            1,
+          );
 
         const secondStroke =
-            createStroke(
-                'stroke-2',
-                1,
-                'highlighter',
-            );
+          createStroke(
+            'stroke-2',
+            1,
+            'highlighter',
+          );
 
         store.add(
-            'document',
-            firstStroke,
+          'document',
+          firstStroke,
         );
 
         store.add(
-            'document',
-            secondStroke,
+          'document',
+          secondStroke,
         );
 
         expect(
-            store.canUndo('document'),
-        ).toBe(true);
+          store.canUndo(
+            'document',
+          ),
+        ).toBe(
+          true,
+        );
 
         expect(
-            store.canRedo('document'),
-        ).toBe(false);
+          store.canRedo(
+            'document',
+          ),
+        ).toBe(
+          false,
+        );
 
         expect(
-            store.undo('document'),
-        ).toBe(secondStroke);
+          store.undo(
+            'document',
+          ),
+        ).toBe(
+          secondStroke,
+        );
 
         expect(
-            store.pageStrokes(
-                'document',
-                1,
-            ),
+          store.pageStrokes(
+            'document',
+            1,
+          ),
         ).toEqual([
-            firstStroke,
+          firstStroke,
         ]);
 
         expect(
-            store.canRedo('document'),
-        ).toBe(true);
+          store.canRedo(
+            'document',
+          ),
+        ).toBe(
+          true,
+        );
 
         expect(
-            store.redo('document'),
-        ).toBe(secondStroke);
+          store.redo(
+            'document',
+          ),
+        ).toBe(
+          secondStroke,
+        );
 
         expect(
-            store.pageStrokes(
-                'document',
-                1,
-            ),
+          store.pageStrokes(
+            'document',
+            1,
+          ),
         ).toEqual([
-            firstStroke,
-            secondStroke,
+          firstStroke,
+          secondStroke,
         ]);
 
         expect(
-            store.canRedo('document'),
-        ).toBe(false);
-    });
+          store.canRedo(
+            'document',
+          ),
+        ).toBe(
+          false,
+        );
+      },
+    );
 
-    it('clears redo history when a new stroke is added after undo', () => {
+    it(
+      'clears redo history when a new stroke is added after undo',
+      () => {
         const store =
-            new InkDocumentStore();
+          new InkDocumentStore();
 
         const firstStroke =
-            createStroke(
-                'stroke-1',
-                1,
-            );
+          createStroke(
+            'stroke-1',
+            1,
+          );
 
         const undoneStroke =
-            createStroke(
-                'stroke-2',
-                1,
-            );
+          createStroke(
+            'stroke-2',
+            1,
+          );
 
         const replacementStroke =
-            createStroke(
-                'stroke-3',
-                1,
-                'highlighter',
-            );
+          createStroke(
+            'stroke-3',
+            1,
+            'highlighter',
+          );
 
         store.add(
-            'document',
-            firstStroke,
+          'document',
+          firstStroke,
         );
 
         store.add(
-            'document',
-            undoneStroke,
+          'document',
+          undoneStroke,
         );
 
-        store.undo('document');
+        store.undo(
+          'document',
+        );
 
         expect(
-            store.canRedo('document'),
-        ).toBe(true);
+          store.canRedo(
+            'document',
+          ),
+        ).toBe(
+          true,
+        );
 
         store.add(
-            'document',
-            replacementStroke,
+          'document',
+          replacementStroke,
         );
 
         expect(
-            store.canRedo('document'),
-        ).toBe(false);
+          store.canRedo(
+            'document',
+          ),
+        ).toBe(
+          false,
+        );
 
         expect(
-            store.redo('document'),
+          store.redo(
+            'document',
+          ),
         ).toBeNull();
 
         expect(
-            store.pageStrokes(
-                'document',
-                1,
-            ),
+          store.pageStrokes(
+            'document',
+            1,
+          ),
         ).toEqual([
-            firstStroke,
-            replacementStroke,
+          firstStroke,
+          replacementStroke,
         ]);
-    });
-});
+      },
+    );
+
+    it(
+      'serializes and restores the committed document state',
+      () => {
+        const source =
+          new InkDocumentStore();
+
+        const firstStroke =
+          createStroke(
+            'stroke-1',
+            1,
+          );
+
+        const secondStroke =
+          createStroke(
+            'stroke-2',
+            2,
+            'highlighter',
+          );
+
+        source.add(
+          'document',
+          firstStroke,
+        );
+
+        source.add(
+          'document',
+          secondStroke,
+        );
+
+        const persisted =
+          source.documentStrokes(
+            'document',
+          );
+
+        const restored =
+          new InkDocumentStore();
+
+        restored.replace(
+          'document',
+          persisted,
+        );
+
+        expect(
+          restored.pageStrokes(
+            'document',
+            1,
+          ),
+        ).toEqual([
+          firstStroke,
+        ]);
+
+        expect(
+          restored.pageStrokes(
+            'document',
+            2,
+          ),
+        ).toEqual([
+          secondStroke,
+        ]);
+
+        expect(
+          restored.documentStrokes(
+            'document',
+          ),
+        ).toEqual([
+          firstStroke,
+          secondStroke,
+        ]);
+
+        expect(
+          restored.canUndo(
+            'document',
+          ),
+        ).toBe(
+          true,
+        );
+
+        expect(
+          restored.canRedo(
+            'document',
+          ),
+        ).toBe(
+          false,
+        );
+      },
+    );
+  },
+);

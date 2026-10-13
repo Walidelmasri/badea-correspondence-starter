@@ -12,3 +12,10 @@ export function badeaCorrespondenceTransitionUrl(
     `${encodeURIComponent(technicalId)}/transition`
   );
 }
+export function badeaCorrespondencePresidentReviewUrl(
+  technicalId: string,
+): string {
+  return `${BADEA_CORRESPONDENCE_BASE_URL}/${encodeURIComponent(
+    technicalId,
+  )}/president-review`;
+}

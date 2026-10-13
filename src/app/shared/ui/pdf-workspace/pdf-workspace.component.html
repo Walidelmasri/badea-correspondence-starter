@@ -25,6 +25,9 @@
   [documentKey]="documentKey()"
   [inkTool]="inkTool()"
   [inkRotation]="rotation()"
+  (stateChanged)="
+    inkStateChanged.emit()
+  "
 >
   <ngx-extended-pdf-viewer
     [src]="src()"
