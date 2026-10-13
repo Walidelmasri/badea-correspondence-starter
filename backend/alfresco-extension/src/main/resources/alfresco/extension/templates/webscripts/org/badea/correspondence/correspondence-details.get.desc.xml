@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>Get BADEA Correspondence Details</shortname>
+
+    <description>
+        Returns correspondence metadata and source-document
+        references for an authorized user.
+    </description>
+
+    <url>/badea/correspondence/{technicalId}</url>
+
+    <format default="json">argument</format>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+</webscript>

@@ -8,7 +8,24 @@ import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
 public final class CorrespondenceAccessAuthorizer {
+    /**
+     * For the current active-workflow read endpoint, visibility is
+     * restricted to the role and department assigned to the
+     * correspondence.
+     *
+     * Historical access rules will be separate when the archive
+     * and Sent correspondence features are implemented.
+     */
+    public void authorizeRead(
+            CorrespondenceAccessContext correspondence,
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode) {
 
+        authorizeTransition(
+                correspondence,
+                actorRole,
+                actorDepartmentCode);
+    }
     public void authorizeTransition(
             CorrespondenceAccessContext correspondence,
             CorrespondenceActorRole actorRole,

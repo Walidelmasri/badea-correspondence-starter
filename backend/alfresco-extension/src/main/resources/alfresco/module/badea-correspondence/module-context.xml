@@ -358,4 +358,96 @@
     <constructor-arg
         ref="badeaPresidentReviewService" />
 </bean>
+<!--
+    Alfresco correspondence metadata and source-document reader.
+-->
+<bean
+    id="badeaCorrespondenceDetailsRepository"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDetailsRepository"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceNodeLocator" />
+</bean>
+
+<!--
+    Enforces correspondence assignment before returning details.
+-->
+<bean
+    id="badeaCorrespondenceDetailsService"
+    class="org.badea.correspondence.application.CorrespondenceDetailsService"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceRepository" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDetailsRepository" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceAccessAuthorizer" />
+</bean>
+
+<!--
+    Authenticated correspondence details endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.correspondence-details.get"
+    class="org.badea.correspondence.webscript.GetCorrespondenceDetailsWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDetailsService" />
+</bean>
+<!-- Alfresco source-document content access -->
+<bean
+    id="badeaCorrespondenceDocumentContentRepository"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDocumentContentRepository"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+
+    <constructor-arg ref="contentService" />
+
+    <constructor-arg ref="permissionService" />
+</bean>
+
+<!-- Assignment-authorized document retrieval -->
+<bean
+    id="badeaCorrespondenceDocumentContentService"
+    class="org.badea.correspondence.application.CorrespondenceDocumentContentService"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceDetailsService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDocumentContentRepository" />
+</bean>
+
+<!-- Authenticated binary streaming endpoint -->
+<bean
+    id="webscript.org.badea.correspondence.correspondence-document-content.get"
+    class="org.badea.correspondence.webscript.GetCorrespondenceDocumentContentWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDocumentContentService" />
+</bean>
 </beans>

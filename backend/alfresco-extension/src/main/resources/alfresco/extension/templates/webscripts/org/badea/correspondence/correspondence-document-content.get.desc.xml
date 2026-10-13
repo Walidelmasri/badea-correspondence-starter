@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>Get BADEA Correspondence Document Content</shortname>
+
+    <description>
+        Streams a source document belonging to an authorized
+        correspondence.
+    </description>
+
+    <url>/badea/correspondence/{technicalId}/documents/{nodeId}/content</url>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+</webscript>
