@@ -3,6 +3,7 @@ package org.badea.correspondence.webscript;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Objects;
 
 import org.badea.correspondence.application.CreateCorrespondenceCommand;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
@@ -12,9 +13,14 @@ import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceRepository;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
+import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.CorrespondenceAuthorizationException;
+import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
+
 import org.json.JSONException;
 import org.json.JSONObject;
+
 import org.springframework.extensions.surf.util.Content;
 import org.springframework.extensions.webscripts.AbstractWebScript;
 import org.springframework.extensions.webscripts.Status;
@@ -25,24 +31,62 @@ public final class CreateCorrespondenceWebScript
         extends AbstractWebScript {
 
     private final CurrentEmployeeService currentEmployeeService;
+
+    private final CorrespondenceActorRoleResolver actorRoleResolver;
+
     private final AlfrescoCorrespondenceRepository correspondenceRepository;
 
     public CreateCorrespondenceWebScript(
             CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver actorRoleResolver,
             AlfrescoCorrespondenceRepository correspondenceRepository) {
 
-        this.currentEmployeeService = currentEmployeeService;
-        this.correspondenceRepository = correspondenceRepository;
+        this.currentEmployeeService =
+                Objects.requireNonNull(
+                        currentEmployeeService,
+                        "currentEmployeeService must not be null");
+
+        this.actorRoleResolver =
+                Objects.requireNonNull(
+                        actorRoleResolver,
+                        "actorRoleResolver must not be null");
+
+        this.correspondenceRepository =
+                Objects.requireNonNull(
+                        correspondenceRepository,
+                        "correspondenceRepository must not be null");
     }
 
     @Override
     public void execute(
             WebScriptRequest request,
-            WebScriptResponse response) throws IOException {
+            WebScriptResponse response)
+            throws IOException {
 
         try {
-            JSONObject body = readRequestBody(request);
+            /*
+             * Draft creation is currently supported for Directors.
+             *
+             * The role is resolved from authenticated Alfresco group
+             * membership, not supplied by the frontend.
+             */
+            CorrespondenceActorRole actorRole =
+                    actorRoleResolver.resolveCurrentUserRole();
 
+            if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+
+                throw new CorrespondenceAuthorizationException(
+                        "Only Directors may create drafts "
+                                + "through this workflow.");
+            }
+
+            JSONObject body =
+                    readRequestBody(request);
+
+            /*
+             * The originating department and creator identity
+             * always come from the authenticated employee.
+             */
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
 
@@ -50,11 +94,14 @@ public final class CreateCorrespondenceWebScript
                     employee.department().orElse(null);
 
             if (department == null) {
+
                 writeError(
                         response,
                         Status.STATUS_CONFLICT,
                         "EMPLOYEE_DEPARTMENT_REQUIRED",
-                        "The authenticated employee does not have an active department assignment.");
+                        "The authenticated employee does not have "
+                                + "an active department assignment.");
+
                 return;
             }
 
@@ -74,7 +121,11 @@ public final class CreateCorrespondenceWebScript
                     correspondenceRepository.createDraft(command);
 
             JSONObject result = new JSONObject();
-            result.put("technicalId", technicalId);
+
+            result.put(
+                    "technicalId",
+                    technicalId);
+
             result.put(
                     "state",
                     CorrespondenceState.DRAFT.name());
@@ -84,13 +135,23 @@ public final class CreateCorrespondenceWebScript
                     Status.STATUS_CREATED,
                     result);
 
+        } catch (CorrespondenceAuthorizationException exception) {
+
+            writeError(
+                    response,
+                    Status.STATUS_FORBIDDEN,
+                    "CORRESPONDENCE_FORBIDDEN",
+                    "The authenticated user is not authorized "
+                            + "to create correspondence drafts.");
+
         } catch (CurrentEmployeeNotFoundException exception) {
 
             writeError(
                     response,
                     Status.STATUS_NOT_FOUND,
                     "EMPLOYEE_NOT_FOUND",
-                    "No active employee profile was found for the authenticated user.");
+                    "No active employee profile was found "
+                            + "for the authenticated user.");
 
         } catch (EmployeeDirectoryException exception) {
 
@@ -121,18 +182,23 @@ public final class CreateCorrespondenceWebScript
     }
 
     private static JSONObject readRequestBody(
-            WebScriptRequest request) throws IOException {
+            WebScriptRequest request)
+            throws IOException {
 
-        Content content = request.getContent();
+        Content content =
+                request.getContent();
 
         if (content == null) {
+
             throw new IllegalArgumentException(
                     "Request body is required.");
         }
 
-        String raw = content.getContent();
+        String raw =
+                content.getContent();
 
         if (raw == null || raw.isBlank()) {
+
             throw new IllegalArgumentException(
                     "Request body is required.");
         }
@@ -155,6 +221,7 @@ public final class CreateCorrespondenceWebScript
                 body.getString(propertyName).trim();
 
         if (value.isEmpty()) {
+
             throw new IllegalArgumentException(
                     propertyName + " must not be blank.");
         }
@@ -198,9 +265,11 @@ public final class CreateCorrespondenceWebScript
             WebScriptResponse response,
             int status,
             String code,
-            String message) throws IOException {
+            String message)
+            throws IOException {
 
         JSONObject json = new JSONObject();
+
         json.put("code", code);
         json.put("message", message);
 
@@ -213,13 +282,15 @@ public final class CreateCorrespondenceWebScript
     private static void writeJson(
             WebScriptResponse response,
             int status,
-            JSONObject json) throws IOException {
+            JSONObject json)
+            throws IOException {
 
         response.setStatus(status);
+
         response.setContentType(
                 "application/json;charset=UTF-8");
 
-        response.getWriter()
-                .write(json.toString());
+        response.getWriter().write(
+                json.toString());
     }
 }

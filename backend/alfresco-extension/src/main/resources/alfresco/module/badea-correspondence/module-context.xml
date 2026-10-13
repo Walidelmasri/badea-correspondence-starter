@@ -243,18 +243,21 @@
     <!--
         Authenticated draft creation endpoint.
     -->
-    <bean
-        id="webscript.org.badea.correspondence.create-correspondence.post"
-        class="org.badea.correspondence.webscript.CreateCorrespondenceWebScript"
-        parent="webscript"
-        lazy-init="true">
+<bean
+    id="webscript.org.badea.correspondence.create-correspondence.post"
+    class="org.badea.correspondence.webscript.CreateCorrespondenceWebScript"
+    parent="webscript"
+    lazy-init="true">
 
-        <constructor-arg
-            ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
 
-        <constructor-arg
-            ref="badeaCorrespondenceRepository" />
-    </bean>
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceRepository" />
+</bean>
 
     <!--
         Authenticated workflow transition endpoint.
@@ -449,5 +452,41 @@
 
     <constructor-arg
         ref="badeaCorrespondenceDocumentContentService" />
+</bean>
+<!--
+    Stores original PDF attachments on Director-owned drafts.
+-->
+<bean
+    id="badeaCorrespondenceDraftDocumentUploader"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftDocumentUploader"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+
+    <constructor-arg ref="contentService" />
+
+    <constructor-arg ref="permissionService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceNodeLocator" />
+</bean>
+
+<!--
+    Authenticated raw-PDF upload endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.correspondence-documents.post"
+    class="org.badea.correspondence.webscript.UploadCorrespondenceDocumentWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDraftDocumentUploader" />
 </bean>
 </beans>
