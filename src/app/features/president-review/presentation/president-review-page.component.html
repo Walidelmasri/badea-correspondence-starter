@@ -14,32 +14,109 @@
                 .presidentReview.title
                 }}
             </h1>
+
+            @if (technicalId()) {
+                <span role="status" aria-live="polite">
+                    @switch (reviewSaveStatus()) {
+                        @case ('loading') {
+                            <span>
+                                {{
+                                translation.language() === 'ar'
+                                    ? 'جارٍ التحميل...'
+                                    : 'Loading review...'
+                                }}
+                            </span>
+                        }
+
+                        @case ('saving') {
+                            <span>
+                                {{
+                                translation.language() === 'ar'
+                                    ? 'جارٍ الحفظ...'
+                                    : 'Saving...'
+                                }}
+                            </span>
+                        }
+
+                        @case ('saved') {
+                            <span>
+                                {{
+                                translation.language() === 'ar'
+                                    ? 'تم الحفظ'
+                                    : 'Saved'
+                                }}
+                            </span>
+                        }
+
+                        @case ('conflict') {
+                            <span>
+                                {{
+                                translation.language() === 'ar'
+                                    ? 'تم تعديل المراجعة في مكان آخر. أعد تحميل الصفحة قبل المتابعة.'
+                                    : 'This review changed elsewhere. Reload before saving again.'
+                                }}
+                            </span>
+                        }
+
+                        @case ('error') {
+                            {{
+                            translation.language() === 'ar'
+                                ? 'تعذر حفظ أو تحميل المراجعة.'
+                                : 'Could not load or save the review.'
+                            }}
+
+                            @if (reviewLoaded()) {
+                                <button
+                                    type="button"
+                                    (click)="retrySave()"
+                                >
+                                    {{
+                                    translation.language() === 'ar'
+                                        ? 'إعادة المحاولة'
+                                        : 'Retry save'
+                                    }}
+                                </button>
+                            } @else {
+                                <button
+                                    type="button"
+                                    (click)="retryLoad()"
+                                >
+                                    {{
+                                    translation.language() === 'ar'
+                                        ? 'إعادة التحميل'
+                                        : 'Retry load'
+                                    }}
+                                </button>
+                            }
+                        }
+                    }
+                </span>
+            }
         </div>
     </header>
 
-    <div class="president-review__workspace">
+    <div
+        class="president-review__workspace"
+        [attr.inert]="technicalId() && !reviewLoaded() ? '' : null"
+    >
         <main class="document-desk">
-            <app-correspondence-summary [correspondence]="
-        correspondence()
-      " [labels]="{
-        correspondence:
-          translation.language() === 'ar'
-            ? 'المراسلة'
-            : 'Correspondence',
-
-        from:
-          translation.language() === 'ar'
-            ? 'من'
-            : 'From',
-
-        reference:
-          translation.text()
-            .presidentReview.reference,
-
-        date:
-          translation.text()
-            .presidentReview.date
-      }" />
+            <app-correspondence-summary
+                [correspondence]="correspondence()"
+                [labels]="{
+                    correspondence:
+                        translation.language() === 'ar'
+                            ? 'المراسلة'
+                            : 'Correspondence',
+                    from:
+                        translation.language() === 'ar'
+                            ? 'من'
+                            : 'From',
+                    reference:
+                        translation.text().presidentReview.reference,
+                    date:
+                        translation.text().presidentReview.date
+                }"
+            />
 
             <section class="attachment-section">
                 <div class="section-heading">
@@ -60,42 +137,52 @@
 
                 <div class="attachment-rail" role="list">
                     @for (
-                    attachment of attachments;
-                    track attachment.id
+                        attachment of attachments;
+                        track attachment.id
                     ) {
-                    <button class="attachment-card" type="button" role="listitem" [class.attachment-card--active]="
-                activeAttachmentId() === attachment.id
-              " (click)="selectAttachment(attachment.id)">
-                        <span class="attachment-card__icon">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M7 3h7l4 4v14H7Z" />
-                                <path d="M14 3v5h5" />
-                            </svg>
-                        </span>
-
-                        <span class="attachment-card__content">
-                            <strong>
-                                {{ attachmentLabel(attachment) }}
-                            </strong>
-
-                            <span>
-                                {{ attachment.sizeLabel }}
+                        <button
+                            class="attachment-card"
+                            type="button"
+                            role="listitem"
+                            [class.attachment-card--active]="
+                                activeAttachmentId() === attachment.id
+                            "
+                            (click)="selectAttachment(attachment.id)"
+                        >
+                            <span class="attachment-card__icon">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7 3h7l4 4v14H7Z" />
+                                    <path d="M14 3v5h5" />
+                                </svg>
                             </span>
-                        </span>
 
-                        <span class="attachment-card__status">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m7 12 3 3 7-7" />
-                            </svg>
-                        </span>
-                    </button>
+                            <span class="attachment-card__content">
+                                <strong>
+                                    {{ attachmentLabel(attachment) }}
+                                </strong>
+
+                                <span>
+                                    {{ attachment.sizeLabel }}
+                                </span>
+                            </span>
+
+                            <span class="attachment-card__status">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m7 12 3 3 7-7" />
+                                </svg>
+                            </span>
+                        </button>
                     }
                 </div>
             </section>
 
             <section class="pdf-stage">
-                <app-pdf-workspace [src]="activeAttachment().src" [filename]="activeAttachment().filename"
-                    [documentKey]="activeAttachment().id" />
+                <app-pdf-workspace
+                    [src]="activeAttachment().src"
+                    [filename]="activeAttachment().filename"
+                    [documentKey]="activeAttachment().id"
+                    (inkStateChanged)="onPdfInkStateChanged()"
+                />
             </section>
 
             <section class="explanation-card">
@@ -110,46 +197,69 @@
                         </h2>
                     </div>
 
-                    <div class="explanation-mode" role="group" [attr.aria-label]="
-              translation.text().presidentReview.explanation
-            ">
-                        <button type="button" [class.explanation-mode__button--active]="
-                explanationMode() === 'pen'
-              " (click)="setExplanationMode('pen')">
+                    <div
+                        class="explanation-mode"
+                        role="group"
+                        [attr.aria-label]="
+                            translation.text().presidentReview.explanation
+                        "
+                    >
+                        <button
+                            type="button"
+                            [class.explanation-mode__button--active]="
+                                explanationMode() === 'pen'
+                            "
+                            (click)="setExplanationMode('pen')"
+                        >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="m4 20 4-1 10-10-3-3L5 16Z" />
                                 <path d="m13 8 3 3" />
                             </svg>
 
-                            {{
-                            translation.text().presidentReview.pen
-                            }}
+                            {{ translation.text().presidentReview.pen }}
                         </button>
 
-                        <button type="button" [class.explanation-mode__button--active]="
-                explanationMode() === 'keyboard'
-              " (click)="setExplanationMode('keyboard')">
+                        <button
+                            type="button"
+                            [class.explanation-mode__button--active]="
+                                explanationMode() === 'keyboard'
+                            "
+                            (click)="setExplanationMode('keyboard')"
+                        >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <rect x="3" y="6" width="18" height="12" rx="2" />
-                                <path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M7 14h10" />
+                                <rect
+                                    x="3"
+                                    y="6"
+                                    width="18"
+                                    height="12"
+                                    rx="2"
+                                />
+                                <path
+                                    d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M7 14h10"
+                                />
                             </svg>
 
-                            {{
-                            translation.text().presidentReview.keyboard
-                            }}
+                            {{ translation.text().presidentReview.keyboard }}
                         </button>
                     </div>
                 </header>
 
                 @if (explanationMode() === 'pen') {
-                <app-president-explanation-ink [document]="explanationInkDocument()" (documentChange)="
-      onExplanationInkDocumentChange($event)
-    " />
+                    <app-president-explanation-ink
+                        [document]="explanationInkDocument()"
+                        (documentChange)="onExplanationInkDocumentChange($event)"
+                    />
                 } @else {
-                <textarea class="typed-explanation" rows="5" [value]="typedExplanation()" [placeholder]="
-      translation.text()
-        .presidentReview.explanationPlaceholder
-    " (input)="onTypedExplanationInput($event)"></textarea>
+                    <textarea
+                        class="typed-explanation"
+                        rows="5"
+                        [value]="typedExplanation()"
+                        [placeholder]="
+                            translation.text()
+                                .presidentReview.explanationPlaceholder
+                        "
+                        (input)="onTypedExplanationInput($event)"
+                    ></textarea>
                 }
             </section>
         </main>
@@ -167,7 +277,7 @@
                 <p>
                     {{
                     translation.text()
-                    .presidentReview.directionHint
+                        .presidentReview.directionHint
                     }}
                 </p>
             </header>
@@ -185,9 +295,7 @@
                     </div>
 
                     <span class="required-badge">
-                        {{
-                        translation.text().presidentReview.required
-                        }}
+                        {{ translation.text().presidentReview.required }}
                     </span>
                 </div>
 
@@ -202,14 +310,14 @@
                         <strong>
                             {{
                             translation.text()
-                            .presidentReview.presidentOffice
+                                .presidentReview.presidentOffice
                             }}
                         </strong>
 
                         <span>
                             {{
                             translation.text()
-                            .presidentReview.defaultRecipient
+                                .presidentReview.defaultRecipient
                             }}
                         </span>
                     </div>
@@ -217,32 +325,41 @@
 
                 <div class="choice-grid">
                     @for (
-                    recipient of recipients();
-                    track recipient.id
+                        recipient of recipients();
+                        track recipient.id
                     ) {
-                    <button class="choice-chip" type="button" [class.choice-chip--selected]="
-                recipientSelected(recipient.id)
-              " (click)="toggleRecipient(recipient.id)">
-                        <span>
-                            {{ recipientLabel(recipient) }}
-                        </span>
+                        <button
+                            class="choice-chip"
+                            type="button"
+                            [class.choice-chip--selected]="
+                                recipientSelected(recipient.id)
+                            "
+                            (click)="toggleRecipient(recipient.id)"
+                        >
+                            <span>
+                                {{ recipientLabel(recipient) }}
+                            </span>
 
-                        @if (
-                        recipientSelected(recipient.id)
-                        ) {
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m6 12 4 4 8-9" />
-                        </svg>
-                        }
-                    </button>
+                            @if (recipientSelected(recipient.id)) {
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m6 12 4 4 8-9" />
+                                </svg>
+                            }
+                        </button>
                     }
                 </div>
 
                 @if (otherRecipientSelected()) {
-                <input class="inline-other-input" type="text" [value]="otherRecipient()" [placeholder]="
-              translation.text()
-                .presidentReview.otherRecipientPlaceholder
-            " (input)="onOtherRecipientInput($event)" />
+                    <input
+                        class="inline-other-input"
+                        type="text"
+                        [value]="otherRecipient()"
+                        [placeholder]="
+                            translation.text()
+                                .presidentReview.otherRecipientPlaceholder
+                        "
+                        (input)="onOtherRecipientInput($event)"
+                    />
                 }
             </section>
 
@@ -256,108 +373,138 @@
                         <h3>
                             {{
                             translation.text()
-                            .presidentReview.requiredAction
+                                .presidentReview.requiredAction
                             }}
                         </h3>
                     </div>
 
                     <span class="required-badge">
-                        {{
-                        translation.text().presidentReview.required
-                        }}
+                        {{ translation.text().presidentReview.required }}
                     </span>
                 </div>
 
                 <div class="action-list">
                     @for (
-                    action of visibleActions();
-                    track action.code
+                        action of visibleActions();
+                        track action.code
                     ) {
-                    <button class="action-option" type="button" [class.action-option--selected]="
-                actionSelected(action.code)
-              " (click)="toggleAction(action.code)">
-                        <span class="action-option__check">
-                            @if (
-                            actionSelected(action.code)
-                            ) {
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m6 12 4 4 8-9" />
-                            </svg>
-                            }
-                        </span>
+                        <button
+                            class="action-option"
+                            type="button"
+                            [class.action-option--selected]="
+                                actionSelected(action.code)
+                            "
+                            (click)="toggleAction(action.code)"
+                        >
+                            <span class="action-option__check">
+                                @if (actionSelected(action.code)) {
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="m6 12 4 4 8-9" />
+                                    </svg>
+                                }
+                            </span>
 
-                        <span>
-                            {{ actionLabel(action) }}
-                        </span>
-                    </button>
+                            <span>
+                                {{ actionLabel(action) }}
+                            </span>
+                        </button>
                     }
                 </div>
 
                 @if (!showAllActions()) {
-                <button class="text-action" type="button" (click)="showAllActions.set(true)">
-                    {{
-                    translation.text()
-                    .presidentReview.showAllActions
-                    }}
-                </button>
+                    <button
+                        class="text-action"
+                        type="button"
+                        (click)="showAllActions.set(true)"
+                    >
+                        {{
+                        translation.text()
+                            .presidentReview.showAllActions
+                        }}
+                    </button>
                 } @else {
-                <button class="text-action" type="button" (click)="showAllActions.set(false)">
-                    {{
-                    translation.text()
-                    .presidentReview.showFewerActions
-                    }}
-                </button>
+                    <button
+                        class="text-action"
+                        type="button"
+                        (click)="showAllActions.set(false)"
+                    >
+                        {{
+                        translation.text()
+                            .presidentReview.showFewerActions
+                        }}
+                    </button>
                 }
 
                 @if (otherActionSelected()) {
-                <input class="inline-other-input" type="text" [value]="otherAction()" [placeholder]="
-              translation.text()
-                .presidentReview.otherActionPlaceholder
-            " (input)="onOtherActionInput($event)" />
+                    <input
+                        class="inline-other-input"
+                        type="text"
+                        [value]="otherAction()"
+                        [placeholder]="
+                            translation.text()
+                                .presidentReview.otherActionPlaceholder
+                        "
+                        (input)="onOtherActionInput($event)"
+                    />
                 }
             </section>
 
             <section class="copy-section">
-                <button class="copy-section__toggle" type="button" [attr.aria-expanded]="showCopyTo()"
-                    (click)="showCopyTo.update(value => !value)">
+                <button
+                    class="copy-section__toggle"
+                    type="button"
+                    [attr.aria-expanded]="showCopyTo()"
+                    (click)="showCopyTo.update(value => !value)"
+                >
                     <span>
                         +
-                        {{
-                        translation.text().presidentReview.copyTo
-                        }}
+                        {{ translation.text().presidentReview.copyTo }}
                     </span>
 
-                    <svg viewBox="0 0 24 24" aria-hidden="true" [class.copy-section__chevron--open]="
-              showCopyTo()
-            ">
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        [class.copy-section__chevron--open]="showCopyTo()"
+                    >
                         <path d="m8 10 4 4 4-4" />
                     </svg>
                 </button>
 
                 @if (showCopyTo()) {
-                <div class="choice-grid choice-grid--compact">
-                    @for (
-                    recipient of recipients();
-                    track recipient.id
-                    ) {
-                    <button class="choice-chip" type="button" [class.choice-chip--selected]="
-                  copyRecipientSelected(recipient.id)
-                " (click)="
-                  toggleCopyRecipient(recipient.id)
-                ">
-                        {{ recipientLabel(recipient) }}
-                    </button>
-                    }
-                </div>
+                    <div class="choice-grid choice-grid--compact">
+                        @for (
+                            recipient of recipients();
+                            track recipient.id
+                        ) {
+                            <button
+                                class="choice-chip"
+                                type="button"
+                                [class.choice-chip--selected]="
+                                    copyRecipientSelected(recipient.id)
+                                "
+                                (click)="toggleCopyRecipient(recipient.id)"
+                            >
+                                {{ recipientLabel(recipient) }}
+                            </button>
+                        }
+                    </div>
                 }
             </section>
 
             <footer class="decision-panel__footer">
-                <button class="handoff-button" type="button" [disabled]="!canHandoff()" (click)="handoff()">
+                <button
+                    class="handoff-button"
+                    type="button"
+                    [disabled]="!canHandoff()"
+                    (click)="handoff()"
+                >
                     <span>
                         {{
                         translation.text()
-                        .presidentReview.sendToOffice
+                            .presidentReview.sendToOffice
                         }}
                     </span>
 

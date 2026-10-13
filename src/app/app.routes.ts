@@ -94,6 +94,18 @@ export const routes: Routes = [
       },
 
       {
+        path: 'president-review/:technicalId',
+
+        loadComponent: () =>
+          import(
+            './features/president-review/presentation/president-review-page.component'
+          ).then(
+            (module) =>
+              module.PresidentReviewPageComponent,
+          ),
+      },
+
+      {
         path: 'president-review',
 
         loadComponent: () =>
@@ -101,8 +113,7 @@ export const routes: Routes = [
             './features/president-review/presentation/president-review-page.component'
           ).then(
             (module) =>
-              module
-                .PresidentReviewPageComponent,
+              module.PresidentReviewPageComponent,
           ),
       },
 
