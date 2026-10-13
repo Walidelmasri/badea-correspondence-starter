@@ -41,8 +41,7 @@ import {
     'pdfInkOverlay',
 })
 export class PdfInkOverlayDirective
-  implements AfterViewInit, OnDestroy
-{
+  implements AfterViewInit, OnDestroy {
   private readonly host =
     inject<
       ElementRef<HTMLElement>
@@ -121,7 +120,7 @@ export class PdfInkOverlayDirective
 
           this.setInteractionEnabled(
             this.inkTool() !==
-              null,
+            null,
           );
         }
       },
@@ -156,25 +155,27 @@ export class PdfInkOverlayDirective
     );
   }
 
-  ngAfterViewInit():
-    void {
-    this.viewReady =
-      true;
+  ngAfterViewInit(): void {
+    this.viewReady = true;
 
-    this.mutationObserver
-      .observe(
-        this.host
-          .nativeElement,
-        {
-          childList:
-            true,
-
-          subtree:
-            true,
-        },
-      );
+    this.mutationObserver.observe(
+      this.host.nativeElement,
+      {
+        childList: true,
+        subtree: true,
+      },
+    );
 
     this.syncRenderedPages();
+
+    /*
+     * Strokes may already have been restored before
+     * the directive finished initializing.
+     *
+     * Synchronize the undo/redo state and render them now.
+     */
+    this.updateHistoryState();
+    this.redrawAllPages();
   }
 
   ngOnDestroy():
@@ -203,21 +204,28 @@ export class PdfInkOverlayDirective
   }
 
   restoreDocumentStrokes(
-    documentKey:
-      string,
-
-    strokes:
-      readonly InkStroke[],
+    documentKey: string,
+    strokes: readonly InkStroke[],
   ): void {
+    /*
+     * Restoring the data is safe before the view is ready.
+     * The store does not depend on Angular inputs or PDF.js.
+     */
     this.store.replace(
       documentKey,
       strokes,
     );
 
     /*
-     * An inactive attachment can be restored without disturbing
-     * whatever PDF is currently visible.
+     * A parent viewChild effect can run before Angular has
+     * initialized this directive's required documentKey input.
+     *
+     * Do not access documentKey() until the view is ready.
      */
+    if (!this.viewReady) {
+      return;
+    }
+
     if (
       documentKey !==
       this.documentKey()
@@ -226,12 +234,7 @@ export class PdfInkOverlayDirective
     }
 
     this.updateHistoryState();
-
-    if (
-      this.viewReady
-    ) {
-      this.redrawAllPages();
-    }
+    this.redrawAllPages();
   }
 
   undo():
@@ -303,8 +306,8 @@ export class PdfInkOverlayDirective
         Number(
           pageElement
             .dataset[
-              'pageNumber'
-            ],
+          'pageNumber'
+          ],
         );
 
       if (
@@ -352,7 +355,7 @@ export class PdfInkOverlayDirective
       surface
         .setInteractionEnabled(
           this.inkTool() !==
-            null,
+          null,
         );
 
       this.surfaces.set(
