@@ -22,6 +22,24 @@ const AR_TRANSLATIONS = {
 
   },
 
+  mailbox: {
+    loading: 'جارٍ تحميل المراسلات...',
+    loadFailed: 'تعذر تحميل المراسلات.',
+    retry: 'إعادة المحاولة',
+    showing: 'عرض', of: 'من', previous: 'السابق', next: 'التالي',
+    sender: 'المرسل', documentNumber: 'رقم المستند',
+    noDocumentNumber: 'لا يوجد رقم مستند', updated: 'آخر تعديل',
+    description: 'وصف المراسلة', noDescription: 'لا يوجد وصف.',
+    attachments: 'المستندات المرفقة', noAttachments: 'لا توجد مرفقات.',
+    loadingDetails: 'جارٍ تحميل تفاصيل المراسلة...',
+    detailsFailed: 'تعذر تحميل تفاصيل هذه المراسلة.',
+    openPresidentReview: 'فتح مراجعة الرئيس',
+    states: {
+      draft: 'مسودة', office: 'مكتب الرئيس',
+      president: 'عند الرئيس', director: 'عند المدير', archived: 'مؤرشفة',
+    },
+  },
+
   inbox: {
     eyebrow: 'مساحة العمل',
     title: 'الوارد',
@@ -361,6 +379,24 @@ const EN_TRANSLATIONS = {
     drafts: 'Drafts',
     completed: 'Completed',
     presidentReview: 'President Review',
+  },
+
+  mailbox: {
+    loading: 'Loading correspondence...',
+    loadFailed: 'Could not load correspondence.',
+    retry: 'Retry',
+    showing: 'Showing', of: 'of', previous: 'Previous', next: 'Next',
+    sender: 'Sender', documentNumber: 'Document Number',
+    noDocumentNumber: 'No document number', updated: 'Last updated',
+    description: 'Description', noDescription: 'No description provided.',
+    attachments: 'Attached Documents', noAttachments: 'No attachments.',
+    loadingDetails: 'Loading correspondence details...',
+    detailsFailed: 'Could not load correspondence details.',
+    openPresidentReview: 'Open President Review',
+    states: {
+      draft: 'Draft', office: 'With President’s Office',
+      president: 'With President', director: 'With Director', archived: 'Archived',
+    },
   },
 
   inbox: {

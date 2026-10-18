@@ -45,6 +45,31 @@ describe('CorrespondenceApiService', () => {
     );
   });
 
+  it('fetches live Inbox from Alfresco', () => {
+    service.listMailbox('inbox', 0, 25).subscribe(result => {
+      expect(result.total).toBe(0);
+    });
+    const request = http.expectOne(req =>
+      req.url === '/alfresco/service/badea/correspondence' &&
+      req.params.get('box') === 'inbox' &&
+      req.params.get('offset') === '0' &&
+      req.params.get('limit') === '25');
+    expect(request.request.method).toBe('GET');
+    request.flush({ items: [], offset: 0, limit: 25, total: 0 });
+  });
+
+  it('fetches Director Sent with pagination', () => {
+    service.listMailbox('sent', 25, 25).subscribe(result => {
+      expect(result.offset).toBe(25);
+    });
+    const request = http.expectOne(req =>
+      req.url === '/alfresco/service/badea/correspondence' &&
+      req.params.get('box') === 'sent' &&
+      req.params.get('offset') === '25');
+    expect(request.request.method).toBe('GET');
+    request.flush({ items: [], offset: 25, limit: 25, total: 26 });
+  });
+
   afterEach(() => {
     http.verify();
   });

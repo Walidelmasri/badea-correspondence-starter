@@ -9,6 +9,7 @@ import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftLister;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
@@ -28,11 +29,13 @@ public final class ListCorrespondenceWebScript
     private final CurrentEmployeeService currentEmployeeService;
     private final CorrespondenceActorRoleResolver actorRoleResolver;
     private final AlfrescoCorrespondenceDraftLister draftLister;
+    private final AlfrescoCorrespondenceMailboxLister mailboxLister;
 
     public ListCorrespondenceWebScript(
             CurrentEmployeeService currentEmployeeService,
             CorrespondenceActorRoleResolver actorRoleResolver,
-            AlfrescoCorrespondenceDraftLister draftLister) {
+            AlfrescoCorrespondenceDraftLister draftLister,
+            AlfrescoCorrespondenceMailboxLister mailboxLister) {
 
         this.currentEmployeeService =
                 Objects.requireNonNull(currentEmployeeService);
@@ -42,6 +45,7 @@ public final class ListCorrespondenceWebScript
 
         this.draftLister =
                 Objects.requireNonNull(draftLister);
+        this.mailboxLister = Objects.requireNonNull(mailboxLister);
     }
 
     @Override
@@ -54,52 +58,35 @@ public final class ListCorrespondenceWebScript
             CorrespondenceActorRole role =
                     actorRoleResolver.resolveCurrentUserRole();
 
-            if (role != CorrespondenceActorRole.DIRECTOR) {
-                throw new CorrespondenceAuthorizationException(
-                        "Director role required.");
-            }
-
             String box = request.getParameter("box");
-
-            if (!"drafts".equals(box)) {
-                throw new IllegalArgumentException(
-                        "Only box=drafts is currently supported.");
+            if (!"drafts".equals(box) && !"inbox".equals(box)
+                    && !"sent".equals(box)) {
+                throw new IllegalArgumentException("Unsupported correspondence box");
             }
 
             int offset = readInteger(
-                    request.getParameter("offset"),
-                    0,
-                    0,
-                    Integer.MAX_VALUE,
-                    "offset");
-
+                    request.getParameter("offset"), 0, 0,
+                    Integer.MAX_VALUE, "offset");
             int limit = readInteger(
-                    request.getParameter("limit"),
-                    25,
-                    1,
-                    100,
-                    "limit");
+                    request.getParameter("limit"), 25, 1, 100, "limit");
 
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
+            DepartmentCode department = employee.department()
+                    .map(entry -> entry.code()).orElse(null);
 
-            DepartmentCode department =
-                    employee.department()
-                            .map(entry -> entry.code())
-                            .orElseThrow(
-                                    () -> new CorrespondenceAuthorizationException(
-                                            "Director has no active department."));
-
-            AlfrescoCorrespondenceDraftLister.DraftPage page =
-                    draftLister.list(
-                            department,
-                            offset,
-                            limit);
-
-            writeJson(
-                    response,
-                    Status.STATUS_OK,
-                    serialize(page));
+            JSONObject result;
+            if ("drafts".equals(box)) {
+                if (role != CorrespondenceActorRole.DIRECTOR || department == null) {
+                    throw new CorrespondenceAuthorizationException(
+                            "Director department required for drafts");
+                }
+                result = serialize(draftLister.list(department, offset, limit));
+            } else {
+                result = serializeMailbox(mailboxLister.list(
+                        box, role, department, offset, limit));
+            }
+            writeJson(response, Status.STATUS_OK, result);
 
         } catch (CorrespondenceAuthorizationException exception) {
 
@@ -107,7 +94,7 @@ public final class ListCorrespondenceWebScript
                     response,
                     Status.STATUS_FORBIDDEN,
                     "CORRESPONDENCE_FORBIDDEN",
-                    "You are not authorized to view these drafts.");
+                    "You are not authorized to view this correspondence mailbox.");
 
         } catch (CurrentEmployeeNotFoundException exception) {
 
@@ -131,7 +118,7 @@ public final class ListCorrespondenceWebScript
                     response,
                     Status.STATUS_INTERNAL_SERVER_ERROR,
                     "CORRESPONDENCE_REPOSITORY_ERROR",
-                    "The drafts could not be loaded.");
+                    "The correspondence mailbox could not be loaded.");
 
         } catch (IllegalArgumentException exception) {
 
@@ -201,6 +188,30 @@ public final class ListCorrespondenceWebScript
         result.put("limit", page.limit());
         result.put("total", page.total());
 
+        return result;
+    }
+
+    private static JSONObject serializeMailbox(
+            AlfrescoCorrespondenceMailboxLister.MailboxPage page) {
+        JSONObject result = new JSONObject();
+        JSONArray items = new JSONArray();
+        for (AlfrescoCorrespondenceMailboxLister.MailboxSummary summary : page.items()) {
+            JSONObject item = new JSONObject();
+            item.put("technicalId", summary.technicalId());
+            item.put("subject", summary.subject());
+            item.put("documentNumber", summary.documentNumber() == null
+                    ? JSONObject.NULL : summary.documentNumber());
+            item.put("state", summary.state());
+            item.put("originDepartmentCode", summary.originDepartmentCode());
+            item.put("senderName", summary.senderName());
+            item.put("createdAt", summary.createdAt().toString());
+            item.put("modifiedAt", summary.modifiedAt().toString());
+            items.put(item);
+        }
+        result.put("items", items);
+        result.put("offset", page.offset());
+        result.put("limit", page.limit());
+        result.put("total", page.total());
         return result;
     }
 

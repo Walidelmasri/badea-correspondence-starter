@@ -23,6 +23,30 @@ class CorrespondenceAccessAuthorizerTest {
     }
 
     @Test
+    void directorCanReadSentCorrespondenceButCannotTransitionIt() {
+        CorrespondenceAccessContext sent = new CorrespondenceAccessContext(
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                new DepartmentCode("117"),
+                CorrespondenceActorRole.PRESIDENT_OFFICE, null);
+        assertDoesNotThrow(() -> authorizer.authorizeRead(
+                sent, CorrespondenceActorRole.DIRECTOR, new DepartmentCode("117")));
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeTransition(
+                        sent, CorrespondenceActorRole.DIRECTOR, new DepartmentCode("117")));
+    }
+
+    @Test
+    void otherDirectorCannotReadSentCorrespondence() {
+        CorrespondenceAccessContext sent = new CorrespondenceAccessContext(
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                new DepartmentCode("118"),
+                CorrespondenceActorRole.PRESIDENT_OFFICE, null);
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(
+                        sent, CorrespondenceActorRole.DIRECTOR, new DepartmentCode("117")));
+    }
+
+    @Test
     void allowsDirectorToActOnDraftFromOwnDepartment() {
 
         CorrespondenceAccessContext correspondence =

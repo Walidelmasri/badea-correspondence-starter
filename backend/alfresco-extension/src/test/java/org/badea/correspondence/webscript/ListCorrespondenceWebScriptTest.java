@@ -17,6 +17,7 @@ import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftLister;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
@@ -38,6 +39,7 @@ class ListCorrespondenceWebScriptTest {
     private CurrentEmployeeService employeeService;
     private CorrespondenceActorRoleResolver roleResolver;
     private AlfrescoCorrespondenceDraftLister draftLister;
+    private AlfrescoCorrespondenceMailboxLister mailboxLister;
 
     private WebScriptRequest request;
     private WebScriptResponse response;
@@ -53,6 +55,7 @@ class ListCorrespondenceWebScriptTest {
         employeeService = mock(CurrentEmployeeService.class);
         roleResolver = mock(CorrespondenceActorRoleResolver.class);
         draftLister = mock(AlfrescoCorrespondenceDraftLister.class);
+        mailboxLister = mock(AlfrescoCorrespondenceMailboxLister.class);
 
         request = mock(WebScriptRequest.class);
         response = mock(WebScriptResponse.class);
@@ -74,7 +77,8 @@ class ListCorrespondenceWebScriptTest {
         webScript = new ListCorrespondenceWebScript(
                 employeeService,
                 roleResolver,
-                draftLister);
+                draftLister,
+                mailboxLister);
     }
 
     @Test
@@ -235,7 +239,7 @@ class ListCorrespondenceWebScriptTest {
     void rejectsUnsupportedBox() throws IOException {
 
         when(request.getParameter("box"))
-                .thenReturn("inbox");
+                .thenReturn("unknown");
 
         JSONObject result = execute();
 
@@ -264,6 +268,53 @@ class ListCorrespondenceWebScriptTest {
         assertEquals(
                 "CORRESPONDENCE_REPOSITORY_ERROR",
                 result.getString("code"));
+    }
+
+    @Test
+    void listsAssignedOfficeInbox() throws IOException {
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(request.getParameter("box")).thenReturn("inbox");
+        var summary = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "Office task", "N-2",
+                "WITH_PRESIDENT_OFFICE", "117", "Director",
+                Instant.parse("2026-10-18T08:00:00Z"),
+                Instant.parse("2026-10-18T09:00:00Z"));
+        when(mailboxLister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, 0, 25))
+                .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                        List.of(summary), 0, 25, 1));
+
+        JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_OK);
+        assertEquals(1, result.getInt("total"));
+        assertEquals("WITH_PRESIDENT_OFFICE",
+                result.getJSONArray("items").getJSONObject(0).getString("state"));
+    }
+
+    @Test
+    void returnsOriginatingDirectorSent() throws IOException {
+        when(request.getParameter("box")).thenReturn("sent");
+        when(mailboxLister.list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, 0, 25))
+                .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                        List.of(), 0, 25, 0));
+        JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_OK);
+        assertEquals(0, result.getInt("total"));
+        verify(mailboxLister).list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, 0, 25);
+    }
+
+    @Test
+    void blocksOfficeSentUntilActionHistoryAuthorizationExists() throws IOException {
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(request.getParameter("box")).thenReturn("sent");
+        when(mailboxLister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE, DEPARTMENT, 0, 25))
+                .thenThrow(new org.badea.correspondence.security.CorrespondenceAuthorizationException(
+                        "Office Sent not yet authorized"));
+        JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_FORBIDDEN);
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
     }
 
     private JSONObject execute() throws IOException {

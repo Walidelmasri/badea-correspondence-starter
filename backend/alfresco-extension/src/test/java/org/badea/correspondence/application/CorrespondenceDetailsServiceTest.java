@@ -90,7 +90,51 @@ class CorrespondenceDetailsServiceTest {
     }
 
     @Test
-    void directorCannotReadCorrespondenceAssignedToPresident() {
+    void originatingDirectorCanReadSentCorrespondenceAssignedToPresident() {
+
+        CorrespondenceAccessContext context =
+                new CorrespondenceAccessContext(
+                        CorrespondenceState.WITH_PRESIDENT,
+                        new DepartmentCode("117"),
+                        CorrespondenceActorRole.PRESIDENT,
+                        null);
+
+        CorrespondenceDetails expected =
+                new CorrespondenceDetails(
+                        TECHNICAL_ID,
+                        CorrespondenceState.WITH_PRESIDENT,
+                        "Test correspondence",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "117",
+                        "Test Employee",
+                        null,
+                        List.of());
+
+        when(transitionRepository.getAccessContext(
+                TECHNICAL_ID))
+                .thenReturn(context);
+
+        when(detailsRepository.findByTechnicalId(
+                TECHNICAL_ID))
+                .thenReturn(expected);
+
+        CorrespondenceDetails actual =
+                service.getDetails(
+                        TECHNICAL_ID,
+                        CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117"));
+
+        assertEquals(expected, actual);
+
+        verify(detailsRepository)
+                .findByTechnicalId(TECHNICAL_ID);
+    }
+
+    @Test
+    void otherDepartmentDirectorCannotReadSentCorrespondence() {
 
         CorrespondenceAccessContext context =
                 new CorrespondenceAccessContext(
@@ -108,7 +152,7 @@ class CorrespondenceDetailsServiceTest {
                 () -> service.getDetails(
                         TECHNICAL_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        new DepartmentCode("117")));
+                        new DepartmentCode("118")));
 
         verify(detailsRepository, never())
                 .findByTechnicalId(TECHNICAL_ID);

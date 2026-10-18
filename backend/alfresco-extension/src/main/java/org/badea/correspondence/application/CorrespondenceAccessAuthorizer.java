@@ -21,10 +21,15 @@ public final class CorrespondenceAccessAuthorizer {
             CorrespondenceActorRole actorRole,
             DepartmentCode actorDepartmentCode) {
 
-        authorizeTransition(
-                correspondence,
-                actorRole,
-                actorDepartmentCode);
+        Objects.requireNonNull(correspondence, "correspondence must not be null");
+        Objects.requireNonNull(actorRole, "actorRole must not be null");
+
+        if (actorRole == CorrespondenceActorRole.DIRECTOR
+                && actorDepartmentCode != null
+                && actorDepartmentCode.equals(correspondence.originDepartmentCode())) {
+            return;
+        }
+        authorizeTransition(correspondence, actorRole, actorDepartmentCode);
     }
 
     public void authorizeTransition(

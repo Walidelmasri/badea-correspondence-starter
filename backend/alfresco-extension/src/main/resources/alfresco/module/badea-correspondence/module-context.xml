@@ -544,6 +544,17 @@
         ref="badeaCorrespondenceFolderLocator" />
 </bean>
 
+<!-- Current-assignment Inbox and originating-Director Sent; read-only. -->
+<bean
+    id="badeaCorrespondenceMailboxLister"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="permissionService" />
+    <constructor-arg ref="badeaCorrespondenceFolderLocator" />
+</bean>
+
 <!--
     Authenticated correspondence-list endpoint.
 -->
@@ -561,6 +572,9 @@
 
     <constructor-arg
         ref="badeaCorrespondenceDraftLister" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceMailboxLister" />
 </bean>
 <!--
     Deletes original source attachments from Director drafts.

@@ -55,6 +55,21 @@ export interface CorrespondenceDraftSummary {
   readonly modifiedAt: string;
 }
 
+export type CorrespondenceMailboxBox = 'inbox' | 'sent';
+
+export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary {
+  readonly state: CorrespondenceDetails['state'];
+  readonly originDepartmentCode: string;
+  readonly senderName: string;
+}
+
+export interface CorrespondenceMailboxPage {
+  readonly items: readonly CorrespondenceMailboxSummary[];
+  readonly offset: number;
+  readonly limit: number;
+  readonly total: number;
+}
+
 export interface CorrespondenceDraftPage {
   readonly items: readonly CorrespondenceDraftSummary[];
   readonly offset: number;
@@ -102,6 +117,17 @@ export class CorrespondenceApiService {
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}`,
     );
   }
+  listMailbox(
+    box: CorrespondenceMailboxBox,
+    offset = 0,
+    limit = 25,
+  ): Observable<CorrespondenceMailboxPage> {
+    return this.http.get<CorrespondenceMailboxPage>(
+      CORRESPONDENCE_URL,
+      { params: { box, offset, limit } },
+    );
+  }
+
   listDrafts(
     offset = 0,
     limit = 25,
