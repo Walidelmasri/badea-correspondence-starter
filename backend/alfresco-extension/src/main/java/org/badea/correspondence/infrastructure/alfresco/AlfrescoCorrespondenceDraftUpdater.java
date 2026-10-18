@@ -25,8 +25,8 @@ public final class AlfrescoCorrespondenceDraftUpdater {
     private static final QName PROP_ORIGIN_DEPARTMENT =
             qname("originDepartmentCode");
 
-    private static final QName PROP_CREATED_BY_EMPLOYEE =
-            qname("createdByEmployeeId");
+//     private static final QName PROP_CREATED_BY_EMPLOYEE =
+//             qname("createdByEmployeeId");
 
     private static final QName PROP_SUBJECT = qname("subject");
     private static final QName PROP_BODY = qname("bodyText");
@@ -116,16 +116,16 @@ public final class AlfrescoCorrespondenceDraftUpdater {
             throw forbidden();
         }
 
-        Serializable creator = nodeService.getProperty(
-                correspondence,
-                PROP_CREATED_BY_EMPLOYEE);
+        // Serializable creator = nodeService.getProperty(
+        //         correspondence,
+        //         PROP_CREATED_BY_EMPLOYEE);
 
-        if (!command.actorEmployeeId()
-                .value()
-                .equals(creator)) {
+        // if (!command.actorEmployeeId()
+        //         .value()
+        //         .equals(creator)) {
 
-            throw forbidden();
-        }
+        //     throw forbidden();
+        // }
 
         if (permissionService.hasPermission(
                 correspondence,

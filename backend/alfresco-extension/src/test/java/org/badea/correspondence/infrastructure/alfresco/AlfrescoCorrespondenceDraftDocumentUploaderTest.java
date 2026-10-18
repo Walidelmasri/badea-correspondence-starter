@@ -40,269 +40,276 @@ import org.mockito.ArgumentCaptor;
 
 class AlfrescoCorrespondenceDraftDocumentUploaderTest {
 
-    private static final String TECHNICAL_ID =
-            "4519dccf-c777-4514-b8b8-ac4c713ebd2b";
+        private static final String TECHNICAL_ID = "4519dccf-c777-4514-b8b8-ac4c713ebd2b";
 
-    private static final String NAMESPACE_URI =
-            "http://www.badea.org/model/correspondence/1.0";
+        private static final String NAMESPACE_URI = "http://www.badea.org/model/correspondence/1.0";
 
-    private static final DepartmentCode DEPARTMENT =
-            new DepartmentCode("117");
+        private static final DepartmentCode DEPARTMENT = new DepartmentCode("117");
 
-    private static final EmployeeId CREATOR =
-            new EmployeeId("10001");
+        private static final EmployeeId CREATOR = new EmployeeId("10001");
 
-    private static final byte[] PDF_BYTES =
-            "%PDF-1.7\nTest PDF".getBytes(
-                    java.nio.charset.StandardCharsets.US_ASCII);
+        private static final byte[] PDF_BYTES = "%PDF-1.7\nTest PDF".getBytes(
+                        java.nio.charset.StandardCharsets.US_ASCII);
 
-    private NodeService nodeService;
-    private ContentService contentService;
-    private PermissionService permissionService;
-    private CorrespondenceNodeLocator nodeLocator;
+        private NodeService nodeService;
+        private ContentService contentService;
+        private PermissionService permissionService;
+        private CorrespondenceNodeLocator nodeLocator;
 
-    private NodeRef correspondence;
-    private NodeRef document;
+        private NodeRef correspondence;
+        private NodeRef document;
 
-    private ContentWriter writer;
+        private ContentWriter writer;
 
-    private AlfrescoCorrespondenceDraftDocumentUploader uploader;
+        private AlfrescoCorrespondenceDraftDocumentUploader uploader;
 
-    @BeforeEach
-    void setUp() {
+        @BeforeEach
+        void setUp() {
 
-        nodeService = mock(NodeService.class);
-        contentService = mock(ContentService.class);
-        permissionService = mock(PermissionService.class);
-        nodeLocator = mock(CorrespondenceNodeLocator.class);
+                nodeService = mock(NodeService.class);
+                contentService = mock(ContentService.class);
+                permissionService = mock(PermissionService.class);
+                nodeLocator = mock(CorrespondenceNodeLocator.class);
 
-        correspondence = new NodeRef(
-                "workspace://SpacesStore/"
-                        + "11111111-1111-1111-1111-111111111111");
+                correspondence = new NodeRef(
+                                "workspace://SpacesStore/"
+                                                + "11111111-1111-1111-1111-111111111111");
 
-        document = new NodeRef(
-                "workspace://SpacesStore/"
-                        + "22222222-2222-2222-2222-222222222222");
+                document = new NodeRef(
+                                "workspace://SpacesStore/"
+                                                + "22222222-2222-2222-2222-222222222222");
 
-        writer = mock(ContentWriter.class);
+                writer = mock(ContentWriter.class);
 
-        uploader =
-                new AlfrescoCorrespondenceDraftDocumentUploader(
-                        nodeService,
-                        contentService,
-                        permissionService,
-                        nodeLocator);
+                uploader = new AlfrescoCorrespondenceDraftDocumentUploader(
+                                nodeService,
+                                contentService,
+                                permissionService,
+                                nodeLocator);
 
-        when(nodeLocator.locate(TECHNICAL_ID))
-                .thenReturn(correspondence);
+                when(nodeLocator.locate(TECHNICAL_ID))
+                                .thenReturn(correspondence);
 
-        when(nodeService.getType(correspondence))
-                .thenReturn(qname("correspondence"));
+                when(nodeService.getType(correspondence))
+                                .thenReturn(qname("correspondence"));
 
-        when(nodeService.getProperty(
-                correspondence,
-                qname("state")))
-                .thenReturn("DRAFT");
+                when(nodeService.getProperty(
+                                correspondence,
+                                qname("state")))
+                                .thenReturn("DRAFT");
 
-        when(nodeService.getProperty(
-                correspondence,
-                qname("originDepartmentCode")))
-                .thenReturn("117");
+                when(nodeService.getProperty(
+                                correspondence,
+                                qname("originDepartmentCode")))
+                                .thenReturn("117");
 
-        when(nodeService.getProperty(
-                correspondence,
-                qname("createdByEmployeeId")))
-                .thenReturn("10001");
+                when(nodeService.getProperty(
+                                correspondence,
+                                qname("createdByEmployeeId")))
+                                .thenReturn("10001");
 
-        when(permissionService.hasPermission(
-                correspondence,
-                PermissionService.WRITE))
-                .thenReturn(AccessStatus.ALLOWED);
-    }
+                when(permissionService.hasPermission(
+                                correspondence,
+                                PermissionService.WRITE))
+                                .thenReturn(AccessStatus.ALLOWED);
+        }
 
-    @Test
-    void uploadsPdfForItsCreator() throws Exception {
+        @Test
+        void uploadsPdfForItsCreator() throws Exception {
 
-        ChildAssociationRef association =
-                mock(ChildAssociationRef.class);
+                ChildAssociationRef association = mock(ChildAssociationRef.class);
 
-        when(association.getChildRef())
-                .thenReturn(document);
+                when(association.getChildRef())
+                                .thenReturn(document);
 
-        when(nodeService.createNode(
-                eq(correspondence),
-                eq(ContentModel.ASSOC_CONTAINS),
-                any(QName.class),
-                eq(ContentModel.TYPE_CONTENT),
-                anyMap()))
-                .thenReturn(association);
+                when(nodeService.createNode(
+                                eq(correspondence),
+                                eq(ContentModel.ASSOC_CONTAINS),
+                                any(QName.class),
+                                eq(ContentModel.TYPE_CONTENT),
+                                anyMap()))
+                                .thenReturn(association);
 
-        when(contentService.getWriter(
-                document,
-                ContentModel.PROP_CONTENT,
-                true))
-                .thenReturn(writer);
+                when(contentService.getWriter(
+                                document,
+                                ContentModel.PROP_CONTENT,
+                                true))
+                                .thenReturn(writer);
 
-        CorrespondenceDocument result =
-                uploadAsCreator();
+                CorrespondenceDocument result = uploadAsCreator();
 
-        assertEquals(document.getId(), result.nodeId());
-        assertEquals("main-letter.pdf", result.filename());
-        assertEquals("application/pdf", result.mimeType());
-        assertEquals(PDF_BYTES.length, result.sizeBytes());
+                assertEquals(document.getId(), result.nodeId());
+                assertEquals("main-letter.pdf", result.filename());
+                assertEquals("application/pdf", result.mimeType());
+                assertEquals(PDF_BYTES.length, result.sizeBytes());
 
-        verify(writer).setMimetype("application/pdf");
+                verify(writer).setMimetype("application/pdf");
 
-        ArgumentCaptor<InputStream> streamCaptor =
-                ArgumentCaptor.forClass(InputStream.class);
+                ArgumentCaptor<InputStream> streamCaptor = ArgumentCaptor.forClass(InputStream.class);
 
-        verify(writer).putContent(streamCaptor.capture());
+                verify(writer).putContent(streamCaptor.capture());
 
-        assertArrayEquals(
-                PDF_BYTES,
-                streamCaptor.getValue().readAllBytes());
-    }
+                assertArrayEquals(
+                                PDF_BYTES,
+                                streamCaptor.getValue().readAllBytes());
+        }
 
-    @Test
-    void rejectsAnotherDirectorInTheSameDepartment() {
+        @Test
+        void replacementDirectorInSameDepartmentCanUpload() {
 
-        assertThrows(
-                CorrespondenceAuthorizationException.class,
-                () -> uploader.uploadPdf(
-                        TECHNICAL_ID,
-                        CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT,
-                        new EmployeeId("different-employee"),
-                        "main-letter.pdf",
-                        PDF_BYTES));
+                ChildAssociationRef association = mock(ChildAssociationRef.class);
 
-        verifyNoDocumentCreated();
-    }
+                when(association.getChildRef())
+                                .thenReturn(document);
 
-    @Test
-    void rejectsUploadAfterSubmission() {
+                when(nodeService.createNode(
+                                eq(correspondence),
+                                eq(ContentModel.ASSOC_CONTAINS),
+                                any(QName.class),
+                                eq(ContentModel.TYPE_CONTENT),
+                                anyMap()))
+                                .thenReturn(association);
 
-        when(nodeService.getProperty(
-                correspondence,
-                qname("state")))
-                .thenReturn("WITH_PRESIDENT_OFFICE");
+                when(contentService.getWriter(
+                                document,
+                                ContentModel.PROP_CONTENT,
+                                true))
+                                .thenReturn(writer);
 
-        assertThrows(
-                CorrespondenceAuthorizationException.class,
-                this::uploadAsCreator);
+                CorrespondenceDocument result = uploader.uploadPdf(
+                                TECHNICAL_ID,
+                                CorrespondenceActorRole.DIRECTOR,
+                                DEPARTMENT,
+                                new EmployeeId("different-employee"),
+                                "main-letter.pdf",
+                                PDF_BYTES);
 
-        verifyNoDocumentCreated();
-    }
+                assertEquals(document.getId(), result.nodeId());
 
-    @Test
-    void rejectsPresidentUploadingThroughDirectorDraftWorkflow() {
+                verify(writer).setMimetype("application/pdf");
+        }
 
-        assertThrows(
-                CorrespondenceAuthorizationException.class,
-                () -> uploader.uploadPdf(
-                        TECHNICAL_ID,
-                        CorrespondenceActorRole.PRESIDENT,
-                        DEPARTMENT,
-                        CREATOR,
-                        "main-letter.pdf",
-                        PDF_BYTES));
+        @Test
+        void rejectsUploadAfterSubmission() {
 
-        verifyNoDocumentCreated();
-    }
+                when(nodeService.getProperty(
+                                correspondence,
+                                qname("state")))
+                                .thenReturn("WITH_PRESIDENT_OFFICE");
 
-    @Test
-    void rejectsMissingAlfrescoWritePermission() {
+                assertThrows(
+                                CorrespondenceAuthorizationException.class,
+                                this::uploadAsCreator);
 
-        when(permissionService.hasPermission(
-                correspondence,
-                PermissionService.WRITE))
-                .thenReturn(AccessStatus.DENIED);
+                verifyNoDocumentCreated();
+        }
 
-        assertThrows(
-                CorrespondenceAuthorizationException.class,
-                this::uploadAsCreator);
+        @Test
+        void rejectsPresidentUploadingThroughDirectorDraftWorkflow() {
 
-        verifyNoDocumentCreated();
-    }
+                assertThrows(
+                                CorrespondenceAuthorizationException.class,
+                                () -> uploader.uploadPdf(
+                                                TECHNICAL_ID,
+                                                CorrespondenceActorRole.PRESIDENT,
+                                                DEPARTMENT,
+                                                CREATOR,
+                                                "main-letter.pdf",
+                                                PDF_BYTES));
 
-    @Test
-    void rejectsNonPdfContent() {
+                verifyNoDocumentCreated();
+        }
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> uploader.uploadPdf(
-                        TECHNICAL_ID,
-                        CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT,
-                        CREATOR,
-                        "main-letter.pdf",
-                        new byte[] { 1, 2, 3 }));
+        @Test
+        void rejectsMissingAlfrescoWritePermission() {
 
-        verifyNoDocumentCreated();
-    }
+                when(permissionService.hasPermission(
+                                correspondence,
+                                PermissionService.WRITE))
+                                .thenReturn(AccessStatus.DENIED);
 
-    @Test
-    void rejectsOversizedPdf() {
+                assertThrows(
+                                CorrespondenceAuthorizationException.class,
+                                this::uploadAsCreator);
 
-        byte[] oversized =
-                new byte[
-                        AlfrescoCorrespondenceDraftDocumentUploader
-                                .MAX_PDF_BYTES + 1];
+                verifyNoDocumentCreated();
+        }
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> uploader.uploadPdf(
-                        TECHNICAL_ID,
-                        CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT,
-                        CREATOR,
-                        "main-letter.pdf",
-                        oversized));
+        @Test
+        void rejectsNonPdfContent() {
 
-        verifyNoDocumentCreated();
-    }
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> uploader.uploadPdf(
+                                                TECHNICAL_ID,
+                                                CorrespondenceActorRole.DIRECTOR,
+                                                DEPARTMENT,
+                                                CREATOR,
+                                                "main-letter.pdf",
+                                                new byte[] { 1, 2, 3 }));
 
-    @Test
-    void rejectsPathTraversalFilename() {
+                verifyNoDocumentCreated();
+        }
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> uploader.uploadPdf(
-                        TECHNICAL_ID,
-                        CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT,
-                        CREATOR,
-                        "../document.pdf",
-                        PDF_BYTES));
+        @Test
+        void rejectsOversizedPdf() {
 
-        verifyNoDocumentCreated();
-    }
+                byte[] oversized = new byte[AlfrescoCorrespondenceDraftDocumentUploader.MAX_PDF_BYTES + 1];
 
-    private CorrespondenceDocument uploadAsCreator() {
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> uploader.uploadPdf(
+                                                TECHNICAL_ID,
+                                                CorrespondenceActorRole.DIRECTOR,
+                                                DEPARTMENT,
+                                                CREATOR,
+                                                "main-letter.pdf",
+                                                oversized));
 
-        return uploader.uploadPdf(
-                TECHNICAL_ID,
-                CorrespondenceActorRole.DIRECTOR,
-                DEPARTMENT,
-                CREATOR,
-                "main-letter.pdf",
-                PDF_BYTES);
-    }
+                verifyNoDocumentCreated();
+        }
 
-    private void verifyNoDocumentCreated() {
+        @Test
+        void rejectsPathTraversalFilename() {
 
-        verify(nodeService, never()).createNode(
-                any(NodeRef.class),
-                any(QName.class),
-                any(QName.class),
-                any(QName.class),
-                anyMap());
-    }
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> uploader.uploadPdf(
+                                                TECHNICAL_ID,
+                                                CorrespondenceActorRole.DIRECTOR,
+                                                DEPARTMENT,
+                                                CREATOR,
+                                                "../document.pdf",
+                                                PDF_BYTES));
 
-    private static QName qname(String localName) {
+                verifyNoDocumentCreated();
+        }
 
-        return QName.createQName(
-                NAMESPACE_URI,
-                localName);
-    }
+        private CorrespondenceDocument uploadAsCreator() {
+
+                return uploader.uploadPdf(
+                                TECHNICAL_ID,
+                                CorrespondenceActorRole.DIRECTOR,
+                                DEPARTMENT,
+                                CREATOR,
+                                "main-letter.pdf",
+                                PDF_BYTES);
+        }
+
+        private void verifyNoDocumentCreated() {
+
+                verify(nodeService, never()).createNode(
+                                any(NodeRef.class),
+                                any(QName.class),
+                                any(QName.class),
+                                any(QName.class),
+                                anyMap());
+        }
+
+        private static QName qname(String localName) {
+
+                return QName.createQName(
+                                NAMESPACE_URI,
+                                localName);
+        }
 }

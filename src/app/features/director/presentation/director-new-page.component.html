@@ -1,13 +1,22 @@
 <section class="compose-page">
+
   <header class="compose-page__header">
     <div>
       <span class="compose-page__eyebrow">
         {{ labels().eyebrow }}
       </span>
 
-      <h1>{{ labels().title }}</h1>
+      <h1>
+        {{
+          technicalId()
+            ? labels().editing
+            : labels().title
+        }}
+      </h1>
 
-      <p>{{ labels().description }}</p>
+      <p>
+        {{ labels().description }}
+      </p>
     </div>
   </header>
 
@@ -16,10 +25,22 @@
     [formGroup]="form"
     (ngSubmit)="saveDraft()"
   >
+
+    <!-- Correspondence metadata -->
+
     <section class="compose-section">
+
       <div class="compose-section__header">
-        <h2>{{ labels().details }}</h2>
+        <h2>
+          {{ labels().details }}
+        </h2>
       </div>
+
+      @if (loading()) {
+        <p class="director-form__hint" role="status">
+          {{ labels().loading }}
+        </p>
+      }
 
       <label class="form-field">
         <span class="form-field__label">
@@ -39,6 +60,7 @@
       </label>
 
       <div class="compose-grid compose-grid--three">
+
         <label class="form-field">
           <span class="form-field__label">
             {{ labels().documentNumber }}
@@ -71,6 +93,7 @@
             formControlName="sourceText"
           />
         </label>
+
       </div>
 
       <p class="director-form__hint">
@@ -95,23 +118,41 @@
       </div>
 
       @if (technicalId(); as id) {
+
         <div class="director-form__reference">
-          <strong>{{ labels().savedReference }}</strong>
-          <code>{{ id }}</code>
+          <strong>
+            {{ labels().savedReference }}
+          </strong>
+
+          <code>
+            {{ id }}
+          </code>
         </div>
 
-        <p class="director-form__hint">
-          {{ labels().locked }}
-        </p>
+        @if (!readOnly()) {
+          <p class="director-form__hint">
+            {{ labels().locked }}
+          </p>
+        }
+
       }
+
     </section>
 
+
+    <!-- Supporting PDF documents -->
+
     <section class="compose-section">
+
       <div class="compose-section__header">
-        <h2>{{ labels().attachments }}</h2>
+        <h2>
+          {{ labels().attachments }}
+        </h2>
       </div>
 
-      <label class="attachment-dropzone director-form__upload">
+      <label
+        class="attachment-dropzone director-form__upload"
+      >
         <span
           class="attachment-dropzone__icon"
           aria-hidden="true"
@@ -119,64 +160,139 @@
           +
         </span>
 
-        <strong>{{ labels().chooseFiles }}</strong>
+        <strong>
+          {{ labels().chooseFiles }}
+        </strong>
 
-        <span>{{ labels().fileHint }}</span>
+        <span>
+          {{ labels().fileHint }}
+        </span>
 
         <input
           type="file"
           accept=".pdf,application/pdf"
           multiple
-          [disabled]="busy() || creationUncertain()"
+          [disabled]="
+            busy() ||
+            readOnly() ||
+            creationUncertain()
+          "
           (change)="onFilesSelected($event)"
         />
       </label>
 
-      @if (documents().length > 0) {
+
+      <!-- Documents already stored in Alfresco -->
+
+      @if (savedDocuments().length > 0) {
+
         <ul class="director-form__documents">
-          @for (document of documents(); track document.id) {
+
+          @for (
+            document of savedDocuments();
+            track document.nodeId
+          ) {
+
             <li>
               <div class="director-form__document-info">
-                <strong>{{ document.file.name }}</strong>
+
+                <strong>
+                  {{ document.filename }}
+                </strong>
+
+                <span>
+                  {{ formatSize(document.sizeBytes) }}
+                  ·
+                  {{ labels().savedDocument }}
+                </span>
+
+              </div>
+            </li>
+
+          }
+
+        </ul>
+
+      }
+
+
+      <!-- Files selected but not yet persisted -->
+
+      @if (documents().length > 0) {
+
+        <ul class="director-form__documents">
+
+          @for (
+            document of documents();
+            track document.id
+          ) {
+
+            <li>
+
+              <div class="director-form__document-info">
+
+                <strong>
+                  {{ document.file.name }}
+                </strong>
 
                 <span>
                   {{ formatSize(document.file.size) }}
                   ·
                   {{ documentStatus(document.status) }}
                 </span>
+
               </div>
+
 
               @if (
                 document.status === 'failed' &&
-                !busy()
+                !busy() &&
+                !readOnly()
               ) {
+
                 <button
                   type="button"
                   (click)="retryDocument(document.id)"
                 >
                   {{ labels().retry }}
                 </button>
+
               }
 
+
               @if (
-                (document.status === 'queued' ||
-                document.status === 'failed') &&
-                !busy()
+                (
+                  document.status === 'queued' ||
+                  document.status === 'failed'
+                ) &&
+                !busy() &&
+                !readOnly()
               ) {
+
                 <button
                   type="button"
                   (click)="removeDocument(document.id)"
                 >
                   {{ labels().remove }}
                 </button>
+
               }
+
             </li>
+
           }
+
         </ul>
+
       }
+
     </section>
 
+
+    <!-- Save result / errors -->
+
     @if (notice(); as message) {
+
       <div
         class="director-form__notice"
         [class.director-form__notice--error]="
@@ -189,18 +305,28 @@
       >
         {{ message.message }}
       </div>
+
     }
 
+
+    <!-- Save actions -->
+
     <footer class="compose-actions">
+
       <span class="director-form__footer-note">
         {{ labels().destination }}
       </span>
 
       <div class="compose-actions__primary-group">
+
         <button
           class="compose-actions__send"
           type="submit"
-          [disabled]="busy() || creationUncertain()"
+          [disabled]="
+            busy() ||
+            readOnly() ||
+            creationUncertain()
+          "
         >
           @if (busy()) {
             {{ labels().saving }}
@@ -208,7 +334,11 @@
             {{ labels().save }}
           }
         </button>
+
       </div>
+
     </footer>
+
   </form>
+
 </section>

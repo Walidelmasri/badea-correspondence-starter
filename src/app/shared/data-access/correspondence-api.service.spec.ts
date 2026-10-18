@@ -138,7 +138,72 @@ describe('CorrespondenceApiService', () => {
       },
     );
   });
+  it('retrieves an existing draft and its attachments', () => {
+    const technicalId = '4519dccf-c777-4514-b8b8-ac4c713ebd2b';
 
+    service.getDetails(technicalId).subscribe((details) => {
+      expect(details.state).toBe('DRAFT');
+      expect(details.subject).toBe('Quarterly Review');
+      expect(details.documents).toHaveLength(1);
+      expect(details.documents[0].filename).toBe('report.pdf');
+    });
+
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${technicalId}`,
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      technicalId,
+      state: 'DRAFT',
+      subject: 'Quarterly Review',
+      bodyText: 'Please review.',
+      documentNumber: 'DOC-2026-001',
+      documentDate: '2026-10-13',
+      sourceText: 'BADEA',
+      originDepartmentCode: '117',
+      createdByNameEnglish: 'Test Employee',
+      createdByNameArabic: null,
+      documents: [
+        {
+          nodeId: '22222222-2222-2222-2222-222222222222',
+          filename: 'report.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+        },
+      ],
+    });
+  });
+
+  it('updates the same draft instead of creating another', () => {
+    const technicalId = '4519dccf-c777-4514-b8b8-ac4c713ebd2b';
+
+    const metadata: CreateCorrespondenceDraft = {
+      subject: 'Updated Quarterly Review',
+      bodyText: 'Updated description',
+      documentNumber: null,
+      documentDate: '2026-10-14',
+      sourceText: 'BADEA',
+    };
+
+    service.updateDraft(technicalId, metadata).subscribe((result) => {
+      expect(result.technicalId).toBe(technicalId);
+      expect(result.state).toBe('DRAFT');
+    });
+
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${technicalId}/draft`,
+    );
+
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual(metadata);
+
+    request.flush({
+      technicalId,
+      state: 'DRAFT',
+    });
+  });
   it('preserves upload errors for the caller', () => {
     const file = new File(
       ['%PDF-1.7'],

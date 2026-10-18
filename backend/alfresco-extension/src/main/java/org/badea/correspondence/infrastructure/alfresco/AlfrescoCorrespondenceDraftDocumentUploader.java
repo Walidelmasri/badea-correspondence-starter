@@ -56,8 +56,8 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
     private static final QName PROP_ORIGIN_DEPARTMENT_CODE =
             qname("originDepartmentCode");
 
-    private static final QName PROP_CREATED_BY_EMPLOYEE_ID =
-            qname("createdByEmployeeId");
+//     private static final QName PROP_CREATED_BY_EMPLOYEE_ID =
+//             qname("createdByEmployeeId");
 
     private final NodeService nodeService;
 
@@ -232,14 +232,14 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
          * Another employee in the same department must
          * not be allowed to modify this person's draft.
          */
-        Serializable createdBy =
-                nodeService.getProperty(
-                        correspondence,
-                        PROP_CREATED_BY_EMPLOYEE_ID);
+        // Serializable createdBy =
+        //         nodeService.getProperty(
+        //                 correspondence,
+        //                 PROP_CREATED_BY_EMPLOYEE_ID);
 
-        if (!actorEmployeeId.value().equals(createdBy)) {
-            throw forbidden();
-        }
+        // if (!actorEmployeeId.value().equals(createdBy)) {
+        //     throw forbidden();
+        // }
 
         /*
          * Application-level authorization does not

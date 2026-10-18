@@ -1,6 +1,8 @@
 package org.badea.correspondence.infrastructure.alfresco;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
@@ -96,7 +98,8 @@ class AlfrescoCorrespondenceDraftUpdaterTest {
         }
 
         @Test
-        void anotherDirectorCannotUpdateSameDepartmentDraft() {
+        void replacementDirectorInSameDepartmentCanUpdateDraft() {
+
                 UpdateCorrespondenceDraftCommand command = new UpdateCorrespondenceDraftCommand(
                                 TECHNICAL_ID,
                                 CorrespondenceActorRole.DIRECTOR,
@@ -108,11 +111,12 @@ class AlfrescoCorrespondenceDraftUpdaterTest {
                                 null,
                                 null);
 
-                assertThrows(
-                                CorrespondenceAuthorizationException.class,
-                                () -> updater.updateDraft(command));
+                updater.updateDraft(command);
 
-                verifyNoWrites();
+                verify(nodeService).setProperty(
+                                correspondence,
+                                qname("subject"),
+                                "Updated subject");
         }
 
         @Test

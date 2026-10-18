@@ -34,7 +34,19 @@ export interface CorrespondenceDocumentUpload {
   readonly mimeType: string;
   readonly sizeBytes: number;
 }
-
+export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
+  readonly technicalId: string;
+  readonly state:
+  | 'DRAFT'
+  | 'WITH_PRESIDENT_OFFICE'
+  | 'WITH_PRESIDENT'
+  | 'WITH_DIRECTOR'
+  | 'ARCHIVED';
+  readonly originDepartmentCode: string;
+  readonly createdByNameEnglish: string;
+  readonly createdByNameArabic: string | null;
+  readonly documents: readonly CorrespondenceDocumentUpload[];
+}
 @Injectable({
   providedIn: 'root',
 })
@@ -50,7 +62,23 @@ export class CorrespondenceApiService {
       request,
     );
   }
+  getDetails(
+    technicalId: string,
+  ): Observable<CorrespondenceDetails> {
+    return this.http.get<CorrespondenceDetails>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}`,
+    );
+  }
 
+  updateDraft(
+    technicalId: string,
+    request: CreateCorrespondenceDraft,
+  ): Observable<CreatedCorrespondenceDraft> {
+    return this.http.put<CreatedCorrespondenceDraft>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/draft`,
+      request,
+    );
+  }
   uploadDocument(
     technicalId: string,
     file: File,
