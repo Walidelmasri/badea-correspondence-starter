@@ -26,6 +26,7 @@ public final class CorrespondenceAccessAuthorizer {
                 actorRole,
                 actorDepartmentCode);
     }
+
     public void authorizeTransition(
             CorrespondenceAccessContext correspondence,
             CorrespondenceActorRole actorRole,
@@ -41,67 +42,45 @@ public final class CorrespondenceAccessAuthorizer {
 
         switch (actorRole) {
             case PRESIDENT ->
-                    authorizePresident(
-                            correspondence);
+                authorizePresident(
+                        correspondence);
 
             case PRESIDENT_OFFICE ->
-                    authorizePresidentOffice(
-                            correspondence,
-                            actorDepartmentCode);
+                authorizePresidentOffice(correspondence);
 
             case DIRECTOR ->
-                    authorizeDirector(
-                            correspondence,
-                            actorDepartmentCode);
+                authorizeDirector(
+                        correspondence,
+                        actorDepartmentCode);
         }
     }
 
     private static void authorizePresident(
             CorrespondenceAccessContext correspondence) {
 
-        if (correspondence.state()
-                != CorrespondenceState.WITH_PRESIDENT) {
+        if (correspondence.state() != CorrespondenceState.WITH_PRESIDENT) {
 
             throw forbidden();
         }
 
-        if (correspondence.assignedRole()
-                != CorrespondenceActorRole.PRESIDENT) {
+        if (correspondence.assignedRole() != CorrespondenceActorRole.PRESIDENT) {
 
             throw forbidden();
         }
     }
 
     private static void authorizePresidentOffice(
-            CorrespondenceAccessContext correspondence,
-            DepartmentCode actorDepartmentCode) {
+            CorrespondenceAccessContext correspondence) {
 
-        if (correspondence.state()
-                == CorrespondenceState.WITH_PRESIDENT_OFFICE) {
+        if (correspondence.state() != CorrespondenceState.WITH_PRESIDENT_OFFICE) {
 
-            if (correspondence.assignedRole()
-                    != CorrespondenceActorRole.PRESIDENT_OFFICE) {
-
-                throw forbidden();
-            }
-
-            return;
+            throw forbidden();
         }
 
-        if (correspondence.state()
-                == CorrespondenceState.DRAFT) {
+        if (correspondence.assignedRole() != CorrespondenceActorRole.PRESIDENT_OFFICE) {
 
-            requireDepartment(
-                    actorDepartmentCode);
-
-            if (correspondence.originDepartmentCode()
-                    .equals(actorDepartmentCode)) {
-
-                return;
-            }
+            throw forbidden();
         }
-
-        throw forbidden();
     }
 
     private static void authorizeDirector(
@@ -111,8 +90,7 @@ public final class CorrespondenceAccessAuthorizer {
         requireDepartment(
                 actorDepartmentCode);
 
-        if (correspondence.state()
-                == CorrespondenceState.DRAFT) {
+        if (correspondence.state() == CorrespondenceState.DRAFT) {
 
             if (correspondence.originDepartmentCode()
                     .equals(actorDepartmentCode)) {
@@ -123,11 +101,9 @@ public final class CorrespondenceAccessAuthorizer {
             throw forbidden();
         }
 
-        if (correspondence.state()
-                == CorrespondenceState.WITH_DIRECTOR) {
+        if (correspondence.state() == CorrespondenceState.WITH_DIRECTOR) {
 
-            if (correspondence.assignedRole()
-                    != CorrespondenceActorRole.DIRECTOR) {
+            if (correspondence.assignedRole() != CorrespondenceActorRole.DIRECTOR) {
 
                 throw forbidden();
             }

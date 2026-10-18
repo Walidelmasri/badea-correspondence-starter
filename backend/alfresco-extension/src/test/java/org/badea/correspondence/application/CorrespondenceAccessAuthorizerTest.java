@@ -7,6 +7,7 @@ import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +40,23 @@ class CorrespondenceAccessAuthorizerTest {
     }
 
     @Test
+    void allowsDirectorToReadDraftFromOwnDepartment() {
+
+        CorrespondenceAccessContext correspondence =
+                new CorrespondenceAccessContext(
+                        CorrespondenceState.DRAFT,
+                        new DepartmentCode("117"),
+                        null,
+                        null);
+
+        assertDoesNotThrow(
+                () -> authorizer.authorizeRead(
+                        correspondence,
+                        CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117")));
+    }
+
+    @Test
     void rejectsDirectorActingOnAnotherDepartmentsDraft() {
 
         CorrespondenceAccessContext correspondence =
@@ -51,6 +69,24 @@ class CorrespondenceAccessAuthorizerTest {
         assertThrows(
                 CorrespondenceAuthorizationException.class,
                 () -> authorizer.authorizeTransition(
+                        correspondence,
+                        CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117")));
+    }
+
+    @Test
+    void rejectsDirectorReadingAnotherDepartmentsDraft() {
+
+        CorrespondenceAccessContext correspondence =
+                new CorrespondenceAccessContext(
+                        CorrespondenceState.DRAFT,
+                        new DepartmentCode("111"),
+                        null,
+                        null);
+
+        assertThrows(
+                CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(
                         correspondence,
                         CorrespondenceActorRole.DIRECTOR,
                         new DepartmentCode("117")));
@@ -127,6 +163,34 @@ class CorrespondenceAccessAuthorizerTest {
     }
 
     @Test
+    void rejectsPresidentOfficeFromUnsubmittedDraftEvenIfDepartmentMatches() {
+
+        CorrespondenceAccessContext correspondence =
+                new CorrespondenceAccessContext(
+                        CorrespondenceState.DRAFT,
+                        new DepartmentCode("117"),
+                        null,
+                        null);
+
+        DepartmentCode officeDepartment =
+                new DepartmentCode("117");
+
+        assertThrows(
+                CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeTransition(
+                        correspondence,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        officeDepartment));
+
+        assertThrows(
+                CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(
+                        correspondence,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        officeDepartment));
+    }
+
+    @Test
     void allowsPresidentWhenAssignedToPresident() {
 
         CorrespondenceAccessContext correspondence =
@@ -156,6 +220,24 @@ class CorrespondenceAccessAuthorizerTest {
         assertThrows(
                 CorrespondenceAuthorizationException.class,
                 () -> authorizer.authorizeTransition(
+                        correspondence,
+                        CorrespondenceActorRole.PRESIDENT,
+                        null));
+    }
+
+    @Test
+    void rejectsPresidentReadingDirectorDraft() {
+
+        CorrespondenceAccessContext correspondence =
+                new CorrespondenceAccessContext(
+                        CorrespondenceState.DRAFT,
+                        new DepartmentCode("117"),
+                        null,
+                        null);
+
+        assertThrows(
+                CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(
                         correspondence,
                         CorrespondenceActorRole.PRESIDENT,
                         null));

@@ -489,4 +489,38 @@
     <constructor-arg
         ref="badeaCorrespondenceDraftDocumentUploader" />
 </bean>
+<!--
+    Updates editable metadata on Director-owned drafts.
+-->
+<bean
+    id="badeaCorrespondenceDraftUpdater"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftUpdater"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+
+    <constructor-arg ref="permissionService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceNodeLocator" />
+</bean>
+
+<!--
+    Authenticated draft-update endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.correspondence-draft.put"
+    class="org.badea.correspondence.webscript.UpdateCorrespondenceDraftWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDraftUpdater" />
+</bean>
 </beans>
