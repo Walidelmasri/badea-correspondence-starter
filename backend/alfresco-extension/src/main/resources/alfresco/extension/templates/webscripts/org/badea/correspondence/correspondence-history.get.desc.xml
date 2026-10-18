@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webscript>
+  <shortname>BADEA Correspondence History</shortname>
+  <description>Read authorized immutable correspondence workflow actions</description>
+  <url>/badea/correspondence/{technicalId}/history</url>
+  <authentication>user</authentication>
+  <transaction>required</transaction>
+  <format default="json">argument</format>
+</webscript>

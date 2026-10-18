@@ -9,15 +9,18 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import {
   CorrespondenceApiService,
   CorrespondenceDetails,
+  CorrespondenceHistoryEntry,
   CorrespondenceMailboxBox,
   CorrespondenceMailboxPage,
 } from '../../data-access/correspondence-api.service';
+import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 
@@ -50,6 +53,12 @@ export class RealMailboxComponent implements OnInit {
   readonly details = signal<CorrespondenceDetails | null>(null);
   readonly detailsLoading = signal(false);
   readonly detailsError = signal(false);
+  readonly history = signal<readonly CorrespondenceHistoryEntry[] | null>(null);
+  readonly historyLoading = signal(false);
+  readonly historyError = signal(false);
+  readonly forwarding = signal(false);
+  readonly forwardUncertain = signal(false);
+  readonly forwardNotice = signal<'sent' | 'failed' | 'uncertain' | null>(null);
   readonly previewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
   private detailVersion = 0;
   private pageVersion = 0;
@@ -61,6 +70,16 @@ export class RealMailboxComponent implements OnInit {
   readonly canGoForward = computed(() => !!this.page()
     && this.page()!.offset + this.page()!.limit < this.page()!.total
     && !this.loading());
+  readonly canForwardToPresident = computed(() =>
+    !this.forwarding() && !this.forwardUncertain() &&
+    eligibleForInitialOfficeForward(
+      this.box(),
+      this.session.currentUser()?.employeeProfile?.correspondenceRole ?? null,
+      this.details()?.state ?? null,
+      this.history(),
+    ),
+  );
+
   readonly canReview = computed(() => this.box() === 'inbox'
     && this.details()?.state === 'WITH_PRESIDENT'
     && this.session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT');
@@ -78,6 +97,9 @@ export class RealMailboxComponent implements OnInit {
     this.listError.set(false);
     this.details.set(null);
     this.detailsError.set(false);
+    this.history.set(null);
+    this.historyError.set(false);
+    this.forwardUncertain.set(false);
     try {
       const page = await firstValueFrom(this.api.listMailbox(this.box(), offset, PAGE_SIZE));
       if (version !== this.pageVersion) return;
@@ -113,15 +135,31 @@ export class RealMailboxComponent implements OnInit {
     const version = ++this.detailVersion;
     this.details.set(null);
     this.detailsError.set(false);
+    this.history.set(null);
+    this.historyError.set(false);
+    this.historyLoading.set(true);
     this.detailsLoading.set(true);
     try {
       const result = await firstValueFrom(this.api.getDetails(id));
       if (version !== this.detailVersion || this.selectedId() !== id) return;
       this.details.set(result);
+      this.detailsLoading.set(false);
+      // History failure must never block correspondence details or PDF viewing.
+      try {
+        const actionPage = await firstValueFrom(this.api.getHistory(id));
+        if (version === this.detailVersion && this.selectedId() === id) {
+          this.history.set(actionPage.items);
+        }
+      } catch {
+        if (version === this.detailVersion) this.historyError.set(true);
+      }
     } catch {
       if (version === this.detailVersion) this.detailsError.set(true);
     } finally {
-      if (version === this.detailVersion) this.detailsLoading.set(false);
+      if (version === this.detailVersion) {
+        this.detailsLoading.set(false);
+        this.historyLoading.set(false);
+      }
     }
   }
 
@@ -148,6 +186,45 @@ export class RealMailboxComponent implements OnInit {
 
   closePreview(): void {
     this.previewDocument.set(null);
+  }
+
+  async forwardToPresident(): Promise<void> {
+    const id = this.selectedId();
+    if (!id || !this.canForwardToPresident()) return;
+    if (!window.confirm(this.labels().confirmForwardToPresident)) return;
+
+    this.forwarding.set(true);
+    this.forwardNotice.set(null);
+    try {
+      await firstValueFrom(this.api.transitionCorrespondence(id, {
+        action: 'SEND_TO_PRESIDENT',
+      }));
+      // A successful transition changes the assigned Inbox immediately.
+      this.selectedId.set(null);
+      await this.loadPage(0);
+      this.forwardNotice.set('sent');
+    } catch (error: unknown) {
+      // A lost response may mean Alfresco already committed the transition.
+      // Never automatically submit the same transition twice.
+      const uncertain = error instanceof HttpErrorResponse &&
+        (error.status === 0 || error.status >= 500);
+      this.forwardUncertain.set(uncertain);
+      this.forwardNotice.set(uncertain ? 'uncertain' : 'failed');
+      if (!uncertain) void this.loadPage(0);
+    } finally {
+      this.forwarding.set(false);
+    }
+  }
+
+  actionLabel(actionType: string): string {
+    switch (actionType) {
+      case 'SEND_TO_OFFICE': return this.labels().historyActions.sentToOffice;
+      case 'SEND_TO_PRESIDENT': return this.labels().historyActions.sentToPresident;
+      case 'SEND_TO_DIRECTOR': return this.labels().historyActions.sentToDirector;
+      case 'MARK_DONE': return this.labels().historyActions.completed;
+      case 'ADMINISTRATIVE_CLOSE': return this.labels().historyActions.archived;
+      default: return actionType;
+    }
   }
 
   openPresidentReview(): void {

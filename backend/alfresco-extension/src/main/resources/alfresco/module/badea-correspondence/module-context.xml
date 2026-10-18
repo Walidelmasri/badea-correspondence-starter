@@ -610,4 +610,20 @@
     <constructor-arg
         ref="badeaCorrespondenceDraftDocumentDeleter" />
 </bean>
+    <!-- Immutable workflow action history, used by Inbox and routing. -->
+    <bean id="badeaCorrespondenceHistoryReader"
+          class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceHistoryReader"
+          lazy-init="true">
+        <constructor-arg ref="nodeService" />
+        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+    </bean>
+
+    <bean id="webscript.org.badea.correspondence.correspondence-history.get"
+          class="org.badea.correspondence.webscript.GetCorrespondenceHistoryWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaCorrespondenceDetailsService" />
+        <constructor-arg ref="badeaCorrespondenceHistoryReader" />
+    </bean>
 </beans>

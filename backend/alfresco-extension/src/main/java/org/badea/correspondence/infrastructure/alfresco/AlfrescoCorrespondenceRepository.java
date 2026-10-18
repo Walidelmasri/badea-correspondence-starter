@@ -19,6 +19,8 @@ import org.badea.correspondence.application.CreateCorrespondenceCommand;
 import org.badea.correspondence.application.TransitionCorrespondenceCommand;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
+import org.badea.correspondence.workflow.CorrespondenceAction;
+import org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
 public final class AlfrescoCorrespondenceRepository
@@ -328,6 +330,18 @@ public final class AlfrescoCorrespondenceRepository
                 readLastActionSequence(
                         correspondence);
 
+        /*
+         * The Office receives the correspondence both before and after the
+         * President's review. The current state alone cannot distinguish
+         * those visits. Fail closed unless the latest persisted action is
+         * an actual Director -> Office handoff.
+         */
+        if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
+                && !lastActionWasDirectorHandoff(correspondence, currentSequence)) {
+            throw new InvalidCorrespondenceTransitionException(
+                    fromState, command.actorRole(), command.action());
+        }
+
         long nextSequence =
                 currentSequence + 1L;
 
@@ -353,6 +367,41 @@ public final class AlfrescoCorrespondenceRepository
                 correspondence,
                 PROP_LAST_ACTION_SEQUENCE,
                 nextSequence);
+    }
+
+    private boolean lastActionWasDirectorHandoff(
+            NodeRef correspondence, long lastSequence) {
+
+        if (lastSequence < 1L) {
+            return false;
+        }
+
+        String expectedName = String.format("action-%06d", lastSequence);
+
+        for (ChildAssociationRef association :
+                nodeService.getChildAssocs(correspondence)) {
+
+            if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())
+                    || !qname(expectedName).equals(association.getQName())) {
+                continue;
+            }
+
+            NodeRef action = association.getChildRef();
+            if (!TYPE_WORKFLOW_ACTION.equals(nodeService.getType(action))) {
+                return false;
+            }
+
+            Serializable sequence = nodeService.getProperty(action, PROP_ACTION_SEQUENCE);
+            return sequence instanceof Number number
+                    && number.longValue() == lastSequence
+                    && CorrespondenceAction.SEND_TO_OFFICE.name().equals(
+                        nodeService.getProperty(action, PROP_ACTION_TYPE))
+                    && CorrespondenceActorRole.DIRECTOR.name().equals(
+                        nodeService.getProperty(action, PROP_ACTOR_ROLE))
+                    && CorrespondenceState.WITH_PRESIDENT_OFFICE.name().equals(
+                        nodeService.getProperty(action, PROP_TO_STATE));
+        }
+        return false;
     }
 
     private DepartmentCode readRequiredDepartmentCode(

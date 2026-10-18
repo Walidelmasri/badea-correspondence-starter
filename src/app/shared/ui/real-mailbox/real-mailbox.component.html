@@ -48,6 +48,13 @@
   </div>
 
   <div workspace-detail>
+    @if (forwardNotice(); as status) {
+      <p class="mailbox-transition-notice" role="status">
+        @if (status === 'sent') { {{ labels().forwardSucceeded }} }
+        @else if (status === 'uncertain') { {{ labels().forwardUncertain }} }
+        @else { {{ labels().forwardFailed }} }
+      </p>
+    }
     @if (selected(); as item) {
       <article class="mailbox-detail">
         <header>
@@ -98,6 +105,34 @@
               </ul>
             }
           </section>
+          <section class="mailbox-detail__section">
+            <h3>{{ labels().historyTitle }}</h3>
+            @if (historyLoading()) {
+              <p role="status">{{ labels().historyLoading }}</p>
+            } @else if (historyError()) {
+              <p role="alert">{{ labels().historyFailed }}</p>
+            } @else if (history(); as actions) {
+              <ol class="mailbox-history">
+                @for (action of actions; track action.sequence) {
+                  <li>
+                    <strong>{{ actionLabel(action.actionType) }}</strong>
+                    <span>{{ action.actorNameEnglish }}</span>
+                    <time>{{ formatDate(action.actedAt) }}</time>
+                    @if (action.explanation) {
+                      <p>{{ action.explanation }}</p>
+                    }
+                  </li>
+                }
+              </ol>
+            }
+          </section>
+          @if (canForwardToPresident()) {
+            <button class="mailbox-action" type="button"
+              [disabled]="forwarding()"
+              (click)="forwardToPresident()">
+              {{ forwarding() ? labels().forwarding : labels().forwardToPresident }}
+            </button>
+          }
           @if (canReview()) {
             <button class="mailbox-action" type="button" (click)="openPresidentReview()">
               {{ labels().openPresidentReview }}

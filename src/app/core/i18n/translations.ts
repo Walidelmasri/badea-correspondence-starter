@@ -23,6 +23,23 @@ const AR_TRANSLATIONS = {
   },
 
   mailbox: {
+    forwardToPresident: 'إرسال إلى الرئيس',
+    confirmForwardToPresident: 'هل تريد إرسال هذه المراسلة إلى الرئيس؟',
+    forwarding: 'جارٍ الإرسال...',
+    forwardSucceeded: 'تم إرسال المراسلة إلى الرئيس.',
+    forwardFailed: 'تعذر إرسال المراسلة. يرجى تحديث الوارد والتحقق من الحالة.',
+    forwardUncertain: 'تعذر التأكد من نتيجة الإرسال. يرجى تحديث الصفحة والتحقق من الحالة قبل أي إعادة محاولة.',
+    historyTitle: 'سجل المراسلة',
+    historyLoading: 'جارٍ تحميل السجل...',
+    historyFailed: 'تعذر تحميل سجل المراسلة. لا يمكن متابعة التوجيه قبل التحقق منه.',
+    historyActions: {
+      sentToOffice: 'أُرسلت إلى مكتب الرئيس',
+      sentToPresident: 'أُرسلت إلى الرئيس',
+      sentToDirector: 'أُرسلت إلى المدير',
+      completed: 'اكتمل الإجراء',
+      archived: 'أُغلقت المراسلة إدارياً',
+    },
+
     openDocument: 'عرض PDF',
     previewTitle: 'معاينة المستند',
     previewLoading: 'جارٍ تحميل المستند...',
@@ -388,6 +405,23 @@ const EN_TRANSLATIONS = {
   },
 
   mailbox: {
+    forwardToPresident: 'Forward to President',
+    confirmForwardToPresident: 'Forward this correspondence to the President?',
+    forwarding: 'Forwarding...',
+    forwardSucceeded: 'Correspondence forwarded to the President.',
+    forwardFailed: 'Unable to forward correspondence. Refresh Inbox and verify its status.',
+    forwardUncertain: 'The forwarding result could not be confirmed. Refresh and verify before trying again.',
+    historyTitle: 'Correspondence history',
+    historyLoading: 'Loading history...',
+    historyFailed: 'History could not be loaded. Forwarding is disabled until it can be verified.',
+    historyActions: {
+      sentToOffice: 'Sent to President’s Office',
+      sentToPresident: 'Forwarded to President',
+      sentToDirector: 'Sent to Director',
+      completed: 'Marked complete',
+      archived: 'Administratively closed',
+    },
+
     openDocument: 'View PDF',
     previewTitle: 'Document Preview',
     previewLoading: 'Loading PDF...',

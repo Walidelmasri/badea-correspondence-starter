@@ -49,3 +49,14 @@
 .mailbox-file-button:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
 .mailbox-file-button:disabled { cursor: default; }
 .mailbox-file-button .mailbox-file-open { margin-inline-start: auto; color: var(--color-primary-700); font-size: .8rem; white-space: nowrap; }
+
+/* Authorized immutable action timeline and Office workflow control. */
+.mailbox-history { list-style: none; padding: 0; margin: .85rem 0 0; display: grid; gap: .8rem; }
+.mailbox-history li { border-inline-start: 2px solid var(--color-border); padding-inline-start: 1rem;
+  display: grid; gap: .3rem; }
+.mailbox-history strong { font-size: .84rem; }
+.mailbox-history span, .mailbox-history time { font-size: .75rem; color: var(--color-text-secondary); }
+.mailbox-history p { margin: .2rem 0; white-space: pre-wrap; font-size: .85rem; }
+.mailbox-transition-notice { margin: 1.1rem; padding: .8rem 1rem; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: var(--color-surface); }
+.mailbox-action:disabled { cursor: wait; opacity: .55; }

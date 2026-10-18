@@ -447,4 +447,37 @@ describe('CorrespondenceApiService', () => {
     expect(status).toBe(403);
   });
 
+  it('gets authorized correspondence action history', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    service.getHistory(id).subscribe(history => {
+      expect(history.total).toBe(1);
+      expect(history.items[0].actionType).toBe('SEND_TO_OFFICE');
+    });
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${id}/history`,
+    );
+    expect(request.request.method).toBe('GET');
+    request.flush({ items: [{
+      sequence: 1, actionType: 'SEND_TO_OFFICE', actorRole: 'DIRECTOR',
+      actorNameEnglish: 'Director', actorNameArabic: null, fromState: 'DRAFT',
+      toState: 'WITH_PRESIDENT_OFFICE', actedAt: '2026-10-18T12:00:00Z',
+      explanation: null,
+    }], total: 1 });
+  });
+
+  it('posts SEND_TO_PRESIDENT with no empty action sheet validation', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    service.transitionCorrespondence(id, {
+      action: 'SEND_TO_PRESIDENT',
+    }).subscribe(result => {
+      expect(result.state).toBe('WITH_PRESIDENT');
+    });
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${id}/transition`,
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ action: 'SEND_TO_PRESIDENT' });
+    request.flush({ technicalId: id, state: 'WITH_PRESIDENT' });
+  });
+
 });

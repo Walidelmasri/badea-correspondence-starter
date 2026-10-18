@@ -569,6 +569,100 @@ class AlfrescoCorrespondenceRepositoryTest {
                         qname("lastActionSequence"));
     }
 
+    @Test
+    void officeCanForwardNewDirectorHandoffToPresident() {
+        NodeRef correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+        NodeRef previous = nodeRef("00000000-0000-0000-0000-000000000901");
+        ChildAssociationRef previousAssoc = mock(ChildAssociationRef.class);
+        ChildAssociationRef newAssoc = mock(ChildAssociationRef.class);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+        when(nodeService.getProperty(correspondence, qname("state")))
+            .thenReturn(CorrespondenceState.WITH_PRESIDENT_OFFICE.name());
+        when(nodeService.getProperty(correspondence, qname("lastActionSequence")))
+            .thenReturn(1L);
+        when(previousAssoc.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(previousAssoc.getQName()).thenReturn(qname("action-000001"));
+        when(previousAssoc.getChildRef()).thenReturn(previous);
+        when(nodeService.getChildAssocs(correspondence))
+            .thenReturn(java.util.List.of(previousAssoc));
+        when(nodeService.getType(previous)).thenReturn(qname("workflowAction"));
+        when(nodeService.getProperty(previous, qname("actionSequence"))).thenReturn(1L);
+        when(nodeService.getProperty(previous, qname("actionType"))).thenReturn("SEND_TO_OFFICE");
+        when(nodeService.getProperty(previous, qname("actorRole"))).thenReturn("DIRECTOR");
+        when(nodeService.getProperty(previous, qname("toState")))
+            .thenReturn("WITH_PRESIDENT_OFFICE");
+        when(newAssoc.getChildRef()).thenReturn(nodeRef("00000000-0000-0000-0000-000000000902"));
+        when(nodeService.createNode(eq(correspondence), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(qname("workflowAction")), any()))
+            .thenReturn(newAssoc);
+
+        repository.applyTransition(
+            transitionCommand(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null),
+            CorrespondenceState.WITH_PRESIDENT_OFFICE,
+            CorrespondenceState.WITH_PRESIDENT,
+            CorrespondenceActorRole.PRESIDENT);
+
+        verify(nodeService).setProperty(correspondence, qname("state"), "WITH_PRESIDENT");
+        verify(nodeService).setProperty(correspondence, qname("lastActionSequence"), 2L);
+    }
+
+    @Test
+    void officeCannotForwardPresidentReturnBackToPresident() {
+        NodeRef correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+        NodeRef previous = nodeRef("00000000-0000-0000-0000-000000000903");
+        ChildAssociationRef previousAssoc = mock(ChildAssociationRef.class);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+        when(nodeService.getProperty(correspondence, qname("state")))
+            .thenReturn(CorrespondenceState.WITH_PRESIDENT_OFFICE.name());
+        when(nodeService.getProperty(correspondence, qname("lastActionSequence")))
+            .thenReturn(3L);
+        when(previousAssoc.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(previousAssoc.getQName()).thenReturn(qname("action-000003"));
+        when(previousAssoc.getChildRef()).thenReturn(previous);
+        when(nodeService.getChildAssocs(correspondence))
+            .thenReturn(java.util.List.of(previousAssoc));
+        when(nodeService.getType(previous)).thenReturn(qname("workflowAction"));
+        when(nodeService.getProperty(previous, qname("actionSequence"))).thenReturn(3L);
+        when(nodeService.getProperty(previous, qname("actionType"))).thenReturn("SEND_TO_OFFICE");
+        when(nodeService.getProperty(previous, qname("actorRole"))).thenReturn("PRESIDENT");
+        when(nodeService.getProperty(previous, qname("toState")))
+            .thenReturn("WITH_PRESIDENT_OFFICE");
+
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+            () -> repository.applyTransition(
+                transitionCommand(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                    CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null),
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                CorrespondenceState.WITH_PRESIDENT,
+                CorrespondenceActorRole.PRESIDENT));
+
+        verify(nodeService, never()).setProperty(
+            correspondence, qname("state"), "WITH_PRESIDENT");
+        verify(nodeService, never()).createNode(
+            eq(correspondence), eq(ContentModel.ASSOC_CONTAINS),
+            any(QName.class), eq(qname("workflowAction")), any());
+    }
+
+    @Test
+    void officeCannotForwardMissingOrUnverifiedHistory() {
+        NodeRef correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+        when(nodeService.getProperty(correspondence, qname("state")))
+            .thenReturn(CorrespondenceState.WITH_PRESIDENT_OFFICE.name());
+        when(nodeService.getProperty(correspondence, qname("lastActionSequence")))
+            .thenReturn(0L);
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+            () -> repository.applyTransition(
+                transitionCommand(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                    CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null),
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                CorrespondenceState.WITH_PRESIDENT,
+                CorrespondenceActorRole.PRESIDENT));
+        verify(nodeService, never()).setProperty(
+            correspondence, qname("state"), "WITH_PRESIDENT");
+    }
+
     private static TransitionCorrespondenceCommand transitionCommand(
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action,

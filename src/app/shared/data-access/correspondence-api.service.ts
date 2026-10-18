@@ -55,6 +55,23 @@ export interface CorrespondenceDraftSummary {
   readonly modifiedAt: string;
 }
 
+export interface CorrespondenceHistoryEntry {
+  readonly sequence: number;
+  readonly actionType: string;
+  readonly actorRole: string;
+  readonly actorNameEnglish: string;
+  readonly actorNameArabic: string | null;
+  readonly fromState: CorrespondenceDetails['state'];
+  readonly toState: CorrespondenceDetails['state'];
+  readonly actedAt: string;
+  readonly explanation: string | null;
+}
+
+export interface CorrespondenceHistoryPage {
+  readonly items: readonly CorrespondenceHistoryEntry[];
+  readonly total: number;
+}
+
 export type CorrespondenceMailboxBox = 'inbox' | 'sent';
 
 export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary {
@@ -110,6 +127,12 @@ export class CorrespondenceApiService {
       request,
     );
   }
+  getHistory(technicalId: string): Observable<CorrespondenceHistoryPage> {
+    return this.http.get<CorrespondenceHistoryPage>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/history`,
+    );
+  }
+
   getDetails(
     technicalId: string,
   ): Observable<CorrespondenceDetails> {
