@@ -24,12 +24,18 @@ export interface EmployeeDepartment {
   readonly nameArabic: string | null;
 }
 
+export type CorrespondenceRole =
+  | 'DIRECTOR'
+  | 'PRESIDENT_OFFICE'
+  | 'PRESIDENT';
+
 export interface EmployeeProfile {
   readonly employeeId: string;
   readonly username: string;
   readonly nameEnglish: string;
   readonly nameArabic: string | null;
   readonly department: EmployeeDepartment | null;
+  readonly correspondenceRole?: CorrespondenceRole | null;
 }
 
 export interface CurrentUser {

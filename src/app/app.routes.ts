@@ -6,6 +6,11 @@ import {
   authGuard,
 } from './core/auth/auth.guard';
 
+import {
+  composeRoleGuard,
+  directorRoleGuard,
+} from './core/auth/correspondence-role.guard';
+
 export const routes: Routes = [
   {
     path: 'login',
@@ -72,12 +77,13 @@ export const routes: Routes = [
       {
         path: 'compose',
 
+        canActivate: [composeRoleGuard],
+
         loadComponent: () =>
           import(
             './features/compose/presentation/compose-page.component'
           ).then(
-            (module) =>
-              module.ComposePageComponent,
+            (module) => module.ComposePageComponent,
           ),
       },
 
@@ -118,6 +124,8 @@ export const routes: Routes = [
       },
       {
         path: 'director/new',
+
+        canActivate: [directorRoleGuard],
 
         loadComponent: () =>
           import(

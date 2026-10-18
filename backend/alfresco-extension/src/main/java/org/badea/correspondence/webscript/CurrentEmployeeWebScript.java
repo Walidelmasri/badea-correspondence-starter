@@ -5,13 +5,19 @@ import java.util.Objects;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
+import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.CorrespondenceAuthorizationException;
+import org.badea.correspondence.workflow.CorrespondenceActorRole;
+
 import org.json.JSONException;
 import org.json.JSONObject;
+
 import org.springframework.extensions.webscripts.AbstractWebScript;
 import org.springframework.extensions.webscripts.Status;
 import org.springframework.extensions.webscripts.WebScriptException;
@@ -19,182 +25,182 @@ import org.springframework.extensions.webscripts.WebScriptRequest;
 import org.springframework.extensions.webscripts.WebScriptResponse;
 
 /**
- * Returns the BADEA employee profile associated with the currently
- * authenticated Alfresco user.
+ * Returns the authenticated employee and their resolved
+ * correspondence workflow role.
+ *
+ * Users without a valid correspondence role can still
+ * authenticate, but correspondence operations remain blocked.
  */
 public final class CurrentEmployeeWebScript
-    extends AbstractWebScript {
+        extends AbstractWebScript {
 
     private static final Log LOGGER =
-        LogFactory.getLog(CurrentEmployeeWebScript.class);
+            LogFactory.getLog(CurrentEmployeeWebScript.class);
 
     private final CurrentEmployeeService currentEmployeeService;
 
+    private final CorrespondenceActorRoleResolver roleResolver;
+
     public CurrentEmployeeWebScript(
-        CurrentEmployeeService currentEmployeeService
-    ) {
-        this.currentEmployeeService = Objects.requireNonNull(
-            currentEmployeeService,
-            "Current employee service must not be null."
-        );
+            CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver roleResolver) {
+
+        this.currentEmployeeService =
+                Objects.requireNonNull(currentEmployeeService);
+
+        this.roleResolver =
+                Objects.requireNonNull(roleResolver);
     }
 
     @Override
     public void execute(
-        WebScriptRequest request,
-        WebScriptResponse response
-    ) throws IOException {
+            WebScriptRequest request,
+            WebScriptResponse response)
+            throws IOException {
 
         try {
             EmployeeDirectoryEntry employee =
-                currentEmployeeService.getCurrentEmployee();
+                    currentEmployeeService.getCurrentEmployee();
+
+            CorrespondenceActorRole role = null;
+
+            try {
+                role = roleResolver.resolveCurrentUserRole();
+
+            } catch (CorrespondenceAuthorizationException exception) {
+                /*
+                 * A missing or ambiguous workflow role must not
+                 * prevent an otherwise valid Alfresco login.
+                 *
+                 * Returning null makes the UI fail closed.
+                 * All write/read endpoints still authorize
+                 * roles independently.
+                 */
+                LOGGER.warn(
+                        "No unambiguous correspondence role "
+                                + "for the authenticated user.");
+            }
+
+            response.setHeader("Cache-Control", "no-store");
 
             writeJson(
-                response,
-                Status.STATUS_OK,
-                toJson(employee)
-            );
+                    response,
+                    Status.STATUS_OK,
+                    toJson(employee, role));
+
         } catch (CurrentEmployeeNotFoundException exception) {
-            writeError(
-                response,
-                Status.STATUS_NOT_FOUND,
-                "EMPLOYEE_NOT_FOUND",
-                "No active employee profile was found "
-                    + "for the authenticated user."
-            );
-        } catch (EmployeeDirectoryException exception) {
-            LOGGER.error(
-                "Failed to resolve the authenticated employee "
-                    + "from the BADEA employee directory.",
-                exception
-            );
 
             writeError(
-                response,
-                Status.STATUS_SERVICE_UNAVAILABLE,
-                "EMPLOYEE_DIRECTORY_UNAVAILABLE",
-                "The employee directory is currently unavailable."
-            );
+                    response,
+                    Status.STATUS_NOT_FOUND,
+                    "EMPLOYEE_NOT_FOUND",
+                    "No active employee profile was found "
+                            + "for the authenticated user.");
+
+        } catch (EmployeeDirectoryException exception) {
+
+            LOGGER.error(
+                    "Failed to resolve the authenticated employee "
+                            + "from the BADEA employee directory.",
+                    exception);
+
+            writeError(
+                    response,
+                    Status.STATUS_SERVICE_UNAVAILABLE,
+                    "EMPLOYEE_DIRECTORY_UNAVAILABLE",
+                    "The employee directory is currently unavailable.");
         }
     }
 
     private static JSONObject toJson(
-        EmployeeDirectoryEntry employee
-    ) throws IOException {
+            EmployeeDirectoryEntry employee,
+            CorrespondenceActorRole role) {
 
         try {
             JSONObject json = new JSONObject();
 
             json.put(
-                "employeeId",
-                employee.employeeId().value()
-            );
+                    "employeeId",
+                    employee.employeeId().value());
 
             json.put(
-                "username",
-                employee.username().value()
-            );
+                    "username",
+                    employee.username().value());
 
             json.put(
-                "nameEnglish",
-                employee.nameEnglish()
-            );
+                    "nameEnglish",
+                    employee.nameEnglish());
 
             json.put(
-                "nameArabic",
-                nullableJsonValue(employee.nameArabic())
-            );
+                    "nameArabic",
+                    nullableJsonValue(employee.nameArabic()));
 
-            if (employee.department().isPresent()) {
-                json.put(
+            json.put(
+                    "correspondenceRole",
+                    role == null
+                            ? JSONObject.NULL
+                            : role.name());
+
+            json.put(
                     "department",
-                    toJson(employee.department().orElseThrow())
-                );
-            } else {
-                json.put(
-                    "department",
-                    JSONObject.NULL
-                );
-            }
+                    employee.department()
+                            .<Object>map(
+                                    CurrentEmployeeWebScript::toJson)
+                            .orElse(JSONObject.NULL));
 
             return json;
+
         } catch (JSONException exception) {
             throw new WebScriptException(
-                "Unable to serialize current employee response.",
-                exception
-            );
+                    "Unable to serialize current employee response.",
+                    exception);
         }
     }
 
     private static JSONObject toJson(
-        DepartmentDirectoryEntry department
-    ) throws JSONException {
+            DepartmentDirectoryEntry department) {
 
         JSONObject json = new JSONObject();
 
-        json.put(
-            "code",
-            department.code().value()
-        );
+        json.put("code", department.code().value());
+        json.put("nameEnglish", department.nameEnglish());
 
         json.put(
-            "nameEnglish",
-            department.nameEnglish()
-        );
-
-        json.put(
-            "nameArabic",
-            nullableJsonValue(department.nameArabic())
-        );
+                "nameArabic",
+                nullableJsonValue(department.nameArabic()));
 
         return json;
     }
 
     private static Object nullableJsonValue(String value) {
-        return value == null
-            ? JSONObject.NULL
-            : value;
+        return value == null ? JSONObject.NULL : value;
     }
 
     private static void writeError(
-        WebScriptResponse response,
-        int status,
-        String code,
-        String message
-    ) throws IOException {
+            WebScriptResponse response,
+            int status,
+            String code,
+            String message)
+            throws IOException {
 
-        try {
-            JSONObject error = new JSONObject();
+        JSONObject error = new JSONObject();
 
-            error.put("code", code);
-            error.put("message", message);
+        error.put("code", code);
+        error.put("message", message);
 
-            writeJson(
-                response,
-                status,
-                error
-            );
-        } catch (JSONException exception) {
-            throw new WebScriptException(
-                "Unable to serialize error response.",
-                exception
-            );
-        }
+        writeJson(response, status, error);
     }
 
     private static void writeJson(
-        WebScriptResponse response,
-        int status,
-        JSONObject json
-    ) throws IOException {
+            WebScriptResponse response,
+            int status,
+            JSONObject json)
+            throws IOException {
 
         response.setStatus(status);
         response.setContentType(
-            "application/json;charset=UTF-8"
-        );
+                "application/json;charset=UTF-8");
 
-        response.getWriter().write(
-            json.toString()
-        );
+        response.getWriter().write(json.toString());
     }
 }

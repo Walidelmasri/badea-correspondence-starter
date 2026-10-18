@@ -206,8 +206,7 @@ export class DraftsPageComponent implements OnInit {
   }
 
   openCompose(): void {
-    // Temporary until role-aware Compose routing is implemented.
-    void this.router.navigate(['/director/new']);
+    void this.router.navigate(['/compose']);
   }
 
   previousPage(): void {

@@ -115,14 +115,17 @@
         Current authenticated employee endpoint.
     -->
     <bean
-        id="webscript.org.badea.correspondence.current-employee.get"
-        class="org.badea.correspondence.webscript.CurrentEmployeeWebScript"
-        parent="webscript"
-        lazy-init="true">
+    id="webscript.org.badea.correspondence.current-employee.get"
+    class="org.badea.correspondence.webscript.CurrentEmployeeWebScript"
+    parent="webscript"
+    lazy-init="true">
 
-        <constructor-arg
-            ref="badeaCorrespondenceCurrentEmployeeService" />
-    </bean>
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+</bean>
 
     <!--
         Registers the BADEA Presidency Correspondence model.
