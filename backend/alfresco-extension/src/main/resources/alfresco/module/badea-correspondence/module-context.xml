@@ -559,4 +559,38 @@
     <constructor-arg
         ref="badeaCorrespondenceDraftLister" />
 </bean>
+<!--
+    Deletes original source attachments from Director drafts.
+-->
+<bean
+    id="badeaCorrespondenceDraftDocumentDeleter"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftDocumentDeleter"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+
+    <constructor-arg ref="permissionService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceNodeLocator" />
+</bean>
+
+<!--
+    Authenticated draft-document deletion endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.correspondence-document.delete"
+    class="org.badea.correspondence.webscript.DeleteCorrespondenceDocumentWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDraftDocumentDeleter" />
+</bean>
 </beans>

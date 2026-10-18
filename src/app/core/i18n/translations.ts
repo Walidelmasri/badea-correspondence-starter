@@ -72,27 +72,55 @@ const AR_TRANSLATIONS = {
       description: 'ستظهر تفاصيل المراسلة والمستلمين هنا.',
     },
   },
-  drafts: {
-    eyebrow: 'مساحة العمل',
-    title: 'المسودات',
-    description: 'المراسلات التي لم يتم إرسالها بعد',
-    newCorrespondence: 'مراسلة جديدة',
+drafts: {
+  eyebrow: 'مساحة العمل',
+  title: 'المسودات',
+  description: 'المراسلات التي لم يتم إرسالها بعد',
+  newCorrespondence: 'مراسلة جديدة',
 
-    search: {
-      label: 'البحث في المسودات',
-      placeholder: 'بحث بالموضوع أو رقم الوثيقة',
-    },
-
-    empty: {
-      title: 'لا توجد مسودات',
-      description: 'ستظهر المراسلات المحفوظة كمسودات هنا.',
-    },
-
-    detailPlaceholder: {
-      title: 'اختر مسودة لعرضها',
-      description: 'ستظهر تفاصيل المسودة هنا.',
-    },
+  search: {
+    label: 'البحث في المسودات',
+    placeholder: 'بحث بالموضوع أو رقم الوثيقة',
   },
+
+  empty: {
+    title: 'لا توجد مسودات',
+    description: 'ستظهر المراسلات المحفوظة كمسودات هنا.',
+  },
+
+  detailPlaceholder: {
+    title: 'اختر مسودة لعرضها',
+    description: 'ستظهر تفاصيل المسودة هنا.',
+  },
+
+  loading: 'جارٍ تحميل المسودات...',
+  loadFailed: 'تعذر تحميل المسودات. يرجى المحاولة مرة أخرى.',
+  retry: 'إعادة المحاولة',
+
+  pagination: {
+    showing: 'عرض',
+    of: 'من',
+    previous: 'السابق',
+    next: 'التالي',
+  },
+
+  detail: {
+    documentNumber: 'رقم المستند',
+    noDocumentNumber: 'لا يوجد رقم مستند',
+    createdAt: 'تاريخ الإنشاء',
+    modifiedAt: 'آخر تعديل',
+    editDraft: 'تعديل المسودة',
+
+    description: 'وصف المراسلة',
+    noDescription: 'لم تتم إضافة وصف للمراسلة.',
+
+    attachments: 'المستندات المرفقة',
+    noAttachments: 'لا توجد مستندات مرفقة.',
+
+    loading: 'جارٍ تحميل تفاصيل المراسلة...',
+    loadFailed: 'تعذر تحميل تفاصيل المسودة.',
+  },
+},
   compose: {
     eyebrow: 'مراسلات الرئاسة',
     title: 'مراسلة جديدة',
@@ -205,6 +233,76 @@ const AR_TRANSLATIONS = {
   user: {
     office: 'مكتب الرئيس',
   },
+  director: {
+  eyebrow: 'مساحة عمل المدير',
+  title: 'مراسلة جديدة',
+  editing: 'تعديل مسودة مراسلة',
+
+  description:
+    'إعداد المراسلة والمستندات الداعمة لإرسالها إلى مكتب الرئيس.',
+
+  details: 'بيانات المراسلة',
+  subject: 'الموضوع',
+  documentNumber: 'رقم المستند',
+  documentDate: 'تاريخ المستند',
+  source: 'المصدر',
+  body: 'وصف المراسلة',
+
+  attachments: 'المستندات المرفقة',
+  chooseFiles: 'اختيار ملفات PDF',
+  fileHint: 'PDF فقط · الحد الأقصى 25 ميبيبايت لكل ملف',
+
+  save: 'حفظ المسودة ورفع الملفات',
+  saving: 'جارٍ الحفظ…',
+  loading: 'جارٍ تحميل المراسلة…',
+  saved: 'تم حفظ المسودة بنجاح في نظام ألفريسكو.',
+
+  subjectRequired: 'يرجى إدخال موضوع المراسلة.',
+  invalidFile: 'يُسمح بملفات PDF فقط وبحد أقصى 25 ميبيبايت.',
+
+  createFailed: 'تعذر إنشاء المسودة. يرجى المحاولة مرة أخرى.',
+  createUncertain:
+    'انقطع الاتصال قبل تأكيد النتيجة. ربما تم إنشاء المسودة. يرجى التحقق قبل إعادة المحاولة.',
+
+  loadFailed: 'تعذر تحميل المراسلة. يرجى المحاولة مرة أخرى.',
+  notEditable:
+    'لم تعد هذه المراسلة مسودة ولا يمكن تعديلها من هذه الصفحة.',
+
+  updateFailed: 'تعذر تحديث المسودة. يرجى المحاولة مرة أخرى.',
+  updateUncertain:
+    'تعذر تأكيد نتيجة الحفظ. يرجى تحديث الصفحة والتحقق من آخر البيانات المحفوظة.',
+
+  uploadFailed:
+    'تعذر رفع بعض المستندات. ستبقى المراسلة في حالة مسودة.',
+  uploadUncertain:
+    'تعذر تأكيد نتيجة رفع أحد المستندات. يرجى التحقق قبل إعادة المحاولة.',
+
+  savedReference: 'المعرف الفني للمراسلة',
+  savedDocument: 'محفوظ في ألفريسكو',
+
+  locked: 'يمكنك متابعة تعديل هذه المسودة حتى يتم إرسالها.',
+
+  pending: 'بانتظار الرفع',
+  uploading: 'جارٍ الرفع',
+  failed: 'فشل الرفع',
+  verify: 'بحاجة إلى التحقق',
+
+  retry: 'إعادة المحاولة',
+  remove: 'إزالة',
+
+  confirmDelete:
+    'هل تريد إزالة هذا المستند من المراسلة؟',
+  deleteSucceeded: 'تمت إزالة المستند من المسودة.',
+  deleteFailed:
+    'تعذر إزالة المستند. يرجى التحقق من الصلاحيات والمحاولة مجدداً.',
+  deleteUncertain:
+    'تعذر التأكد من نتيجة الحذف. يرجى تحديث الصفحة والتحقق من المرفقات قبل المتابعة.',
+
+  automaticDate:
+    'يتم تسجيل تاريخ ووقت إنشاء المراسلة تلقائياً في ألفريسكو.',
+
+  destination: 'الوجهة: مكتب الرئيس',
+},
   presidentReview: {
     eyebrow: 'مساحة الرئيس',
     title: 'المراسلة والتوجيه',
@@ -308,27 +406,55 @@ const EN_TRANSLATIONS = {
       description: 'Correspondence details and recipients will appear here.',
     },
   },
-  drafts: {
-    eyebrow: 'Workspace',
-    title: 'Drafts',
-    description: 'Correspondence that has not yet been sent',
-    newCorrespondence: 'New Correspondence',
+drafts: {
+  eyebrow: 'Workspace',
+  title: 'Drafts',
+  description: 'Correspondence that has not yet been sent',
+  newCorrespondence: 'New Correspondence',
 
-    search: {
-      label: 'Search drafts',
-      placeholder: 'Search by subject or document number',
-    },
-
-    empty: {
-      title: 'No drafts',
-      description: 'Correspondence saved as drafts will appear here.',
-    },
-
-    detailPlaceholder: {
-      title: 'Select a draft to view',
-      description: 'Draft details will appear here.',
-    },
+  search: {
+    label: 'Search drafts',
+    placeholder: 'Search by subject or document number',
   },
+
+  empty: {
+    title: 'No drafts',
+    description: 'Correspondence saved as drafts will appear here.',
+  },
+
+  detailPlaceholder: {
+    title: 'Select a draft to view',
+    description: 'Draft details will appear here.',
+  },
+
+  loading: 'Loading drafts...',
+  loadFailed: 'Unable to load drafts. Please try again.',
+  retry: 'Retry',
+
+  pagination: {
+    showing: 'Showing',
+    of: 'of',
+    previous: 'Previous',
+    next: 'Next',
+  },
+
+  detail: {
+    documentNumber: 'Document Number',
+    noDocumentNumber: 'No document number',
+    createdAt: 'Created',
+    modifiedAt: 'Last Modified',
+    editDraft: 'Edit Draft',
+
+    description: 'Description',
+    noDescription: 'No description provided.',
+
+    attachments: 'Attached Documents',
+    noAttachments: 'No documents attached.',
+
+    loading: 'Loading correspondence details...',
+    loadFailed: 'Unable to load the selected draft.',
+  },
+},
   compose: {
     eyebrow: 'Presidency Correspondence',
     title: 'New Correspondence',
@@ -410,6 +536,81 @@ const EN_TRANSLATIONS = {
   user: {
     office: 'President Office',
   },
+  director: {
+  eyebrow: 'DIRECTOR WORKSPACE',
+  title: 'New Correspondence',
+  editing: 'Edit Correspondence Draft',
+
+  description:
+    'Prepare correspondence and supporting documents for the President’s Office.',
+
+  details: 'Correspondence Details',
+  subject: 'Subject',
+  documentNumber: 'Document Number',
+  documentDate: 'Document Date',
+  source: 'Source',
+  body: 'Description',
+
+  attachments: 'Supporting Documents',
+  chooseFiles: 'Choose PDF Documents',
+  fileHint: 'PDF only · Maximum 25 MiB per document',
+
+  save: 'Save Draft & Upload',
+  saving: 'Saving…',
+  loading: 'Loading correspondence…',
+  saved: 'Draft saved successfully in Alfresco.',
+
+  subjectRequired: 'Please enter a subject.',
+  invalidFile: 'Only PDF files up to 25 MiB are supported.',
+
+  createFailed:
+    'The draft could not be created. Please try again.',
+  createUncertain:
+    'The server response was interrupted. The draft may have been created. Do not retry until its status is verified.',
+
+  loadFailed:
+    'Unable to load this correspondence. Please try again.',
+  notEditable:
+    'This correspondence is no longer a draft and cannot be edited here.',
+
+  updateFailed:
+    'The draft could not be updated. Please try again.',
+  updateUncertain:
+    'The save result could not be confirmed. Refresh the draft to verify its latest values.',
+
+  uploadFailed:
+    'Some documents could not be uploaded. The correspondence remains a draft.',
+  uploadUncertain:
+    'An upload result could not be confirmed. Verify the document before trying again.',
+
+  savedReference: 'Correspondence ID',
+  savedDocument: 'Saved in Alfresco',
+
+  locked:
+    'You can continue editing this draft until it is submitted.',
+
+  pending: 'Queued',
+  uploading: 'Uploading',
+  failed: 'Failed',
+  verify: 'Needs verification',
+
+  retry: 'Retry',
+  remove: 'Remove',
+
+  confirmDelete:
+    'Remove this document from the correspondence?',
+  deleteSucceeded:
+    'Document removed from the draft.',
+  deleteFailed:
+    'The document could not be removed. Check your permissions and try again.',
+  deleteUncertain:
+    'The deletion result could not be verified. Refresh the page and check the attachments before continuing.',
+
+  automaticDate:
+    'The creation timestamp is recorded automatically by Alfresco.',
+
+  destination: 'Destination: President’s Office',
+},
   auth: {
     eyebrow:
       'Presidency Correspondence',

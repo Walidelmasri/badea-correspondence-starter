@@ -7,9 +7,7 @@ import {
   signal,
 } from '@angular/core';
 
-import {
-  HttpErrorResponse,
-} from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 
 import {
   ActivatedRoute,
@@ -23,9 +21,11 @@ import {
   Validators,
 } from '@angular/forms';
 
+import { firstValueFrom } from 'rxjs';
+
 import {
-  firstValueFrom,
-} from 'rxjs';
+  AuthSessionStore,
+} from '../../../core/auth/auth-session.store';
 
 import {
   TranslationService,
@@ -56,189 +56,27 @@ interface PageNotice {
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
-const COPY = {
-  en: {
-    eyebrow: 'DIRECTOR WORKSPACE',
-    title: 'New Correspondence',
-    editing: 'Edit Correspondence Draft',
-
-    description:
-      'Prepare correspondence and supporting documents for the President’s Office.',
-
-    details: 'Correspondence Details',
-    subject: 'Subject',
-    documentNumber: 'Document Number',
-    documentDate: 'Document Date',
-    source: 'Source',
-    body: 'Description',
-
-    attachments: 'Supporting Documents',
-    chooseFiles: 'Choose PDF Documents',
-    fileHint: 'PDF only · Maximum 25 MiB per document',
-
-    save: 'Save Draft & Upload',
-    saving: 'Saving…',
-    loading: 'Loading correspondence…',
-
-    saved: 'Draft saved successfully in Alfresco.',
-
-    subjectRequired: 'Please enter a subject.',
-
-    invalidFile:
-      'Only PDF files up to 25 MiB are supported.',
-
-    createFailed:
-      'The draft could not be created. Please try again.',
-
-    createUncertain:
-      'The server response was interrupted. The draft may have been created. Do not retry until its status is verified.',
-
-    loadFailed:
-      'Unable to load this correspondence. Please try again.',
-
-    notEditable:
-      'This correspondence is no longer a draft and cannot be edited here.',
-
-    updateFailed:
-      'The draft could not be updated. Please try again.',
-
-    updateUncertain:
-      'The save result could not be confirmed. Refresh the draft to verify its latest values.',
-
-    uploadFailed:
-      'Some documents could not be uploaded. The correspondence remains a draft.',
-
-    uploadUncertain:
-      'An upload result could not be confirmed. Verify the document before trying again.',
-
-    savedReference: 'Correspondence ID',
-    savedDocument: 'Saved in Alfresco',
-
-    locked:
-      'You can continue editing this draft until it is submitted.',
-
-    pending: 'Queued',
-    uploading: 'Uploading',
-    failed: 'Failed',
-    verify: 'Needs verification',
-
-    retry: 'Retry',
-    remove: 'Remove',
-
-    automaticDate:
-      'The creation timestamp is recorded automatically by Alfresco.',
-
-    destination: 'Destination: President’s Office',
-  },
-
-  ar: {
-    eyebrow: 'مساحة عمل المدير',
-    title: 'مراسلة جديدة',
-    editing: 'تعديل مسودة مراسلة',
-
-    description:
-      'إعداد المراسلة والمستندات الداعمة لإرسالها إلى مكتب الرئيس.',
-
-    details: 'بيانات المراسلة',
-    subject: 'الموضوع',
-    documentNumber: 'رقم المستند',
-    documentDate: 'تاريخ المستند',
-    source: 'المصدر',
-    body: 'وصف المراسلة',
-
-    attachments: 'المستندات المرفقة',
-    chooseFiles: 'اختيار ملفات PDF',
-    fileHint: 'PDF فقط · الحد الأقصى 25 ميبيبايت لكل ملف',
-
-    save: 'حفظ المسودة ورفع الملفات',
-    saving: 'جارٍ الحفظ…',
-    loading: 'جارٍ تحميل المراسلة…',
-
-    saved: 'تم حفظ المسودة بنجاح في نظام ألفريسكو.',
-
-    subjectRequired: 'يرجى إدخال موضوع المراسلة.',
-
-    invalidFile:
-      'يُسمح بملفات PDF فقط وبحد أقصى 25 ميبيبايت.',
-
-    createFailed:
-      'تعذر إنشاء المسودة. يرجى المحاولة مرة أخرى.',
-
-    createUncertain:
-      'انقطع الاتصال قبل تأكيد النتيجة. ربما تم إنشاء المسودة. يرجى التحقق قبل إعادة المحاولة.',
-
-    loadFailed:
-      'تعذر تحميل المراسلة. يرجى المحاولة مرة أخرى.',
-
-    notEditable:
-      'لم تعد هذه المراسلة مسودة ولا يمكن تعديلها من هذه الصفحة.',
-
-    updateFailed:
-      'تعذر تحديث المسودة. يرجى المحاولة مرة أخرى.',
-
-    updateUncertain:
-      'تعذر تأكيد نتيجة الحفظ. يرجى تحديث الصفحة والتحقق من آخر البيانات المحفوظة.',
-
-    uploadFailed:
-      'تعذر رفع بعض المستندات. ستبقى المراسلة في حالة مسودة.',
-
-    uploadUncertain:
-      'تعذر تأكيد نتيجة رفع أحد المستندات. يرجى التحقق قبل إعادة المحاولة.',
-
-    savedReference: 'المعرف الفني للمراسلة',
-    savedDocument: 'محفوظ في ألفريسكو',
-
-    locked:
-      'يمكنك متابعة تعديل هذه المسودة حتى يتم إرسالها.',
-
-    pending: 'بانتظار الرفع',
-    uploading: 'جارٍ الرفع',
-    failed: 'فشل الرفع',
-    verify: 'بحاجة إلى التحقق',
-
-    retry: 'إعادة المحاولة',
-    remove: 'إزالة',
-
-    automaticDate:
-      'يتم تسجيل تاريخ ووقت إنشاء المراسلة تلقائياً في ألفريسكو.',
-
-    destination: 'الوجهة: مكتب الرئيس',
-  },
-} as const;
-
 @Component({
   selector: 'app-director-new-page',
   standalone: true,
-
-  imports: [
-    ReactiveFormsModule,
-  ],
-
+  imports: [ReactiveFormsModule],
   templateUrl: './director-new-page.component.html',
-
   styleUrls: [
     '../../compose/presentation/compose-page.component.scss',
     './director-new-page.component.scss',
   ],
-
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DirectorNewPageComponent implements OnInit {
+  private readonly api = inject(CorrespondenceApiService);
+  private readonly session = inject(AuthSessionStore);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
-  private readonly api =
-    inject(CorrespondenceApiService);
-
-  private readonly route =
-    inject(ActivatedRoute);
-
-  private readonly router =
-    inject(Router);
-
-  readonly translation =
-    inject(TranslationService);
+  readonly translation = inject(TranslationService);
 
   readonly labels = computed(
-    () => COPY[this.translation.language()],
+    () => this.translation.text().director,
   );
 
   readonly form = new FormGroup({
@@ -264,35 +102,41 @@ export class DirectorNewPageComponent implements OnInit {
     }),
   });
 
-  readonly technicalId =
-    signal<string | null>(null);
+  readonly technicalId = signal<string | null>(null);
 
   /**
-   * Files selected in the browser but not yet
-   * confirmed as stored in Alfresco.
+   * Files selected in the browser but not yet confirmed
+   * as persisted in Alfresco.
    */
   readonly documents =
     signal<readonly SelectedDocument[]>([]);
 
   /**
-   * Documents returned by Alfresco.
+   * Actual Alfresco documents.
    *
-   * These must remain separate from browser File
-   * objects to avoid duplicate uploads.
+   * These are metadata records, not browser File objects.
    */
   readonly savedDocuments =
     signal<readonly CorrespondenceDocumentUpload[]>([]);
 
   readonly readOnly = signal(false);
-
   readonly busy = signal(false);
-
   readonly loading = signal(false);
 
   readonly creationUncertain = signal(false);
 
-  readonly notice =
-    signal<PageNotice | null>(null);
+  /**
+   * Only one saved-attachment deletion at a time.
+   */
+  readonly deletingDocumentId = signal<string | null>(null);
+
+  /**
+   * Blocks further modifications if Alfresco's final
+   * deletion state cannot be verified.
+   */
+  readonly deletionUncertain = signal(false);
+
+  readonly notice = signal<PageNotice | null>(null);
 
   private nextDocumentId = 0;
 
@@ -301,29 +145,67 @@ export class DirectorNewPageComponent implements OnInit {
       this.route.snapshot.queryParamMap.get('draft');
 
     if (draftId) {
+      // Existing drafts must retain their saved Source.
       void this.loadDraft(draftId);
+      return;
+    }
+
+    this.prefillDepartmentSource();
+  }
+
+  /**
+   * Set the default Source for new correspondence.
+   *
+   * The authenticated employee's department is already
+   * loaded by AuthService and stored in AuthSessionStore.
+   */
+  private prefillDepartmentSource(): void {
+    const department =
+      this.session.currentUser()
+        ?.employeeProfile
+        ?.department;
+
+    if (!department) {
+      return;
+    }
+
+    const source =
+      this.translation.language() === 'ar'
+        ? (
+            department.nameArabic?.trim() ||
+            department.nameEnglish.trim()
+          )
+        : (
+            department.nameEnglish.trim() ||
+            department.nameArabic?.trim() ||
+            ''
+          );
+
+    const control = this.form.controls.sourceText;
+
+    if (
+      source &&
+      control.pristine &&
+      !control.value.trim()
+    ) {
+      control.setValue(source);
     }
   }
 
   /**
-   * Loads a persisted correspondence draft.
+   * Load an existing correspondence draft.
    *
-   * The backend decides whether the authenticated
-   * Director may access this correspondence.
+   * Access is authorized by the backend, not by Angular.
    */
   private async loadDraft(
     technicalId: string,
   ): Promise<void> {
-
     this.busy.set(true);
     this.loading.set(true);
     this.readOnly.set(true);
-
     this.notice.set(null);
 
-    this.form.disable({
-      emitEvent: false,
-    });
+    this.form.disable({ emitEvent: false });
 
     try {
       const details = await firstValueFrom(
@@ -343,9 +225,7 @@ export class DirectorNewPageComponent implements OnInit {
       this.form.markAsPristine();
       this.form.markAsUntouched();
 
-      this.savedDocuments.set(
-        details.documents,
-      );
+      this.savedDocuments.set(details.documents);
 
       if (details.state !== 'DRAFT') {
         this.notice.set({
@@ -357,18 +237,10 @@ export class DirectorNewPageComponent implements OnInit {
       }
 
       this.readOnly.set(false);
-
-      this.form.enable({
-        emitEvent: false,
-      });
+      this.form.enable({ emitEvent: false });
 
     } catch {
-      /*
-       * Never enable editing after a failed retrieval.
-       *
-       * A failed GET does not prove that the
-       * correspondence exists or is still a draft.
-       */
+      // A failed GET must not enable editing.
       this.notice.set({
         type: 'error',
         message: this.labels().loadFailed,
@@ -380,25 +252,23 @@ export class DirectorNewPageComponent implements OnInit {
     }
   }
 
+  /**
+   * Add PDF files to the local upload queue.
+   *
+   * Nothing is sent to Alfresco until Save Draft runs.
+   */
   onFilesSelected(event: Event): void {
-    const input =
-      event.target as HTMLInputElement;
+    const input = event.target as HTMLInputElement;
+    const selected = Array.from(input.files ?? []);
 
-    const selected =
-      Array.from(input.files ?? []);
-
+    // Allow reselecting the same file later.
     input.value = '';
 
-    if (
-      this.busy() ||
-      this.readOnly() ||
-      this.creationUncertain()
-    ) {
+    if (this.modificationsBlocked()) {
       return;
     }
 
     const additions: SelectedDocument[] = [];
-
     let rejected = false;
 
     for (const file of selected) {
@@ -436,10 +306,7 @@ export class DirectorNewPageComponent implements OnInit {
 
     if (additions.length > 0) {
       this.documents.update(
-        (current) => [
-          ...current,
-          ...additions,
-        ],
+        (current) => [...current, ...additions],
       );
     }
 
@@ -451,22 +318,17 @@ export class DirectorNewPageComponent implements OnInit {
     }
   }
 
+  /**
+   * Remove a queued or definitively failed upload.
+   *
+   * This works before any correspondence has been saved.
+   * No backend request is necessary.
+   */
   removeDocument(id: number): void {
-    if (
-      this.busy() ||
-      this.readOnly() ||
-      this.creationUncertain()
-    ) {
+    if (this.modificationsBlocked()) {
       return;
     }
 
-    /*
-     * Only unsaved or definitively failed uploads
-     * may be removed locally.
-     *
-     * Saved Alfresco documents need an authorized
-     * backend delete operation.
-     */
     this.documents.update(
       (current) =>
         current.filter(
@@ -480,12 +342,131 @@ export class DirectorNewPageComponent implements OnInit {
     );
   }
 
+  /**
+   * Delete an attachment already stored in Alfresco.
+   *
+   * Unlike removeDocument(), this requires a DELETE request
+   * and a persisted correspondence technical ID.
+   */
+  async removeSavedDocument(
+    document: CorrespondenceDocumentUpload,
+  ): Promise<void> {
+    const technicalId = this.technicalId();
+
+    if (!technicalId || this.modificationsBlocked()) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${this.labels().confirmDelete}\n${document.filename}`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.deletingDocumentId.set(document.nodeId);
+    this.notice.set(null);
+
+    try {
+      await firstValueFrom(
+        this.api.deleteDocument(
+          technicalId,
+          document.nodeId,
+        ),
+      );
+
+      // Remove from the UI only after Alfresco confirms.
+      this.savedDocuments.update(
+        (current) =>
+          current.filter(
+            (item) => item.nodeId !== document.nodeId,
+          ),
+      );
+
+      this.notice.set({
+        type: 'success',
+        message: this.labels().deleteSucceeded,
+      });
+
+    } catch (error: unknown) {
+      const needsVerification =
+        error instanceof HttpErrorResponse &&
+        (
+          error.status === 0 ||
+          error.status === 404 ||
+          error.status >= 500
+        );
+
+      if (!needsVerification) {
+        // Definitive 400/403 responses are not retried.
+        this.notice.set({
+          type: 'error',
+          message: this.labels().deleteFailed,
+        });
+
+        return;
+      }
+
+      /*
+       * The DELETE may have committed before the response
+       * was interrupted. Read the actual attachment list.
+       *
+       * Do not issue a second DELETE automatically.
+       */
+      try {
+        const details = await firstValueFrom(
+          this.api.getDetails(technicalId),
+        );
+
+        this.savedDocuments.set(details.documents);
+
+        if (details.state !== 'DRAFT') {
+          this.readOnly.set(true);
+          this.form.disable({ emitEvent: false });
+
+          this.notice.set({
+            type: 'warning',
+            message: this.labels().notEditable,
+          });
+
+          return;
+        }
+
+        const stillExists = details.documents.some(
+          (item) => item.nodeId === document.nodeId,
+        );
+
+        this.notice.set({
+          type: stillExists ? 'error' : 'success',
+          message: stillExists
+            ? this.labels().deleteFailed
+            : this.labels().deleteSucceeded,
+        });
+
+      } catch {
+        // State cannot be verified. Require a refresh.
+        this.deletionUncertain.set(true);
+
+        this.notice.set({
+          type: 'warning',
+          message: this.labels().deleteUncertain,
+        });
+      }
+
+    } finally {
+      this.deletingDocumentId.set(null);
+    }
+  }
+
+  /**
+   * Retry only definitively failed uploads.
+   *
+   * Uploads marked "verify" are not automatically
+   * retried because doing so could create duplicates.
+   */
   retryDocument(id: number): void {
-    if (
-      this.busy() ||
-      this.readOnly() ||
-      this.creationUncertain()
-    ) {
+    if (this.modificationsBlocked()) {
       return;
     }
 
@@ -497,20 +478,19 @@ export class DirectorNewPageComponent implements OnInit {
       return;
     }
 
-    this.setDocumentStatus(
-      id,
-      'queued',
-    );
+    this.setDocumentStatus(id, 'queued');
 
     void this.saveDraft();
   }
 
+  /**
+   * Create or update the draft, then upload queued PDFs.
+   *
+   * This method does not transition correspondence to
+   * the President's Office.
+   */
   async saveDraft(): Promise<void> {
-    if (
-      this.busy() ||
-      this.creationUncertain() ||
-      this.readOnly()
-    ) {
+    if (this.modificationsBlocked()) {
       return;
     }
 
@@ -525,97 +505,60 @@ export class DirectorNewPageComponent implements OnInit {
       return;
     }
 
-    const wasCreating =
-      this.technicalId() === null;
+    const wasCreating = this.technicalId() === null;
 
     this.busy.set(true);
     this.notice.set(null);
 
     /*
-     * Prevent form edits while a save or upload
-     * is in progress.
-     *
-     * getRawValue() still returns disabled controls.
+     * Disable edits while the save/upload operation runs.
+     * getRawValue() still includes disabled form controls.
      */
-    this.form.disable({
-      emitEvent: false,
-    });
+    this.form.disable({ emitEvent: false });
 
     try {
-      let technicalId =
-        this.technicalId();
+      let technicalId = this.technicalId();
 
-      const values =
-        this.form.getRawValue();
+      const values = this.form.getRawValue();
 
       const metadata: CreateCorrespondenceDraft = {
         subject: values.subject.trim(),
-
-        documentNumber:
-          this.optional(values.documentNumber),
-
-        documentDate:
-          this.optional(values.documentDate),
-
-        sourceText:
-          this.optional(values.sourceText),
-
-        bodyText:
-          this.optional(values.bodyText),
+        documentNumber: this.optional(values.documentNumber),
+        documentDate: this.optional(values.documentDate),
+        sourceText: this.optional(values.sourceText),
+        bodyText: this.optional(values.bodyText),
       };
 
       if (!technicalId) {
-        /*
-         * Create once.
-         *
-         * Save the returned ID immediately so
-         * subsequent uploads use this same draft.
-         */
         const created = await firstValueFrom(
           this.api.createDraft(metadata),
         );
 
         technicalId = created.technicalId;
 
+        // Preserve the ID before uploading anything.
         this.technicalId.set(technicalId);
-
         this.form.markAsPristine();
 
-        /*
-         * Preserve the current component and
-         * selected files while updating the URL.
-         */
+        // Keep this component and pending files alive.
         void this.router.navigate([], {
           relativeTo: this.route,
-
-          queryParams: {
-            draft: technicalId,
-          },
-
+          queryParams: { draft: technicalId },
           queryParamsHandling: 'merge',
           replaceUrl: true,
         });
 
       } else if (this.form.dirty) {
-        /*
-         * Update existing metadata only when
-         * the form has changed.
-         */
         await firstValueFrom(
-          this.api.updateDraft(
-            technicalId,
-            metadata,
-          ),
+          this.api.updateDraft(technicalId, metadata),
         );
 
         this.form.markAsPristine();
       }
 
       /*
-       * Upload outstanding files sequentially.
-       *
-       * A failed upload never creates a second
-       * correspondence draft.
+       * Upload queued files sequentially.
+       * Failure of one file does not create another draft.
        */
       for (const document of this.documents()) {
         if (document.status !== 'queued') {
@@ -635,15 +578,8 @@ export class DirectorNewPageComponent implements OnInit {
             ),
           );
 
-          /*
-           * Move the successful upload into
-           * the persisted attachment collection.
-           */
           this.savedDocuments.update(
-            (current) => [
-              ...current,
-              uploaded,
-            ],
+            (current) => [...current, uploaded],
           );
 
           this.documents.update(
@@ -663,31 +599,21 @@ export class DirectorNewPageComponent implements OnInit {
 
           this.setDocumentStatus(
             document.id,
-            resultUncertain
-              ? 'verify'
-              : 'failed',
+            resultUncertain ? 'verify' : 'failed',
           );
         }
       }
 
-      const failed =
-        this.documents().some(
-          (document) =>
-            document.status === 'failed',
-        );
+      const failed = this.documents().some(
+        (document) => document.status === 'failed',
+      );
 
-      const uncertain =
-        this.documents().some(
-          (document) =>
-            document.status === 'verify',
-        );
+      const uncertain = this.documents().some(
+        (document) => document.status === 'verify',
+      );
 
       this.notice.set({
-        type:
-          failed || uncertain
-            ? 'warning'
-            : 'success',
-
+        type: failed || uncertain ? 'warning' : 'success',
         message: uncertain
           ? this.labels().uploadUncertain
           : failed
@@ -705,18 +631,14 @@ export class DirectorNewPageComponent implements OnInit {
 
       if (wasCreating && resultUncertain) {
         /*
-         * If creation committed but the response
-         * was interrupted, retrying could create
-         * duplicate correspondence.
+         * Creating again might duplicate correspondence
+         * if the initial request already committed.
          */
         this.creationUncertain.set(true);
       }
 
       this.notice.set({
-        type: resultUncertain
-          ? 'warning'
-          : 'error',
-
+        type: resultUncertain ? 'warning' : 'error',
         message: wasCreating
           ? resultUncertain
             ? this.labels().createUncertain
@@ -729,24 +651,19 @@ export class DirectorNewPageComponent implements OnInit {
     } finally {
       if (
         !this.readOnly() &&
-        !this.creationUncertain()
+        !this.creationUncertain() &&
+        !this.deletionUncertain()
       ) {
-        this.form.enable({
-          emitEvent: false,
-        });
+        this.form.enable({ emitEvent: false });
       }
 
       this.busy.set(false);
     }
   }
 
-  documentStatus(
-    status: UploadStatus,
-  ): string {
+  documentStatus(status: UploadStatus): string {
     return this.labels()[
-      status === 'queued'
-        ? 'pending'
-        : status
+      status === 'queued' ? 'pending' : status
     ];
   }
 
@@ -754,9 +671,17 @@ export class DirectorNewPageComponent implements OnInit {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
   }
 
-  private optional(
-    value: string,
-  ): string | null {
+  private modificationsBlocked(): boolean {
+    return (
+      this.busy() ||
+      this.readOnly() ||
+      this.creationUncertain() ||
+      this.deletingDocumentId() !== null ||
+      this.deletionUncertain()
+    );
+  }
+
+  private optional(value: string): string | null {
     return value.trim() || null;
   }
 
@@ -769,10 +694,7 @@ export class DirectorNewPageComponent implements OnInit {
         current.map(
           (document) =>
             document.id === id
-              ? {
-                  ...document,
-                  status,
-                }
+              ? { ...document, status }
               : document,
         ),
     );

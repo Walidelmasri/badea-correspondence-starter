@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>Delete BADEA Correspondence Draft Document</shortname>
+
+    <description>
+        Deletes an original source document from an authorized
+        Director draft.
+    </description>
+
+    <url>/badea/correspondence/{technicalId}/documents/{nodeId}</url>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+
+    <format default="json">argument</format>
+</webscript>

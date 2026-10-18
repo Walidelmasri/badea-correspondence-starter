@@ -1,5 +1,4 @@
 <section class="compose-page">
-
   <header class="compose-page__header">
     <div>
       <span class="compose-page__eyebrow">
@@ -7,35 +6,29 @@
       </span>
 
       <h1>
-        {{
-        technicalId()
-        ? labels().editing
-        : labels().title
-        }}
+        {{ technicalId() ? labels().editing : labels().title }}
       </h1>
 
-      <p>
-        {{ labels().description }}
-      </p>
+      <p>{{ labels().description }}</p>
     </div>
   </header>
 
-  <form class="compose-form" [formGroup]="form" (ngSubmit)="saveDraft()">
-
+  <form
+    class="compose-form"
+    [formGroup]="form"
+    (ngSubmit)="saveDraft()"
+  >
     <!-- Correspondence metadata -->
 
     <section class="compose-section">
-
       <div class="compose-section__header">
-        <h2>
-          {{ labels().details }}
-        </h2>
+        <h2>{{ labels().details }}</h2>
       </div>
 
       @if (loading()) {
-      <p class="director-form__hint" role="status">
-        {{ labels().loading }}
-      </p>
+        <p class="director-form__hint" role="status">
+          {{ labels().loading }}
+        </p>
       }
 
       <label class="form-field">
@@ -43,20 +36,28 @@
           {{ labels().subject }} *
         </span>
 
-        <input type="text" formControlName="subject" maxlength="250" autocomplete="off" [attr.aria-invalid]="
+        <input
+          type="text"
+          formControlName="subject"
+          maxlength="250"
+          autocomplete="off"
+          [attr.aria-invalid]="
             form.controls.subject.touched &&
             form.controls.subject.invalid
-          " />
+          "
+        />
       </label>
 
       <div class="compose-grid compose-grid--three">
-
         <label class="form-field">
           <span class="form-field__label">
             {{ labels().documentNumber }}
           </span>
 
-          <input type="text" formControlName="documentNumber" />
+          <input
+            type="text"
+            formControlName="documentNumber"
+          />
         </label>
 
         <label class="form-field">
@@ -64,7 +65,10 @@
             {{ labels().documentDate }}
           </span>
 
-          <input type="date" formControlName="documentDate" />
+          <input
+            type="date"
+            formControlName="documentDate"
+          />
         </label>
 
         <label class="form-field">
@@ -72,9 +76,11 @@
             {{ labels().source }}
           </span>
 
-          <input type="text" formControlName="sourceText" />
+          <input
+            type="text"
+            formControlName="sourceText"
+          />
         </label>
-
       </div>
 
       <p class="director-form__hint">
@@ -87,7 +93,10 @@
             {{ labels().body }}
           </span>
 
-          <textarea formControlName="bodyText" rows="5"></textarea>
+          <textarea
+            formControlName="bodyText"
+            rows="5"
+          ></textarea>
         </label>
       </div>
 
@@ -96,187 +105,231 @@
       </div>
 
       @if (technicalId() && !readOnly()) {
-      <p class="director-form__hint">
-        {{ labels().locked }}
-      </p>
+        <p class="director-form__hint">
+          {{ labels().locked }}
+        </p>
       }
-
     </section>
-
 
     <!-- Supporting PDF documents -->
 
     <section class="compose-section">
-
       <div class="compose-section__header">
-        <h2>
-          {{ labels().attachments }}
-        </h2>
+        <h2>{{ labels().attachments }}</h2>
       </div>
 
       <label class="attachment-dropzone director-form__upload">
-        <span class="attachment-dropzone__icon" aria-hidden="true">
+        <span
+          class="attachment-dropzone__icon"
+          aria-hidden="true"
+        >
           +
         </span>
 
-        <strong>
-          {{ labels().chooseFiles }}
-        </strong>
+        <strong>{{ labels().chooseFiles }}</strong>
 
-        <span>
-          {{ labels().fileHint }}
-        </span>
+        <span>{{ labels().fileHint }}</span>
 
-        <input type="file" accept=".pdf,application/pdf" multiple [disabled]="
+        <input
+          type="file"
+          accept=".pdf,application/pdf"
+          multiple
+          [disabled]="
             busy() ||
             readOnly() ||
-            creationUncertain()
-          " (change)="onFilesSelected($event)" />
+            creationUncertain() ||
+            deletingDocumentId() !== null ||
+            deletionUncertain()
+          "
+          (change)="onFilesSelected($event)"
+        />
       </label>
 
-
-      <!-- Documents already stored in Alfresco -->
+      <!-- Documents already saved in Alfresco -->
 
       @if (savedDocuments().length > 0) {
+        <ul class="director-form__documents">
+          @for (
+            document of savedDocuments();
+            track document.nodeId
+          ) {
+            <li>
+              <div class="director-form__document-info">
+                <strong>{{ document.filename }}</strong>
 
-      <ul class="director-form__documents">
+                <span>
+                  {{ formatSize(document.sizeBytes) }}
+                  ·
+                  {{ labels().savedDocument }}
+                </span>
+              </div>
 
-        @for (
-        document of savedDocuments();
-        track document.nodeId
-        ) {
-
-        <li>
-          <div class="director-form__document-info">
-
-            <strong>
-              {{ document.filename }}
-            </strong>
-
-            <span>
-              {{ formatSize(document.sizeBytes) }}
-              ·
-              {{ labels().savedDocument }}
-            </span>
-
-          </div>
-        </li>
-
-        }
-
-      </ul>
-
+              @if (!readOnly()) {
+                <button
+                  class="director-form__remove-file"
+                  type="button"
+                  [disabled]="
+                    busy() ||
+                    deletingDocumentId() !== null ||
+                    deletionUncertain() ||
+                    creationUncertain()
+                  "
+                  [attr.aria-label]="
+                    labels().remove + ': ' + document.filename
+                  "
+                  [title]="labels().remove"
+                  [attr.aria-busy]="
+                    deletingDocumentId() === document.nodeId
+                  "
+                  (click)="removeSavedDocument(document)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              }
+            </li>
+          }
+        </ul>
       }
 
-
-      <!-- Files selected but not yet persisted -->
+      <!-- Files selected locally but not yet uploaded -->
 
       @if (documents().length > 0) {
-
-      <ul class="director-form__documents">
-
-        @for (
-        document of documents();
-        track document.id
-        ) {
-
-        <li>
-
-          <div class="director-form__document-info">
-
-            <strong>
-              {{ document.file.name }}
-            </strong>
-
-            <span>
-              {{ formatSize(document.file.size) }}
-              ·
-              {{ documentStatus(document.status) }}
-            </span>
-
-          </div>
-
-
-          @if (
-          document.status === 'failed' &&
-          !busy() &&
-          !readOnly()
+        <ul class="director-form__documents">
+          @for (
+            document of documents();
+            track document.id
           ) {
+            <li>
+              <div class="director-form__document-info">
+                <strong>{{ document.file.name }}</strong>
 
-          <button type="button" (click)="retryDocument(document.id)">
-            {{ labels().retry }}
-          </button>
+                <span>
+                  {{ formatSize(document.file.size) }}
+                  ·
+                  {{ documentStatus(document.status) }}
+                </span>
+              </div>
 
+              @if (
+                document.status === 'failed' &&
+                !busy() &&
+                !readOnly()
+              ) {
+                <button
+                  type="button"
+                  [disabled]="
+                    deletingDocumentId() !== null ||
+                    deletionUncertain() ||
+                    creationUncertain()
+                  "
+                  (click)="retryDocument(document.id)"
+                >
+                  {{ labels().retry }}
+                </button>
+              }
+
+              @if (
+                (
+                  document.status === 'queued' ||
+                  document.status === 'failed'
+                ) &&
+                !busy() &&
+                !readOnly()
+              ) {
+                <button
+                  class="director-form__remove-file"
+                  type="button"
+                  [disabled]="
+                    deletingDocumentId() !== null ||
+                    deletionUncertain() ||
+                    creationUncertain()
+                  "
+                  [attr.aria-label]="
+                    labels().remove + ': ' + document.file.name
+                  "
+                  [title]="labels().remove"
+                  (click)="removeDocument(document.id)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              }
+            </li>
           }
-
-
-          @if (
-          (
-          document.status === 'queued' ||
-          document.status === 'failed'
-          ) &&
-          !busy() &&
-          !readOnly()
-          ) {
-
-          <button type="button" (click)="removeDocument(document.id)">
-            {{ labels().remove }}
-          </button>
-
-          }
-
-        </li>
-
-        }
-
-      </ul>
-
+        </ul>
       }
-
     </section>
 
-
-    <!-- Save result / errors -->
+    <!-- Save results and errors -->
 
     @if (notice(); as message) {
-
-    <div class="director-form__notice" [class.director-form__notice--error]="
+      <div
+        class="director-form__notice"
+        [class.director-form__notice--error]="
           message.type === 'error'
-        " [class.director-form__notice--warning]="
+        "
+        [class.director-form__notice--warning]="
           message.type === 'warning'
-        " role="status">
-      {{ message.message }}
-    </div>
-
+        "
+        role="status"
+      >
+        {{ message.message }}
+      </div>
     }
-
 
     <!-- Save actions -->
 
     <footer class="compose-actions">
-
       <span class="director-form__footer-note">
         {{ labels().destination }}
       </span>
 
       <div class="compose-actions__primary-group">
-
-        <button class="compose-actions__send" type="submit" [disabled]="
+        <button
+          class="compose-actions__send"
+          type="submit"
+          [disabled]="
             busy() ||
             readOnly() ||
-            creationUncertain()
-          ">
+            creationUncertain() ||
+            deletingDocumentId() !== null ||
+            deletionUncertain()
+          "
+        >
           @if (busy()) {
-          {{ labels().saving }}
+            {{ labels().saving }}
           } @else {
-          {{ labels().save }}
+            {{ labels().save }}
           }
         </button>
-
       </div>
-
     </footer>
-
   </form>
-
 </section>

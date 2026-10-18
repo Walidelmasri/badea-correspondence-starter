@@ -242,7 +242,60 @@ describe('CorrespondenceApiService', () => {
       total: 1,
     });
   });
+  it('deletes a saved draft attachment', () => {
+    let completed = false;
 
+    service.deleteDocument(
+      'draft-123',
+      'document-456',
+    ).subscribe({
+      complete: () => {
+        completed = true;
+      },
+    });
+
+    const request = http.expectOne(
+      '/alfresco/service/badea/correspondence/' +
+      'draft-123/documents/document-456',
+    );
+
+    expect(request.request.method).toBe('DELETE');
+
+    request.flush(null, {
+      status: 204,
+      statusText: 'No Content',
+    });
+
+    expect(completed).toBe(true);
+  });
+
+  it('preserves attachment deletion errors', () => {
+    let status: number | null = null;
+
+    service.deleteDocument(
+      'draft-123',
+      'document-456',
+    ).subscribe({
+      error: (error: { status: number }) => {
+        status = error.status;
+      },
+    });
+
+    const request = http.expectOne(
+      '/alfresco/service/badea/correspondence/' +
+      'draft-123/documents/document-456',
+    );
+
+    request.flush(
+      { code: 'CORRESPONDENCE_FORBIDDEN' },
+      {
+        status: 403,
+        statusText: 'Forbidden',
+      },
+    );
+
+    expect(status).toBe(403);
+  });
   it('requests subsequent draft pages correctly', () => {
     service.listDrafts(25, 25).subscribe((page) => {
       expect(page.offset).toBe(25);

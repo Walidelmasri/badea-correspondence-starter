@@ -107,6 +107,7 @@ export class CorrespondenceApiService {
       request,
     );
   }
+
   uploadDocument(
     technicalId: string,
     file: File,
@@ -129,6 +130,15 @@ export class CorrespondenceApiService {
           'Content-Type': 'application/pdf',
         }),
       },
+    );
+  }
+  deleteDocument(
+    technicalId: string,
+    nodeId: string,
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}` +
+      `/documents/${encodeURIComponent(nodeId)}`,
     );
   }
 }

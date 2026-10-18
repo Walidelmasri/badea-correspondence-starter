@@ -1,21 +1,20 @@
 <app-correspondence-workspace
-  [eyebrow]="translation.text().drafts.eyebrow"
-  [title]="translation.text().drafts.title"
-  [description]="translation.text().drafts.description"
-  [searchLabel]="translation.text().drafts.search.label"
-  [searchPlaceholder]="translation.text().drafts.search.placeholder"
-  [primaryActionLabel]="translation.text().drafts.newCorrespondence"
+  [eyebrow]="labels().eyebrow"
+  [title]="labels().title"
+  [description]="labels().description"
+  [searchLabel]="labels().search.label"
+  [searchPlaceholder]="labels().search.placeholder"
+  [primaryActionLabel]="labels().newCorrespondence"
   [showSearch]="false"
   (primaryAction)="openCompose()"
 >
+  <!-- Drafts list -->
 
   <div workspace-list>
-
     @if (loading() && !page()) {
       <div class="drafts-empty" role="status">
         <strong>{{ labels().loading }}</strong>
       </div>
-
     } @else if (error()) {
       <div class="drafts-empty" role="alert">
         <strong>{{ labels().loadFailed }}</strong>
@@ -28,29 +27,23 @@
           {{ labels().retry }}
         </button>
       </div>
-
     } @else if (page(); as result) {
-
       @if (result.items.length === 0) {
         <div class="drafts-empty">
           <strong>
-            {{ translation.text().drafts.empty.title }}
+            {{ labels().empty.title }}
           </strong>
 
           <span>
-            {{ translation.text().drafts.empty.description }}
+            {{ labels().empty.description }}
           </span>
         </div>
-
       } @else {
-
         <div class="drafts-list">
-
           @for (
             draft of result.items;
             track draft.technicalId
           ) {
-
             <button
               class="drafts-card"
               [class.drafts-card--selected]="
@@ -70,37 +63,32 @@
               <span class="drafts-card__document-number">
                 {{
                   draft.documentNumber ||
-                  labels().noDocumentNumber
+                  labels().detail.noDocumentNumber
                 }}
               </span>
             </button>
-
           }
-
         </div>
-
       }
 
       @if (result.total > 0) {
         <div class="drafts-pagination">
-
           <span>
-            {{ labels().showing }}
+            {{ labels().pagination.showing }}
             {{ result.offset + 1 }}–{{
               result.offset + result.items.length
             }}
-            {{ labels().of }}
+            {{ labels().pagination.of }}
             {{ result.total }}
           </span>
 
           <div class="drafts-pagination__actions">
-
             <button
               type="button"
               [disabled]="!canGoBack()"
               (click)="previousPage()"
             >
-              {{ labels().previous }}
+              {{ labels().pagination.previous }}
             </button>
 
             <button
@@ -108,46 +96,41 @@
               [disabled]="!canGoForward()"
               (click)="nextPage()"
             >
-              {{ labels().next }}
+              {{ labels().pagination.next }}
             </button>
-
           </div>
         </div>
       }
-
     }
-
   </div>
 
+  <!-- Selected draft details -->
+
   <div workspace-detail>
-
     @if (selectedDraft(); as draft) {
-
       <article class="drafts-detail">
-
         <header class="drafts-detail__header">
           <span class="drafts-detail__eyebrow">
-            {{ translation.text().drafts.title }}
+            {{ labels().title }}
           </span>
 
           <h2>{{ draft.subject }}</h2>
         </header>
 
         <dl class="drafts-detail__metadata">
-
           <div>
-            <dt>{{ labels().documentNumber }}</dt>
+            <dt>{{ labels().detail.documentNumber }}</dt>
 
             <dd>
               {{
                 draft.documentNumber ||
-                labels().noDocumentNumber
+                labels().detail.noDocumentNumber
               }}
             </dd>
           </div>
 
           <div>
-            <dt>{{ labels().createdAt }}</dt>
+            <dt>{{ labels().detail.createdAt }}</dt>
 
             <dd>
               {{ formatDate(draft.createdAt) }}
@@ -155,48 +138,144 @@
           </div>
 
           <div>
-            <dt>{{ labels().modifiedAt }}</dt>
+            <dt>{{ labels().detail.modifiedAt }}</dt>
 
             <dd>
               {{ formatDate(draft.modifiedAt) }}
             </dd>
           </div>
-
         </dl>
+
+        @if (detailsLoading()) {
+          <p
+            class="drafts-detail__status"
+            role="status"
+          >
+            {{ labels().detail.loading }}
+          </p>
+        } @else if (detailsError()) {
+          <div
+            class="drafts-detail__status"
+            role="alert"
+          >
+            <p>{{ labels().detail.loadFailed }}</p>
+
+            <button
+              class="drafts-action"
+              type="button"
+              (click)="retryDetails()"
+            >
+              {{ labels().retry }}
+            </button>
+          </div>
+        } @else if (details(); as correspondence) {
+          <!-- Description -->
+
+          <section class="drafts-detail__section">
+            <h3>{{ labels().detail.description }}</h3>
+
+            <p class="drafts-detail__body">
+              {{
+                correspondence.bodyText ||
+                labels().detail.noDescription
+              }}
+            </p>
+          </section>
+
+          <!-- Saved Alfresco attachments -->
+
+          <section class="drafts-detail__section">
+            <div class="drafts-detail__section-heading">
+              <h3>{{ labels().detail.attachments }}</h3>
+
+              <span class="drafts-detail__count">
+                {{ correspondence.documents.length }}
+              </span>
+            </div>
+
+            @if (correspondence.documents.length === 0) {
+              <p class="drafts-detail__muted">
+                {{ labels().detail.noAttachments }}
+              </p>
+            } @else {
+              <ul class="drafts-detail__attachments">
+                @for (
+                  document of correspondence.documents;
+                  track document.nodeId
+                ) {
+                  <li>
+                    <svg
+                      class="drafts-detail__attachment-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.83l8.49-8.48"
+                      />
+                    </svg>
+
+                    <div class="drafts-detail__attachment-info">
+                      <strong>{{ document.filename }}</strong>
+
+                      <span>
+                        {{ formatSize(document.sizeBytes) }}
+                      </span>
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
 
         <button
           class="drafts-action"
           type="button"
+          [disabled]="
+            detailsLoading() ||
+            detailsError() ||
+            !details()
+          "
           (click)="openDraft(draft.technicalId)"
         >
-          {{ labels().openDraft }}
+          {{ labels().detail.editDraft }}
         </button>
-
       </article>
-
     } @else {
-
       <div class="drafts-detail-placeholder">
-
         <div
           class="drafts-detail-placeholder__icon"
           aria-hidden="true"
         >
-          ◇
+          <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M7 3h7l5 5v13H7z" />
+            <path d="M14 3v5h5" />
+            <path d="M10 13h6M10 17h6" />
+          </svg>
         </div>
 
         <strong>
-          {{ translation.text().drafts.detailPlaceholder.title }}
+          {{ labels().detailPlaceholder.title }}
         </strong>
 
         <span>
-          {{ translation.text().drafts.detailPlaceholder.description }}
+          {{ labels().detailPlaceholder.description }}
         </span>
-
       </div>
-
     }
-
   </div>
-
 </app-correspondence-workspace>

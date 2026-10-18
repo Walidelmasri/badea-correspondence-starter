@@ -16,6 +16,7 @@ import {
 
 import {
   CorrespondenceApiService,
+  CorrespondenceDetails,
   CorrespondenceDraftPage,
 } from '../../../shared/data-access/correspondence-api.service';
 
@@ -25,71 +26,42 @@ import {
 
 const PAGE_SIZE = 25;
 
-const COPY = {
-  en: {
-    loading: 'Loading drafts...',
-    loadFailed: 'Unable to load drafts. Please try again.',
-    retry: 'Retry',
-    documentNumber: 'Document Number',
-    createdAt: 'Created',
-    modifiedAt: 'Last Modified',
-    openDraft: 'Edit Draft',
-    previous: 'Previous',
-    next: 'Next',
-    showing: 'Showing',
-    of: 'of',
-    noDocumentNumber: 'No document number',
-  },
-
-  ar: {
-    loading: 'جارٍ تحميل المسودات...',
-    loadFailed: 'تعذر تحميل المسودات. يرجى المحاولة مرة أخرى.',
-    retry: 'إعادة المحاولة',
-    documentNumber: 'رقم المستند',
-    createdAt: 'تاريخ الإنشاء',
-    modifiedAt: 'آخر تعديل',
-    openDraft: 'تعديل المسودة',
-    previous: 'السابق',
-    next: 'التالي',
-    showing: 'عرض',
-    of: 'من',
-    noDocumentNumber: 'لا يوجد رقم مستند',
-  },
-} as const;
-
 @Component({
   selector: 'app-drafts-page',
   standalone: true,
-  imports: [
-    CorrespondenceWorkspaceComponent,
-  ],
+  imports: [CorrespondenceWorkspaceComponent],
   templateUrl: './drafts-page.component.html',
   styleUrl: './drafts-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DraftsPageComponent implements OnInit {
-
   private readonly router = inject(Router);
 
   private readonly api =
     inject(CorrespondenceApiService);
 
-  readonly translation =
-    inject(TranslationService);
+  readonly translation = inject(TranslationService);
 
+  // All translations come from the central translations.ts.
   readonly labels = computed(
-    () => COPY[this.translation.language()],
+    () => this.translation.text().drafts,
   );
 
   readonly page =
     signal<CorrespondenceDraftPage | null>(null);
 
   readonly loading = signal(false);
-
   readonly error = signal(false);
 
-  readonly selectedId =
-    signal<string | null>(null);
+  readonly selectedId = signal<string | null>(null);
+
+  readonly details =
+    signal<CorrespondenceDetails | null>(null);
+
+  readonly detailsLoading = signal(false);
+  readonly detailsError = signal(false);
+
+  private detailsRequestVersion = 0;
 
   readonly selectedDraft = computed(() => {
     const selectedId = this.selectedId();
@@ -127,6 +99,13 @@ export class DraftsPageComponent implements OnInit {
     this.loading.set(true);
     this.error.set(false);
 
+    // Invalidate any outstanding detail request.
+    ++this.detailsRequestVersion;
+
+    this.details.set(null);
+    this.detailsLoading.set(false);
+    this.detailsError.set(false);
+
     try {
       const page = await firstValueFrom(
         this.api.listDrafts(offset, PAGE_SIZE),
@@ -134,33 +113,85 @@ export class DraftsPageComponent implements OnInit {
 
       this.page.set(page);
 
-      const previousSelection =
-        this.selectedId();
+      const previousSelection = this.selectedId();
 
-      const selectionStillExists =
-        page.items.some(
-          (draft) =>
-            draft.technicalId === previousSelection,
-        );
-
-      this.selectedId.set(
-        selectionStillExists
-          ? previousSelection
-          : page.items[0]?.technicalId ?? null,
+      const selectionStillExists = page.items.some(
+        (draft) =>
+          draft.technicalId === previousSelection,
       );
 
+      const nextSelection = selectionStillExists
+        ? previousSelection
+        : page.items[0]?.technicalId ?? null;
+
+      this.selectedId.set(nextSelection);
+
+      if (nextSelection) {
+        void this.loadSelectedDetails(nextSelection);
+      }
     } catch {
       this.error.set(true);
       this.page.set(null);
       this.selectedId.set(null);
-
     } finally {
       this.loading.set(false);
     }
   }
 
   selectDraft(technicalId: string): void {
+    if (this.selectedId() === technicalId) {
+      return;
+    }
+
     this.selectedId.set(technicalId);
+    void this.loadSelectedDetails(technicalId);
+  }
+
+  retryDetails(): void {
+    const technicalId = this.selectedId();
+
+    if (technicalId) {
+      void this.loadSelectedDetails(technicalId);
+    }
+  }
+
+  private async loadSelectedDetails(
+    technicalId: string,
+  ): Promise<void> {
+    const requestVersion = ++this.detailsRequestVersion;
+
+    this.details.set(null);
+    this.detailsError.set(false);
+    this.detailsLoading.set(true);
+
+    try {
+      const result = await firstValueFrom(
+        this.api.getDetails(technicalId),
+      );
+
+      // Prevent an old response from replacing a newer selection.
+      if (
+        requestVersion !== this.detailsRequestVersion ||
+        this.selectedId() !== technicalId
+      ) {
+        return;
+      }
+
+      if (result.state !== 'DRAFT') {
+        this.detailsError.set(true);
+        return;
+      }
+
+      this.details.set(result);
+    } catch {
+      if (requestVersion === this.detailsRequestVersion) {
+        this.detailsError.set(true);
+      }
+    } finally {
+      if (requestVersion === this.detailsRequestVersion) {
+        this.detailsLoading.set(false);
+      }
+    }
   }
 
   openDraft(technicalId: string): void {
@@ -175,8 +206,7 @@ export class DraftsPageComponent implements OnInit {
   }
 
   openCompose(): void {
-    // Role-aware Compose routing will replace this
-    // once the backend exposes the authenticated role.
+    // Temporary until role-aware Compose routing is implemented.
     void this.router.navigate(['/director/new']);
   }
 
@@ -211,5 +241,9 @@ export class DraftsPageComponent implements OnInit {
       month: 'short',
       year: 'numeric',
     }).format(new Date(value));
+  }
+
+  formatSize(bytes: number): string {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
   }
 }
