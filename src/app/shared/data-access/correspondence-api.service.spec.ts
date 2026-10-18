@@ -357,4 +357,25 @@ describe('CorrespondenceApiService', () => {
 
     expect(status).toBe(403);
   });
+  it('posts SEND_TO_OFFICE to the existing workflow endpoint', () => {
+    const id = '03e1930c-de08-46d1-8d29-18ae7d2add1d';
+
+    service.transitionCorrespondence(id, {
+      action: 'SEND_TO_OFFICE',
+    }).subscribe((result) => {
+      expect(result.state).toBe('WITH_PRESIDENT_OFFICE');
+      expect(result.technicalId).toBe(id);
+    });
+
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${id}/transition`,
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ action: 'SEND_TO_OFFICE' });
+    request.flush({
+      technicalId: id,
+      state: 'WITH_PRESIDENT_OFFICE',
+    });
+  });
+
 });

@@ -61,6 +61,25 @@ export interface CorrespondenceDraftPage {
   readonly limit: number;
   readonly total: number;
 }
+export type CorrespondenceTransitionAction =
+  | 'SEND_TO_OFFICE'
+  | 'SEND_TO_PRESIDENT'
+  | 'SEND_TO_DIRECTOR'
+  | 'MARK_DONE'
+  | 'ADMINISTRATIVE_CLOSE';
+
+export interface CorrespondenceTransitionRequest {
+  readonly action: CorrespondenceTransitionAction;
+  readonly targetDepartmentCode?: string;
+  readonly explanation?: string;
+  readonly closureReason?: string;
+}
+
+export interface CorrespondenceTransitionResult {
+  readonly technicalId: string;
+  readonly state: CorrespondenceDetails['state'];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -104,6 +123,16 @@ export class CorrespondenceApiService {
   ): Observable<CreatedCorrespondenceDraft> {
     return this.http.put<CreatedCorrespondenceDraft>(
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/draft`,
+      request,
+    );
+  }
+
+  transitionCorrespondence(
+    technicalId: string,
+    request: CorrespondenceTransitionRequest,
+  ): Observable<CorrespondenceTransitionResult> {
+    return this.http.post<CorrespondenceTransitionResult>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/transition`,
       request,
     );
   }

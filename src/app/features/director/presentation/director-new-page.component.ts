@@ -135,6 +135,8 @@ export class DirectorNewPageComponent implements OnInit {
    * deletion state cannot be verified.
    */
   readonly deletionUncertain = signal(false);
+  readonly sending = signal(false);
+  readonly submissionUncertain = signal(false);
 
   readonly notice = signal<PageNotice | null>(null);
 
@@ -489,7 +491,11 @@ export class DirectorNewPageComponent implements OnInit {
    * This method does not transition correspondence to
    * the President's Office.
    */
-  async saveDraft(): Promise<void> {
+  async sendDraft(): Promise<void> {
+    await this.saveDraft(true);
+  }
+
+  async saveDraft(sendAfterSave = false): Promise<void> {
     if (this.modificationsBlocked()) {
       return;
     }
@@ -505,9 +511,14 @@ export class DirectorNewPageComponent implements OnInit {
       return;
     }
 
+    if (sendAfterSave && !window.confirm(this.labels().confirmSend)) {
+      return;
+    }
+
     const wasCreating = this.technicalId() === null;
 
     this.busy.set(true);
+    this.sending.set(sendAfterSave);
     this.notice.set(null);
 
     /*
@@ -612,14 +623,93 @@ export class DirectorNewPageComponent implements OnInit {
         (document) => document.status === 'verify',
       );
 
-      this.notice.set({
-        type: failed || uncertain ? 'warning' : 'success',
-        message: uncertain
-          ? this.labels().uploadUncertain
-          : failed
-            ? this.labels().uploadFailed
-            : this.labels().saved,
-      });
+      if (!sendAfterSave || failed || uncertain) {
+        this.notice.set({
+          type: failed || uncertain ? 'warning' : 'success',
+          message: uncertain
+            ? this.labels().uploadUncertain
+            : failed
+              ? this.labels().uploadFailed
+              : this.labels().saved,
+        });
+      }
+
+      if (sendAfterSave) {
+        // All local files must have received a confirmed upload response.
+        if (this.documents().length !== 0) {
+          this.notice.set({
+            type: 'warning',
+            message: this.labels().sendBlocked,
+          });
+          return;
+        }
+
+        // Read back persisted attachments. This is read-only: no duplicate writes.
+        let persisted;
+        try {
+          persisted = await firstValueFrom(this.api.getDetails(technicalId));
+        } catch {
+          this.submissionUncertain.set(true);
+          this.notice.set({
+            type: 'warning',
+            message: this.labels().sendUncertain,
+          });
+          return;
+        }
+
+        const allAttachmentsPersisted = this.savedDocuments().every(
+          (uploaded) => persisted.documents.some(
+            (stored) => stored.nodeId === uploaded.nodeId,
+          ),
+        );
+
+        if (persisted.state !== 'DRAFT' || !allAttachmentsPersisted) {
+          this.submissionUncertain.set(true);
+          this.notice.set({
+            type: 'warning',
+            message: this.labels().sendUncertain,
+          });
+          return;
+        }
+
+        this.savedDocuments.set(persisted.documents);
+
+        try {
+          const result = await firstValueFrom(
+            this.api.transitionCorrespondence(technicalId, {
+              action: 'SEND_TO_OFFICE',
+            }),
+          );
+
+          if (result.state !== 'WITH_PRESIDENT_OFFICE') {
+            this.submissionUncertain.set(true);
+            this.notice.set({
+              type: 'warning',
+              message: this.labels().sendUncertain,
+            });
+            return;
+          }
+
+          this.readOnly.set(true);
+          this.form.disable({ emitEvent: false });
+          this.notice.set({
+            type: 'success',
+            message: this.labels().sent,
+          });
+        } catch (error: unknown) {
+          // Never retry a transition automatically: it may have committed.
+          this.submissionUncertain.set(true);
+          const transportUncertain =
+            error instanceof HttpErrorResponse &&
+            (error.status === 0 || error.status >= 500);
+          this.notice.set({
+            type: transportUncertain ? 'warning' : 'error',
+            message: transportUncertain
+              ? this.labels().sendUncertain
+              : this.labels().sendFailed,
+          });
+        }
+      }
 
     } catch (error: unknown) {
       const resultUncertain =
@@ -652,12 +742,14 @@ export class DirectorNewPageComponent implements OnInit {
       if (
         !this.readOnly() &&
         !this.creationUncertain() &&
-        !this.deletionUncertain()
+        !this.deletionUncertain() &&
+        !this.submissionUncertain()
       ) {
         this.form.enable({ emitEvent: false });
       }
 
       this.busy.set(false);
+      this.sending.set(false);
     }
   }
 
@@ -677,7 +769,7 @@ export class DirectorNewPageComponent implements OnInit {
       this.readOnly() ||
       this.creationUncertain() ||
       this.deletingDocumentId() !== null ||
-      this.deletionUncertain()
+      this.deletionUncertain() || this.submissionUncertain()
     );
   }
 

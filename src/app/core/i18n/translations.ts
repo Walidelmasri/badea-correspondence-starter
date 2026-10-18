@@ -302,6 +302,14 @@ drafts: {
     'يتم تسجيل تاريخ ووقت إنشاء المراسلة تلقائياً في ألفريسكو.',
 
   destination: 'الوجهة: مكتب الرئيس',
+
+    send: 'إرسال إلى مكتب الرئيس',
+    sending: 'جارٍ الإرسال…',
+    confirmSend: 'هل تريد إرسال المراسلة إلى مكتب الرئيس؟ لن تتمكن من تعديلها كمسودة بعد الإرسال.',
+    sent: 'تم إرسال المراسلة إلى مكتب الرئيس بنجاح.',
+    sendBlocked: 'لم يتم إرسال المراسلة. يوجد مستند لم يتم رفعه بنجاح أو يحتاج إلى التحقق. راجع المرفقات أولاً.',
+    sendFailed: 'تعذر إرسال المراسلة. يرجى إعادة تحميل المسودات والتحقق من حالتها قبل المحاولة مجدداً.',
+    sendUncertain: 'تعذر تأكيد نتيجة الإرسال. لا تحاول الإرسال مرة ثانية قبل التحقق من المراسلة في المسودات أو المرسل.',
 },
   presidentReview: {
     eyebrow: 'مساحة الرئيس',
@@ -610,6 +618,14 @@ drafts: {
     'The creation timestamp is recorded automatically by Alfresco.',
 
   destination: 'Destination: President’s Office',
+
+    send: 'Send to President’s Office',
+    sending: 'Sending…',
+    confirmSend: 'Send this correspondence to the President’s Office? You will no longer be able to edit it as a draft.',
+    sent: 'Correspondence sent to the President’s Office.',
+    sendBlocked: 'Not sent. At least one attachment failed to upload or needs verification. Resolve the attachments first.',
+    sendFailed: 'The correspondence could not be sent. Reload Drafts and check its status before trying again.',
+    sendUncertain: 'The send result could not be confirmed. Do not send again until you have checked Drafts or Sent.',
 },
   auth: {
     eyebrow:

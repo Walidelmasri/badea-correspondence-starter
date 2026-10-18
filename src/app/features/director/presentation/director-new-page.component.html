@@ -313,21 +313,28 @@
 
       <div class="compose-actions__primary-group">
         <button
-          class="compose-actions__send"
+          class="compose-actions__draft"
           type="submit"
           [disabled]="
-            busy() ||
-            readOnly() ||
-            creationUncertain() ||
-            deletingDocumentId() !== null ||
-            deletionUncertain()
+            busy() || readOnly() || creationUncertain() ||
+            deletingDocumentId() !== null || deletionUncertain() ||
+            submissionUncertain()
           "
         >
-          @if (busy()) {
-            {{ labels().saving }}
-          } @else {
-            {{ labels().save }}
-          }
+          {{ busy() && !sending() ? labels().saving : labels().save }}
+        </button>
+
+        <button
+          class="compose-actions__send"
+          type="button"
+          [disabled]="
+            busy() || readOnly() || creationUncertain() ||
+            deletingDocumentId() !== null || deletionUncertain() ||
+            submissionUncertain()
+          "
+          (click)="sendDraft()"
+        >
+          {{ sending() ? labels().sending : labels().send }}
         </button>
       </div>
     </footer>
