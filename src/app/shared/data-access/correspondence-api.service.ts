@@ -163,6 +163,18 @@ export class CorrespondenceApiService {
     );
   }
 
+  /** Fetches an authorized PDF through the Alfresco ticket interceptor. */
+  getDocumentContent(
+    technicalId: string,
+    documentNodeId: string,
+  ): Observable<Blob> {
+    return this.http.get(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}` +
+      `/documents/${encodeURIComponent(documentNodeId)}/content`,
+      { responseType: 'blob' },
+    );
+  }
+
   uploadDocument(
     technicalId: string,
     file: File,

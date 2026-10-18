@@ -23,6 +23,12 @@ const AR_TRANSLATIONS = {
   },
 
   mailbox: {
+    openDocument: 'عرض PDF',
+    previewTitle: 'معاينة المستند',
+    previewLoading: 'جارٍ تحميل المستند...',
+    previewFailed: 'تعذر فتح المستند. يرجى التحقق من الصلاحيات أو المحاولة مرة أخرى.',
+    previewClose: 'إغلاق',
+
     loading: 'جارٍ تحميل المراسلات...',
     loadFailed: 'تعذر تحميل المراسلات.',
     retry: 'إعادة المحاولة',
@@ -382,6 +388,12 @@ const EN_TRANSLATIONS = {
   },
 
   mailbox: {
+    openDocument: 'View PDF',
+    previewTitle: 'Document Preview',
+    previewLoading: 'Loading PDF...',
+    previewFailed: 'Unable to open this document. Check permissions or try again.',
+    previewClose: 'Close',
+
     loading: 'Loading correspondence...',
     loadFailed: 'Could not load correspondence.',
     retry: 'Retry',

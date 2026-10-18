@@ -1,0 +1,40 @@
+<dialog
+  #dialog
+  class="correspondence-preview"
+  [attr.dir]="translation.direction()"
+  [attr.aria-label]="translation.text().mailbox.previewTitle"
+  (close)="closed.emit()"
+>
+  <header class="correspondence-preview__header">
+    <div>
+      <h2>{{ translation.text().mailbox.previewTitle }}</h2>
+      <p dir="auto">{{ document().filename }}</p>
+    </div>
+    <button
+      type="button"
+      class="correspondence-preview__close"
+      autofocus
+      [attr.aria-label]="translation.text().mailbox.previewClose"
+      (click)="close()"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+  </header>
+  <div class="correspondence-preview__content">
+    @if (loading()) {
+      <p role="status">{{ translation.text().mailbox.previewLoading }}</p>
+    } @else if (failed()) {
+      <p role="alert">{{ translation.text().mailbox.previewFailed }}</p>
+    } @else if (pdfUrl(); as url) {
+      <iframe
+        [src]="url"
+        [title]="document().filename"
+        class="correspondence-preview__frame"
+      ></iframe>
+    }
+  </div>
+</dialog>

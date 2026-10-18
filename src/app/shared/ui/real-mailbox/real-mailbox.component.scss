@@ -30,3 +30,22 @@
 .mailbox-files li small { font-size: .75rem; color: var(--color-text-secondary); }
 .mailbox-action { cursor: pointer; border: none; padding: .75rem 1rem; border-radius: var(--radius-sm); background: var(--color-primary-700); color: white; font-weight: 600; }
 @media (max-width: 640px) { .mailbox-detail dl { grid-template-columns: 1fr; } }
+
+/* The real PDF is fetched with the authenticated Angular client. */
+.mailbox-files li { padding: 0; }
+.mailbox-file-button {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  width: 100%;
+  padding: .8rem;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+}
+.mailbox-file-button:hover:not(:disabled) { background: var(--color-primary-050); }
+.mailbox-file-button:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.mailbox-file-button:disabled { cursor: default; }
+.mailbox-file-button .mailbox-file-open { margin-inline-start: auto; color: var(--color-primary-700); font-size: .8rem; white-space: nowrap; }

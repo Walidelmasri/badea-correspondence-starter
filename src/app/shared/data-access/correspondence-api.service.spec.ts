@@ -403,4 +403,48 @@ describe('CorrespondenceApiService', () => {
     });
   });
 
+  it('fetches an authorized correspondence PDF as Blob', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const nodeId = '22222222-2222-2222-2222-222222222222';
+    let result: Blob | undefined;
+
+    service.getDocumentContent(id, nodeId).subscribe(blob => {
+      result = blob;
+    });
+
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${id}/documents/${nodeId}/content`,
+    );
+    expect(request.request.method).toBe('GET');
+    expect(request.request.responseType).toBe('blob');
+
+    const pdf = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    request.flush(pdf);
+    expect(result?.type).toBe('application/pdf');
+  });
+
+  it('propagates PDF authorization errors', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const nodeId = '22222222-2222-2222-2222-222222222222';
+    let status: number | null = null;
+
+    service.getDocumentContent(id, nodeId).subscribe({
+      error: (error: { status: number }) => { status = error.status; },
+    });
+
+    const request = http.expectOne(
+      `/alfresco/service/badea/correspondence/${id}/documents/${nodeId}/content`,
+    );
+    request.flush(
+      new Blob(
+        [JSON.stringify({ code: 'CORRESPONDENCE_FORBIDDEN' })],
+        { type: 'application/json' },
+      ),
+      {
+      status: 403,
+      statusText: 'Forbidden',
+    });
+    expect(status).toBe(403);
+  });
+
 });

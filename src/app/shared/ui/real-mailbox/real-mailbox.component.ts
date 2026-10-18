@@ -19,13 +19,14 @@ import {
   CorrespondenceMailboxPage,
 } from '../../data-access/correspondence-api.service';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
+import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 
 const PAGE_SIZE = 25;
 
 @Component({
   selector: 'app-real-mailbox',
   standalone: true,
-  imports: [CorrespondenceWorkspaceComponent],
+  imports: [CorrespondenceWorkspaceComponent, CorrespondenceDocumentPreviewComponent],
   templateUrl: './real-mailbox.component.html',
   styleUrl: './real-mailbox.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -49,6 +50,7 @@ export class RealMailboxComponent implements OnInit {
   readonly details = signal<CorrespondenceDetails | null>(null);
   readonly detailsLoading = signal(false);
   readonly detailsError = signal(false);
+  readonly previewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
   private detailVersion = 0;
   private pageVersion = 0;
 
@@ -71,6 +73,7 @@ export class RealMailboxComponent implements OnInit {
     if (this.loading()) return;
     const version = ++this.pageVersion;
     ++this.detailVersion;
+    this.closePreview();
     this.loading.set(true);
     this.listError.set(false);
     this.details.set(null);
@@ -96,6 +99,7 @@ export class RealMailboxComponent implements OnInit {
 
   select(id: string): void {
     if (id === this.selectedId()) return;
+    this.closePreview();
     this.selectedId.set(id);
     void this.loadDetails(id);
   }
@@ -133,6 +137,17 @@ export class RealMailboxComponent implements OnInit {
 
   openCompose(): void {
     void this.router.navigate(['/compose']);
+  }
+
+  openDocument(document: CorrespondenceDetails['documents'][number]): void {
+    if (document.mimeType !== 'application/pdf' || !this.details()) {
+      return;
+    }
+    this.previewDocument.set(document);
+  }
+
+  closePreview(): void {
+    this.previewDocument.set(null);
   }
 
   openPresidentReview(): void {
