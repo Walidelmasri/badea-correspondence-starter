@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<webscript>
+    <shortname>List BADEA Correspondence</shortname>
+
+    <description>
+        Returns authorized correspondence summaries.
+        Currently supports department-scoped Director drafts.
+    </description>
+
+    <url>/badea/correspondence</url>
+
+    <format default="json">argument</format>
+
+    <authentication>user</authentication>
+
+    <transaction>required</transaction>
+</webscript>

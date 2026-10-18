@@ -16,7 +16,7 @@ export class CorrespondenceWorkspaceComponent {
   readonly eyebrow = input.required<string>();
   readonly title = input.required<string>();
   readonly description = input.required<string>();
-
+  readonly showSearch = input(true);
   readonly searchLabel = input.required<string>();
   readonly searchPlaceholder = input.required<string>();
 

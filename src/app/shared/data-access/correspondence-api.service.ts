@@ -47,6 +47,20 @@ export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly createdByNameArabic: string | null;
   readonly documents: readonly CorrespondenceDocumentUpload[];
 }
+export interface CorrespondenceDraftSummary {
+  readonly technicalId: string;
+  readonly subject: string;
+  readonly documentNumber: string | null;
+  readonly createdAt: string;
+  readonly modifiedAt: string;
+}
+
+export interface CorrespondenceDraftPage {
+  readonly items: readonly CorrespondenceDraftSummary[];
+  readonly offset: number;
+  readonly limit: number;
+  readonly total: number;
+}
 @Injectable({
   providedIn: 'root',
 })
@@ -69,7 +83,21 @@ export class CorrespondenceApiService {
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}`,
     );
   }
-
+  listDrafts(
+    offset = 0,
+    limit = 25,
+  ): Observable<CorrespondenceDraftPage> {
+    return this.http.get<CorrespondenceDraftPage>(
+      CORRESPONDENCE_URL,
+      {
+        params: {
+          box: 'drafts',
+          offset,
+          limit,
+        },
+      },
+    );
+  }
   updateDraft(
     technicalId: string,
     request: CreateCorrespondenceDraft,

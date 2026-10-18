@@ -23,6 +23,7 @@
     </button>
   </header>
 
+@if (showSearch()) {
   <div class="workspace-page__toolbar">
     <label class="workspace-search">
       <span class="visually-hidden">
@@ -37,6 +38,7 @@
 
     <ng-content select="[workspace-toolbar]" />
   </div>
+}
 
   <div class="workspace">
     <section

@@ -523,4 +523,40 @@
     <constructor-arg
         ref="badeaCorrespondenceDraftUpdater" />
 </bean>
+<!--
+    Reads department-scoped Director drafts.
+
+    Read-only Alfresco repository access.
+-->
+<bean
+    id="badeaCorrespondenceDraftLister"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftLister"
+    lazy-init="true">
+
+    <constructor-arg ref="nodeService" />
+
+    <constructor-arg ref="permissionService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceFolderLocator" />
+</bean>
+
+<!--
+    Authenticated correspondence-list endpoint.
+-->
+<bean
+    id="webscript.org.badea.correspondence.list-correspondence.get"
+    class="org.badea.correspondence.webscript.ListCorrespondenceWebScript"
+    parent="webscript"
+    lazy-init="true">
+
+    <constructor-arg
+        ref="badeaCorrespondenceCurrentEmployeeService" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceDraftLister" />
+</bean>
 </beans>

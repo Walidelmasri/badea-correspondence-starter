@@ -8,9 +8,9 @@
 
       <h1>
         {{
-          technicalId()
-            ? labels().editing
-            : labels().title
+        technicalId()
+        ? labels().editing
+        : labels().title
         }}
       </h1>
 
@@ -20,11 +20,7 @@
     </div>
   </header>
 
-  <form
-    class="compose-form"
-    [formGroup]="form"
-    (ngSubmit)="saveDraft()"
-  >
+  <form class="compose-form" [formGroup]="form" (ngSubmit)="saveDraft()">
 
     <!-- Correspondence metadata -->
 
@@ -37,9 +33,9 @@
       </div>
 
       @if (loading()) {
-        <p class="director-form__hint" role="status">
-          {{ labels().loading }}
-        </p>
+      <p class="director-form__hint" role="status">
+        {{ labels().loading }}
+      </p>
       }
 
       <label class="form-field">
@@ -47,16 +43,10 @@
           {{ labels().subject }} *
         </span>
 
-        <input
-          type="text"
-          formControlName="subject"
-          maxlength="250"
-          autocomplete="off"
-          [attr.aria-invalid]="
+        <input type="text" formControlName="subject" maxlength="250" autocomplete="off" [attr.aria-invalid]="
             form.controls.subject.touched &&
             form.controls.subject.invalid
-          "
-        />
+          " />
       </label>
 
       <div class="compose-grid compose-grid--three">
@@ -66,10 +56,7 @@
             {{ labels().documentNumber }}
           </span>
 
-          <input
-            type="text"
-            formControlName="documentNumber"
-          />
+          <input type="text" formControlName="documentNumber" />
         </label>
 
         <label class="form-field">
@@ -77,10 +64,7 @@
             {{ labels().documentDate }}
           </span>
 
-          <input
-            type="date"
-            formControlName="documentDate"
-          />
+          <input type="date" formControlName="documentDate" />
         </label>
 
         <label class="form-field">
@@ -88,10 +72,7 @@
             {{ labels().source }}
           </span>
 
-          <input
-            type="text"
-            formControlName="sourceText"
-          />
+          <input type="text" formControlName="sourceText" />
         </label>
 
       </div>
@@ -106,10 +87,7 @@
             {{ labels().body }}
           </span>
 
-          <textarea
-            formControlName="bodyText"
-            rows="5"
-          ></textarea>
+          <textarea formControlName="bodyText" rows="5"></textarea>
         </label>
       </div>
 
@@ -117,24 +95,10 @@
         {{ labels().destination }}
       </div>
 
-      @if (technicalId(); as id) {
-
-        <div class="director-form__reference">
-          <strong>
-            {{ labels().savedReference }}
-          </strong>
-
-          <code>
-            {{ id }}
-          </code>
-        </div>
-
-        @if (!readOnly()) {
-          <p class="director-form__hint">
-            {{ labels().locked }}
-          </p>
-        }
-
+      @if (technicalId() && !readOnly()) {
+      <p class="director-form__hint">
+        {{ labels().locked }}
+      </p>
       }
 
     </section>
@@ -150,13 +114,8 @@
         </h2>
       </div>
 
-      <label
-        class="attachment-dropzone director-form__upload"
-      >
-        <span
-          class="attachment-dropzone__icon"
-          aria-hidden="true"
-        >
+      <label class="attachment-dropzone director-form__upload">
+        <span class="attachment-dropzone__icon" aria-hidden="true">
           +
         </span>
 
@@ -168,17 +127,11 @@
           {{ labels().fileHint }}
         </span>
 
-        <input
-          type="file"
-          accept=".pdf,application/pdf"
-          multiple
-          [disabled]="
+        <input type="file" accept=".pdf,application/pdf" multiple [disabled]="
             busy() ||
             readOnly() ||
             creationUncertain()
-          "
-          (change)="onFilesSelected($event)"
-        />
+          " (change)="onFilesSelected($event)" />
       </label>
 
 
@@ -186,32 +139,32 @@
 
       @if (savedDocuments().length > 0) {
 
-        <ul class="director-form__documents">
+      <ul class="director-form__documents">
 
-          @for (
-            document of savedDocuments();
-            track document.nodeId
-          ) {
+        @for (
+        document of savedDocuments();
+        track document.nodeId
+        ) {
 
-            <li>
-              <div class="director-form__document-info">
+        <li>
+          <div class="director-form__document-info">
 
-                <strong>
-                  {{ document.filename }}
-                </strong>
+            <strong>
+              {{ document.filename }}
+            </strong>
 
-                <span>
-                  {{ formatSize(document.sizeBytes) }}
-                  ·
-                  {{ labels().savedDocument }}
-                </span>
+            <span>
+              {{ formatSize(document.sizeBytes) }}
+              ·
+              {{ labels().savedDocument }}
+            </span>
 
-              </div>
-            </li>
+          </div>
+        </li>
 
-          }
+        }
 
-        </ul>
+      </ul>
 
       }
 
@@ -220,69 +173,63 @@
 
       @if (documents().length > 0) {
 
-        <ul class="director-form__documents">
+      <ul class="director-form__documents">
 
-          @for (
-            document of documents();
-            track document.id
+        @for (
+        document of documents();
+        track document.id
+        ) {
+
+        <li>
+
+          <div class="director-form__document-info">
+
+            <strong>
+              {{ document.file.name }}
+            </strong>
+
+            <span>
+              {{ formatSize(document.file.size) }}
+              ·
+              {{ documentStatus(document.status) }}
+            </span>
+
+          </div>
+
+
+          @if (
+          document.status === 'failed' &&
+          !busy() &&
+          !readOnly()
           ) {
 
-            <li>
-
-              <div class="director-form__document-info">
-
-                <strong>
-                  {{ document.file.name }}
-                </strong>
-
-                <span>
-                  {{ formatSize(document.file.size) }}
-                  ·
-                  {{ documentStatus(document.status) }}
-                </span>
-
-              </div>
-
-
-              @if (
-                document.status === 'failed' &&
-                !busy() &&
-                !readOnly()
-              ) {
-
-                <button
-                  type="button"
-                  (click)="retryDocument(document.id)"
-                >
-                  {{ labels().retry }}
-                </button>
-
-              }
-
-
-              @if (
-                (
-                  document.status === 'queued' ||
-                  document.status === 'failed'
-                ) &&
-                !busy() &&
-                !readOnly()
-              ) {
-
-                <button
-                  type="button"
-                  (click)="removeDocument(document.id)"
-                >
-                  {{ labels().remove }}
-                </button>
-
-              }
-
-            </li>
+          <button type="button" (click)="retryDocument(document.id)">
+            {{ labels().retry }}
+          </button>
 
           }
 
-        </ul>
+
+          @if (
+          (
+          document.status === 'queued' ||
+          document.status === 'failed'
+          ) &&
+          !busy() &&
+          !readOnly()
+          ) {
+
+          <button type="button" (click)="removeDocument(document.id)">
+            {{ labels().remove }}
+          </button>
+
+          }
+
+        </li>
+
+        }
+
+      </ul>
 
       }
 
@@ -293,18 +240,13 @@
 
     @if (notice(); as message) {
 
-      <div
-        class="director-form__notice"
-        [class.director-form__notice--error]="
+    <div class="director-form__notice" [class.director-form__notice--error]="
           message.type === 'error'
-        "
-        [class.director-form__notice--warning]="
+        " [class.director-form__notice--warning]="
           message.type === 'warning'
-        "
-        role="status"
-      >
-        {{ message.message }}
-      </div>
+        " role="status">
+      {{ message.message }}
+    </div>
 
     }
 
@@ -319,19 +261,15 @@
 
       <div class="compose-actions__primary-group">
 
-        <button
-          class="compose-actions__send"
-          type="submit"
-          [disabled]="
+        <button class="compose-actions__send" type="submit" [disabled]="
             busy() ||
             readOnly() ||
             creationUncertain()
-          "
-        >
+          ">
           @if (busy()) {
-            {{ labels().saving }}
+          {{ labels().saving }}
           } @else {
-            {{ labels().save }}
+          {{ labels().save }}
           }
         </button>
 

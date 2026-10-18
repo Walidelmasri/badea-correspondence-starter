@@ -204,6 +204,69 @@ describe('CorrespondenceApiService', () => {
       state: 'DRAFT',
     });
   });
+
+  it('loads real drafts with pagination', () => {
+    service.listDrafts(0, 25).subscribe((page) => {
+      expect(page.total).toBe(1);
+      expect(page.items).toHaveLength(1);
+
+      expect(page.items[0].subject).toBe(
+        'Test Draft 1',
+      );
+    });
+
+    const request = http.expectOne(
+      (req) =>
+        req.url ===
+        '/alfresco/service/badea/correspondence' &&
+        req.params.get('box') === 'drafts' &&
+        req.params.get('offset') === '0' &&
+        req.params.get('limit') === '25',
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      items: [
+        {
+          technicalId:
+            '03e1930c-de08-46d1-8d29-18ae7d2add1d',
+          subject: 'Test Draft 1',
+          documentNumber: 'Test',
+          createdAt: '2026-10-18T08:00:00Z',
+          modifiedAt: '2026-10-18T08:10:00Z',
+        },
+      ],
+      offset: 0,
+      limit: 25,
+      total: 1,
+    });
+  });
+
+  it('requests subsequent draft pages correctly', () => {
+    service.listDrafts(25, 25).subscribe((page) => {
+      expect(page.offset).toBe(25);
+      expect(page.items).toEqual([]);
+    });
+
+    const request = http.expectOne(
+      (req) =>
+        req.url ===
+        '/alfresco/service/badea/correspondence' &&
+        req.params.get('box') === 'drafts' &&
+        req.params.get('offset') === '25' &&
+        req.params.get('limit') === '25',
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      items: [],
+      offset: 25,
+      limit: 25,
+      total: 25,
+    });
+  });
   it('preserves upload errors for the caller', () => {
     const file = new File(
       ['%PDF-1.7'],
