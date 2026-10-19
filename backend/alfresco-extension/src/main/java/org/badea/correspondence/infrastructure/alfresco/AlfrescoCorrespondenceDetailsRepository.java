@@ -19,6 +19,7 @@ import org.alfresco.service.namespace.QName;
 import org.badea.correspondence.application.CorrespondenceDetails;
 import org.badea.correspondence.application.CorrespondenceDetailsRepository;
 import org.badea.correspondence.application.CorrespondenceDocument;
+import org.badea.correspondence.application.CorrespondenceGeneratedDocument;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
 public final class AlfrescoCorrespondenceDetailsRepository
@@ -126,7 +127,8 @@ public final class AlfrescoCorrespondenceDetailsRepository
                         properties,
                         PROP_CREATED_BY_NAME_ARABIC,
                         "createdByNameArabic"),
-                readSourceDocuments(correspondence));
+                readSourceDocuments(correspondence),
+                readGeneratedDocuments(correspondence));
     }
 
     /**
@@ -207,6 +209,21 @@ public final class AlfrescoCorrespondenceDetailsRepository
                         .thenComparing(
                                 CorrespondenceDocument::nodeId));
 
+        return List.copyOf(documents);
+    }
+
+    private List<CorrespondenceGeneratedDocument> readGeneratedDocuments(NodeRef correspondence) {
+        List<CorrespondenceGeneratedDocument> documents = new ArrayList<>();
+        for (ChildAssociationRef association : nodeService.getChildAssocs(correspondence)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
+            NodeRef child = association.getChildRef();
+            if (AlfrescoPresidentGeneratedDocumentStore.TYPE.equals(nodeService.getType(child))) {
+                documents.add(AlfrescoPresidentGeneratedDocumentStore.describe(child, nodeService));
+            }
+        }
+        documents.sort(Comparator.comparing(CorrespondenceGeneratedDocument::reviewRevision)
+                .thenComparing(CorrespondenceGeneratedDocument::artifactType)
+                .thenComparing(CorrespondenceGeneratedDocument::nodeId));
         return List.copyOf(documents);
     }
 

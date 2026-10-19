@@ -105,6 +105,26 @@
               </ul>
             }
           </section>
+          @if (full.generatedDocuments?.length) {
+            <section class="mailbox-detail__section">
+              <h3>{{ labels().presidentDocuments }}
+                <span class="mailbox-count">{{ full.generatedDocuments?.length }}</span>
+              </h3>
+              <ul class="mailbox-files">
+                @for (document of full.generatedDocuments ?? []; track document.nodeId) {
+                  <li>
+                    <button type="button" class="mailbox-file-button"
+                      [attr.aria-label]="labels().openDocument + ': ' + document.filename"
+                      (click)="openDocument(document)">
+                      <span><strong>{{ document.filename }}</strong>
+                        <small>{{ formatSize(document.sizeBytes) }}</small></span>
+                      <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
           <section class="mailbox-detail__section">
             <h3>{{ labels().historyTitle }}</h3>
             @if (historyLoading()) {

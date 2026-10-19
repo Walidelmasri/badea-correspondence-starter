@@ -37,6 +37,11 @@ export interface CorrespondenceDocumentUpload {
   readonly mimeType: string;
   readonly sizeBytes: number;
 }
+export interface CorrespondenceGeneratedDocument extends CorrespondenceDocumentUpload {
+  readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION';
+  readonly sourceDocumentNodeId: string | null;
+  readonly reviewRevision: number;
+}
 export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly technicalId: string;
   readonly state:
@@ -49,6 +54,7 @@ export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly createdByNameEnglish: string;
   readonly createdByNameArabic: string | null;
   readonly documents: readonly CorrespondenceDocumentUpload[];
+  readonly generatedDocuments?: readonly CorrespondenceGeneratedDocument[];
 }
 export interface CorrespondenceDraftSummary {
   readonly technicalId: string;

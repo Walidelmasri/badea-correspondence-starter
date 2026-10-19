@@ -200,6 +200,21 @@ public final class GetCorrespondenceDetailsWebScript
                 "documents",
                 documents);
 
+        JSONArray generated = new JSONArray();
+        for (var document : details.generatedDocuments()) {
+            JSONObject item = new JSONObject();
+            item.put("nodeId", document.nodeId());
+            item.put("filename", document.filename());
+            item.put("mimeType", document.mimeType());
+            item.put("sizeBytes", document.sizeBytes());
+            item.put("artifactType", document.artifactType());
+            item.put("sourceDocumentNodeId", document.sourceDocumentNodeId() == null
+                    ? JSONObject.NULL : document.sourceDocumentNodeId());
+            item.put("reviewRevision", document.reviewRevision());
+            generated.put(item);
+        }
+        result.put("generatedDocuments", generated);
+
         return result;
     }
 

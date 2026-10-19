@@ -17,7 +17,8 @@ public record CorrespondenceDetails(
         String originDepartmentCode,
         String createdByNameEnglish,
         String createdByNameArabic,
-        List<CorrespondenceDocument> documents) {
+        List<CorrespondenceDocument> documents,
+        List<CorrespondenceGeneratedDocument> generatedDocuments) {
 
     public CorrespondenceDetails {
 
@@ -47,5 +48,19 @@ public record CorrespondenceDetails(
 
         documents = List.copyOf(
                 documents);
+
+        generatedDocuments = List.copyOf(
+                Objects.requireNonNull(generatedDocuments));
+    }
+    // Existing callers that deal only with source attachments remain compatible.
+    public CorrespondenceDetails(
+            String technicalId, CorrespondenceState state, String subject,
+            String bodyText, String documentNumber, LocalDate documentDate,
+            String sourceText, String originDepartmentCode,
+            String createdByNameEnglish, String createdByNameArabic,
+            List<CorrespondenceDocument> documents) {
+        this(technicalId, state, subject, bodyText, documentNumber,
+                documentDate, sourceText, originDepartmentCode,
+                createdByNameEnglish, createdByNameArabic, documents, List.of());
     }
 }

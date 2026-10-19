@@ -66,8 +66,8 @@ public final class AlfrescoCorrespondenceDocumentContentRepository
          * Workflow history uses its own subtype.
          * Only original cm:content nodes are streamed here.
          */
-        if (!ContentModel.TYPE_CONTENT.equals(
-                nodeService.getType(document))) {
+        if (!ContentModel.TYPE_CONTENT.equals(nodeService.getType(document))
+                && !AlfrescoPresidentGeneratedDocumentStore.TYPE.equals(nodeService.getType(document))) {
 
             throw new CorrespondenceDocumentNotFoundException();
         }

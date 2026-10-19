@@ -13,12 +13,14 @@ public final class CorrespondenceTransitionService {
     private final CorrespondenceAccessAuthorizer accessAuthorizer;
     private final CorrespondenceDepartmentService departmentService;
     private final CorrespondenceTransitionRepository repository;
+    private final PresidentDocumentFinalizer presidentDocumentFinalizer;
 
     public CorrespondenceTransitionService(
             CorrespondenceWorkflowService workflowService,
             CorrespondenceAccessAuthorizer accessAuthorizer,
             CorrespondenceDepartmentService departmentService,
-            CorrespondenceTransitionRepository repository) {
+            CorrespondenceTransitionRepository repository,
+            PresidentDocumentFinalizer presidentDocumentFinalizer) {
 
         this.workflowService =
                 Objects.requireNonNull(
@@ -39,6 +41,9 @@ public final class CorrespondenceTransitionService {
                 Objects.requireNonNull(
                         repository,
                         "repository must not be null");
+
+        this.presidentDocumentFinalizer = Objects.requireNonNull(
+                presidentDocumentFinalizer, "presidentDocumentFinalizer must not be null");
     }
 
     public CorrespondenceState transition(
@@ -71,11 +76,22 @@ public final class CorrespondenceTransitionService {
                 targetRoleFor(
                         nextState);
 
-        repository.applyTransition(
-                command,
-                accessContext.state(),
-                nextState,
-                targetRole);
+        // A Web Script that catches repository exceptions may accidentally
+        // commit partially written content. Force *any* President handoff
+        // failure to escape the Web Script so Alfresco rolls back its REQUIRED
+        // transaction (including binary content, history and assignment).
+        if (command.actorRole() == CorrespondenceActorRole.PRESIDENT
+                && command.action() == CorrespondenceAction.SEND_TO_OFFICE) {
+            try {
+                presidentDocumentFinalizer.finalizeSubmission(command);
+                repository.applyTransition(command, accessContext.state(), nextState, targetRole);
+            } catch (RuntimeException failure) {
+                throw new IllegalStateException(
+                        "President submission could not be committed", failure);
+            }
+        } else {
+            repository.applyTransition(command, accessContext.state(), nextState, targetRole);
+        }
 
         return nextState;
     }

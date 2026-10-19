@@ -85,6 +85,15 @@
             <version>${oracle.jdbc.version}</version>
         </dependency>
 
+        <!-- Alfresco ACS 26.1 includes PDFBox 3.0.5 at runtime.
+             Provided prevents conflicting copies in the extension JAR. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.5</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

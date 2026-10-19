@@ -241,6 +241,8 @@
 
         <constructor-arg
             ref="badeaCorrespondenceRepository" />
+
+        <constructor-arg ref="badeaPresidentDocumentFinalizationService" />
     </bean>
 
     <!--
@@ -331,6 +333,32 @@
 
     <constructor-arg
         ref="badeaCorrespondenceHistoryReader" />
+</bean>
+
+<!-- Repository-free parser and PDFBox vector renderer. -->
+<bean id="badeaPresidentInkReviewParser"
+    class="org.badea.correspondence.application.PresidentInkReviewParser" />
+<bean id="badeaPresidentPdfRenderer"
+    class="org.badea.correspondence.infrastructure.pdf.PdfBoxPresidentPdfRenderer" />
+
+<bean id="badeaPresidentGeneratedDocumentStore"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoPresidentGeneratedDocumentStore"
+    lazy-init="true">
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="contentService" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+    <constructor-arg ref="badeaCorrespondenceClock" />
+</bean>
+
+<bean id="badeaPresidentDocumentFinalizationService"
+    class="org.badea.correspondence.application.PresidentDocumentFinalizationService"
+    lazy-init="true">
+    <constructor-arg ref="badeaPresidentReviewStateRepository" />
+    <constructor-arg ref="badeaCorrespondenceDetailsRepository" />
+    <constructor-arg ref="badeaCorrespondenceDocumentContentRepository" />
+    <constructor-arg ref="badeaPresidentPdfRenderer" />
+    <constructor-arg ref="badeaPresidentGeneratedDocumentStore" />
+    <constructor-arg ref="badeaPresidentInkReviewParser" />
 </bean>
 
 <!--

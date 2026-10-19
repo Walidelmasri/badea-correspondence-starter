@@ -26,6 +26,7 @@ class CorrespondenceTransitionServiceTest {
     private CorrespondenceDepartmentService departmentService;
 
     private CorrespondenceTransitionService service;
+    private PresidentDocumentFinalizer finalizer;
 
     @BeforeEach
     void setUp() {
@@ -38,12 +39,15 @@ class CorrespondenceTransitionServiceTest {
                 mock(
                         CorrespondenceDepartmentService.class);
 
+        finalizer = mock(PresidentDocumentFinalizer.class);
+
         service =
                 new CorrespondenceTransitionService(
                         new CorrespondenceWorkflowService(),
                         new CorrespondenceAccessAuthorizer(),
                         departmentService,
-                        repository);
+                        repository,
+                        finalizer);
     }
 
     @Test
@@ -388,6 +392,41 @@ class CorrespondenceTransitionServiceTest {
                 never())
                 .requireDepartment(
                         org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void presidentSubmissionFinalizesBeforeChangingWorkflowState() {
+        TransitionCorrespondenceCommand command = command(
+                CorrespondenceActorRole.PRESIDENT, CorrespondenceAction.SEND_TO_OFFICE,
+                null, null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                new CorrespondenceAccessContext(CorrespondenceState.WITH_PRESIDENT,
+                        new DepartmentCode("117"), CorrespondenceActorRole.PRESIDENT, null));
+        assertEquals(CorrespondenceState.WITH_PRESIDENT_OFFICE, service.transition(command));
+        org.mockito.InOrder sequence = org.mockito.Mockito.inOrder(finalizer, repository);
+        sequence.verify(finalizer).finalizeSubmission(command);
+        sequence.verify(repository).applyTransition(command,
+                CorrespondenceState.WITH_PRESIDENT,
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                CorrespondenceActorRole.PRESIDENT_OFFICE);
+    }
+
+    @Test
+    void failedPresidentFinalizationNeverTransitions() {
+        TransitionCorrespondenceCommand command = command(
+                CorrespondenceActorRole.PRESIDENT, CorrespondenceAction.SEND_TO_OFFICE,
+                null, null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                new CorrespondenceAccessContext(CorrespondenceState.WITH_PRESIDENT,
+                        new DepartmentCode("117"), CorrespondenceActorRole.PRESIDENT, null));
+        org.mockito.Mockito.doThrow(new IllegalStateException("bad PDF"))
+                .when(finalizer).finalizeSubmission(command);
+        assertThrows(IllegalStateException.class, () -> service.transition(command));
+        verify(repository, never()).applyTransition(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     private static CorrespondenceAccessContext officeContext() {

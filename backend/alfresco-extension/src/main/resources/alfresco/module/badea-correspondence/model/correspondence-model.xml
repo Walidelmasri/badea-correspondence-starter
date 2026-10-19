@@ -338,6 +338,20 @@
 
         </type>
 
+        <!-- Immutable, auditable President-produced PDFs. Not original attachments. -->
+        <type name="bc:generatedDocument">
+            <title>President Generated PDF</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:generatedReviewRevision"><type>d:long</type><mandatory>true</mandatory></property>
+                <property name="bc:generatedArtifactType"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:generatedSourceDocumentNodeId"><type>d:text</type></property>
+                <property name="bc:generatedByEmployeeId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:generatedAt"><type>d:datetime</type><mandatory>true</mandatory></property>
+                <property name="bc:generatedSha256"><type>d:text</type><mandatory>true</mandatory></property>
+            </properties>
+        </type>
+
         <!-- Append-only Office completion snapshot, not a source attachment. -->
         <type name="bc:officeCompletionSnapshot">
             <title>Office Completion Audit Revision</title>

@@ -95,6 +95,28 @@ class CorrespondenceDocumentContentServiceTest {
     }
 
     @Test
+    void opensGeneratedDocumentOnlyWhenReturnedByAuthorizedCorrespondenceDetails() {
+        CorrespondenceDetails original = correspondenceDetails();
+        CorrespondenceGeneratedDocument generated = new CorrespondenceGeneratedDocument(
+                UNRELATED_DOCUMENT_ID, "president-annotated.pdf", "application/pdf",
+                8052L, "ANNOTATED_PDF", DOCUMENT_ID, 7L);
+        CorrespondenceDetails withGenerated = new CorrespondenceDetails(
+                original.technicalId(), original.state(), original.subject(),
+                original.bodyText(), original.documentNumber(), original.documentDate(),
+                original.sourceText(), original.originDepartmentCode(),
+                original.createdByNameEnglish(), original.createdByNameArabic(),
+                original.documents(), List.of(generated));
+        when(detailsService.getDetails(TECHNICAL_ID,
+                CorrespondenceActorRole.PRESIDENT_OFFICE, null)).thenReturn(withGenerated);
+        InputStream stream = new ByteArrayInputStream(new byte[]{1, 2});
+        when(contentRepository.openByNodeId(UNRELATED_DOCUMENT_ID)).thenReturn(stream);
+        CorrespondenceDocumentStream result = service.open(TECHNICAL_ID,
+                UNRELATED_DOCUMENT_ID, CorrespondenceActorRole.PRESIDENT_OFFICE, null);
+        assertEquals("president-annotated.pdf", result.filename());
+        assertSame(stream, result.content());
+    }
+
+    @Test
     void rejectsDocumentNotBelongingToCorrespondence() {
 
         when(detailsService.getDetails(

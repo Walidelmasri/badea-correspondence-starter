@@ -65,8 +65,12 @@ public final class CorrespondenceDocumentContentService {
          * An arbitrary valid Alfresco node ID is insufficient.
          */
         CorrespondenceDocument document =
-                correspondence.documents()
-                        .stream()
+                java.util.stream.Stream.concat(
+                        correspondence.documents().stream(),
+                        correspondence.generatedDocuments().stream()
+                                .map(generated -> new CorrespondenceDocument(
+                                        generated.nodeId(), generated.filename(),
+                                        generated.mimeType(), generated.sizeBytes())))
                         .filter(candidate ->
                                 candidate.nodeId()
                                         .equals(validatedNodeId))
