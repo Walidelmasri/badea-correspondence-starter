@@ -45,6 +45,27 @@ describe('CorrespondenceApiService', () => {
     );
   });
 
+  it('loads only Office completion, not President review state', () => {
+    service.getOfficeCompletion('test-id').subscribe();
+    const req = http.expectOne('/alfresco/service/badea/correspondence/test-id/office-completion');
+    expect(req.request.method).toBe('GET');
+    req.flush({ technicalId: 'test-id', revision: 0, presidentReviewRevision: 3, state: null,
+      updatedByEmployeeId: null, updatedByNameEnglish: null, updatedAt: null });
+  });
+
+  it('saves an Office-authored layer with both expected revisions', () => {
+    const state = { schemaVersion: 1 as const, selectedRecipientIds: ['117'],
+      selectedCopyRecipientIds: [], selectedActionCodes: [], otherRecipient: '',
+      otherAction: '', typedExplanation: '', officeNotes: '' };
+    service.saveOfficeCompletion('test-id', 2, 3, state).subscribe();
+    const req = http.expectOne('/alfresco/service/badea/correspondence/test-id/office-completion');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ expectedRevision: 2,
+      expectedPresidentReviewRevision: 3, state });
+    req.flush({ technicalId: 'test-id', revision: 3, presidentReviewRevision: 3, state,
+      updatedByEmployeeId: '99999', updatedByNameEnglish: 'Test User', updatedAt: '2026-10-19T10:00:00Z' });
+  });
+
   it('fetches live Inbox from Alfresco', () => {
     service.listMailbox('inbox', 0, 25).subscribe(result => {
       expect(result.total).toBe(0);

@@ -13,9 +13,11 @@ import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.NodeService;
 import org.alfresco.service.namespace.QName;
+import org.badea.correspondence.application.PresidentReturnEvidence;
 
 /** Reads immutable bc:workflowAction children, never source PDF attachments. */
-public final class AlfrescoCorrespondenceHistoryReader {
+public final class AlfrescoCorrespondenceHistoryReader
+        implements PresidentReturnEvidence {
     private static final String NS = "http://www.badea.org/model/correspondence/1.0";
     private static final QName TYPE_ACTION = q("workflowAction");
     private final NodeService nodes;
@@ -25,6 +27,23 @@ public final class AlfrescoCorrespondenceHistoryReader {
             NodeService nodes, CorrespondenceNodeLocator locator) {
         this.nodes = Objects.requireNonNull(nodes);
         this.locator = Objects.requireNonNull(locator);
+    }
+
+    /**
+     * Fail closed when the last persisted transition is not the President's
+     * handoff to Office.  Role, action and both states must all match.
+     */
+    @Override
+    public boolean latestActionIsPresidentReturn(String technicalId) {
+        List<ActionEntry> actions = list(technicalId);
+        if (actions.isEmpty()) {
+            return false;
+        }
+        ActionEntry last = actions.get(actions.size() - 1);
+        return "SEND_TO_OFFICE".equals(last.actionType())
+                && "PRESIDENT".equals(last.actorRole())
+                && "WITH_PRESIDENT".equals(last.fromState())
+                && "WITH_PRESIDENT_OFFICE".equals(last.toState());
     }
 
     public List<ActionEntry> list(String technicalId) {

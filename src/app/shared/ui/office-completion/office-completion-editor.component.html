@@ -1,0 +1,90 @@
+<section class="office-completion" aria-labelledby="office-completion-title">
+  <h3 id="office-completion-title">{{ labels().title }}</h3>
+  <p>{{ labels().description }}</p>
+  @if (loading()) {
+    <p role="status">{{ labels().loading }}</p>
+  } @else if (error()) {
+    <p role="alert">{{ labels().loadFailed }}</p>
+    <button type="button" (click)="load(technicalId())">{{ labels().reload }}</button>
+  } @else if (office(); as additions) {
+    @if (president(); as original) {
+      <section class="office-completion__original">
+        <h4>{{ labels().presidentOriginal }}</h4>
+        <div><strong>{{ labels().to }}</strong>
+          @for (id of original.selectedRecipientIds; track id) { <span class="office-tag">{{ name(id) }}</span> }
+        </div>
+        <div><strong>{{ labels().copy }}</strong>
+          @for (id of original.selectedCopyRecipientIds; track id) { <span class="office-tag">{{ name(id) }}</span> }
+        </div>
+        <div><strong>{{ labels().actionsTitle }}</strong>
+          @for (action of original.selectedActionCodes; track action) { <span class="office-tag">{{ actionLabel(action) }}</span> }
+        </div>
+        @if (original.typedExplanation) {
+          <div><strong>{{ labels().presidentExplanation }}</strong><p class="office-completion__text">{{ original.typedExplanation }}</p></div>
+        }
+        <p class="office-completion__hint">{{ labels().presidentInkHint }}</p>
+      </section>
+    }
+    <section class="office-completion__additions">
+      <h4>{{ labels().officeAdditions }}</h4>
+      <h5>{{ labels().to }}</h5>
+      <div class="office-completion__choices">
+        @for (department of departments(); track department.code) {
+          <label>
+            <input type="checkbox" [checked]="officeHas('selectedRecipientIds',department.code) || presidentHas('selectedRecipientIds',department.code)"
+              [disabled]="saving() || locked() || presidentHas('selectedRecipientIds',department.code)"
+              (change)="toggle('selectedRecipientIds',department.code)" />
+            {{ name(department.code) }}
+          </label>
+        }
+      </div>
+      <h5>{{ labels().copy }}</h5>
+      <div class="office-completion__choices">
+        @for (department of departments(); track department.code) {
+          <label>
+            <input type="checkbox" [checked]="officeHas('selectedCopyRecipientIds',department.code) || presidentHas('selectedCopyRecipientIds',department.code)"
+              [disabled]="saving() || locked() || presidentHas('selectedCopyRecipientIds',department.code)"
+              (change)="toggle('selectedCopyRecipientIds',department.code)" />
+            {{ name(department.code) }}
+          </label>
+        }
+      </div>
+      <h5>{{ labels().actionsTitle }}</h5>
+      <div class="office-completion__choices">
+        @for (action of actions; track action) {
+          <label>
+            <input type="checkbox" [checked]="officeHas('selectedActionCodes',action) || (president()?.selectedActionCodes?.includes(action) ?? false)"
+              [disabled]="saving() || locked() || (president()?.selectedActionCodes?.includes(action) ?? false)"
+              (change)="toggle('selectedActionCodes',action)" />
+            {{ actionLabel(action) }}
+          </label>
+        }
+      </div>
+      <label class="office-completion__field">{{ labels().otherRecipient }}
+        <input type="text" maxlength="2000" [value]="additions.otherRecipient"
+          [disabled]="saving() || locked()" (input)="change('otherRecipient',$event)" />
+      </label>
+      <label class="office-completion__field">{{ labels().otherAction }}
+        <input type="text" maxlength="2000" [value]="additions.otherAction"
+          [disabled]="saving() || locked()" (input)="change('otherAction',$event)" />
+      </label>
+      <label class="office-completion__field">{{ labels().additionalExplanation }}
+        <textarea maxlength="2000" rows="3" [value]="additions.typedExplanation"
+          [disabled]="saving() || locked()" (input)="change('typedExplanation',$event)"></textarea>
+      </label>
+      <label class="office-completion__field">{{ labels().officeNotes }}
+        <textarea maxlength="4000" rows="3" [value]="additions.officeNotes"
+          [disabled]="saving() || locked()" (input)="change('officeNotes',$event)"></textarea>
+      </label>
+      @if (notice(); as status) {
+        <p role="status">{{ labels().status[status] }}</p>
+      }
+      <div class="office-completion__footer">
+        <button type="button" class="office-completion__save" [disabled]="saving() || locked()" (click)="save()">
+          {{ saving() ? labels().saving : labels().save }}
+        </button>
+        @if (locked()) { <button type="button" (click)="load(technicalId())">{{ labels().reload }}</button> }
+      </div>
+    </section>
+  }
+</section>

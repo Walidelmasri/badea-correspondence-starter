@@ -11,10 +11,12 @@ public final class PresidentReviewService {
 
     private final CorrespondenceTransitionRepository correspondenceRepository;
     private final PresidentReviewStateRepository reviewStateRepository;
+    private final PresidentReturnEvidence returnEvidence;
 
     public PresidentReviewService(
             CorrespondenceTransitionRepository correspondenceRepository,
-            PresidentReviewStateRepository reviewStateRepository) {
+            PresidentReviewStateRepository reviewStateRepository,
+            PresidentReturnEvidence returnEvidence) {
 
         this.correspondenceRepository =
                 Objects.requireNonNull(
@@ -25,13 +27,17 @@ public final class PresidentReviewService {
                 Objects.requireNonNull(
                         reviewStateRepository,
                         "reviewStateRepository must not be null");
+
+        this.returnEvidence = Objects.requireNonNull(
+                returnEvidence,
+                "returnEvidence must not be null");
     }
 
     public Optional<PresidentReviewState> load(
             String technicalId,
             CorrespondenceActorRole actorRole) {
 
-        authorize(
+        authorizeLoad(
                 technicalId,
                 actorRole);
 
@@ -47,7 +53,7 @@ public final class PresidentReviewService {
                 command,
                 "command must not be null");
 
-        authorize(
+        authorizePresidentSave(
                 command.technicalId(),
                 actorRole);
 
@@ -55,7 +61,34 @@ public final class PresidentReviewService {
                 command);
     }
 
-    private void authorize(
+    private void authorizeLoad(
+            String technicalId,
+            CorrespondenceActorRole actorRole) {
+
+        Objects.requireNonNull(technicalId, "technicalId must not be null");
+        Objects.requireNonNull(actorRole, "actorRole must not be null");
+
+        CorrespondenceAccessContext context =
+                correspondenceRepository.getAccessContext(technicalId);
+
+        if (presidentCurrentlyAssigned(context, actorRole)) {
+            return;
+        }
+
+        if (actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE
+                && context.state() == CorrespondenceState.WITH_PRESIDENT_OFFICE
+                && context.assignedRole() == CorrespondenceActorRole.PRESIDENT_OFFICE
+                && returnEvidence.latestActionIsPresidentReturn(technicalId)) {
+            // Office may inspect the immutable President submission.
+            // Office completion must be recorded in a separate editable layer.
+            return;
+        }
+
+        throw new CorrespondenceAuthorizationException(
+                "The review is not assigned to this actor for reading.");
+    }
+
+    private void authorizePresidentSave(
             String technicalId,
             CorrespondenceActorRole actorRole) {
 
@@ -71,25 +104,17 @@ public final class PresidentReviewService {
                 correspondenceRepository.getAccessContext(
                         technicalId);
 
-        if (actorRole
-                != CorrespondenceActorRole.PRESIDENT) {
-
+        if (!presidentCurrentlyAssigned(context, actorRole)) {
             throw new CorrespondenceAuthorizationException(
-                    "Only the President may access President review state.");
+                    "Only the assigned President may save this review.");
         }
+    }
 
-        if (context.state()
-                != CorrespondenceState.WITH_PRESIDENT) {
-
-            throw new CorrespondenceAuthorizationException(
-                    "Correspondence is not currently with the President.");
-        }
-
-        if (context.assignedRole()
-                != CorrespondenceActorRole.PRESIDENT) {
-
-            throw new CorrespondenceAuthorizationException(
-                    "Correspondence is not assigned to the President.");
-        }
+    private static boolean presidentCurrentlyAssigned(
+            CorrespondenceAccessContext context,
+            CorrespondenceActorRole actorRole) {
+        return actorRole == CorrespondenceActorRole.PRESIDENT
+                && context.state() == CorrespondenceState.WITH_PRESIDENT
+                && context.assignedRole() == CorrespondenceActorRole.PRESIDENT;
     }
 }

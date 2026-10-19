@@ -126,6 +126,9 @@
               </ol>
             }
           </section>
+          @if (canCompleteOfficeReview()) {
+            <app-office-completion-editor [technicalId]="full.technicalId" />
+          }
           @if (canForwardToPresident()) {
             <button class="mailbox-action" type="button"
               [disabled]="forwarding()"

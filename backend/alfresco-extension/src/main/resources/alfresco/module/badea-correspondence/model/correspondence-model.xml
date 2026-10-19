@@ -208,6 +208,13 @@
     <title>President Review Updated At</title>
     <type>d:datetime</type>
 </property>
+
+<!-- Office state is distinct from the President's submitted review. -->
+<property name="bc:officeCompletionCurrentRevision">
+    <title>Office Completion Current Revision</title>
+    <type>d:long</type>
+    <mandatory>false</mandatory>
+</property>
             </properties>
 
         </type>
@@ -331,6 +338,44 @@
 
         </type>
 
+        <!-- Append-only Office completion snapshot, not a source attachment. -->
+        <type name="bc:officeCompletionSnapshot">
+            <title>Office Completion Audit Revision</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:officeSnapshotRevision">
+                    <type>d:long</type>
+                    <mandatory>true</mandatory>
+                </property>
+                <property name="bc:officePresidentReviewRevision">
+                    <type>d:long</type>
+                    <mandatory>true</mandatory>
+                </property>
+                <property name="bc:officeActorEmployeeId">
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+                <property name="bc:officeActorRole">
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+                <property name="bc:officeActorNameEnglish">
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+                <property name="bc:officeActorNameArabic">
+                    <type>d:text</type>
+                </property>
+                <property name="bc:officeActedAt">
+                    <type>d:datetime</type>
+                    <mandatory>true</mandatory>
+                </property>
+                <property name="bc:officeSnapshotSha256">
+                    <type>d:text</type>
+                    <mandatory>true</mandatory>
+                </property>
+            </properties>
+        </type>
     </types>
 
 </model>

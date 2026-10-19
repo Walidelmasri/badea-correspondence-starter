@@ -25,6 +25,7 @@ class PresidentReviewServiceTest {
 
     private CorrespondenceTransitionRepository correspondenceRepository;
     private PresidentReviewStateRepository reviewStateRepository;
+    private PresidentReturnEvidence returnEvidence;
 
     private PresidentReviewService service;
 
@@ -38,11 +39,13 @@ class PresidentReviewServiceTest {
         reviewStateRepository =
                 mock(
                         PresidentReviewStateRepository.class);
+        returnEvidence = mock(PresidentReturnEvidence.class);
 
         service =
                 new PresidentReviewService(
                         correspondenceRepository,
-                        reviewStateRepository);
+                        reviewStateRepository,
+                        returnEvidence);
     }
 
     @Test
@@ -258,6 +261,58 @@ class PresidentReviewServiceTest {
                 never())
                 .save(
                         command);
+    }
+
+    @Test
+    void officeCanReadReturnedPresidentReview() {
+        PresidentReviewState saved = new PresidentReviewState(
+                4L, "{\"schemaVersion\":1}");
+        when(correspondenceRepository.getAccessContext(TECHNICAL_ID))
+                .thenReturn(officeContext());
+        when(returnEvidence.latestActionIsPresidentReturn(TECHNICAL_ID))
+                .thenReturn(true);
+        when(reviewStateRepository.find(TECHNICAL_ID))
+                .thenReturn(Optional.of(saved));
+
+        assertEquals(saved,
+                service.load(TECHNICAL_ID,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE).orElseThrow());
+        verify(reviewStateRepository).find(TECHNICAL_ID);
+    }
+
+    @Test
+    void officeCannotReadReviewOnInitialDirectorHandoff() {
+        when(correspondenceRepository.getAccessContext(TECHNICAL_ID))
+                .thenReturn(officeContext());
+        when(returnEvidence.latestActionIsPresidentReturn(TECHNICAL_ID))
+                .thenReturn(false);
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> service.load(TECHNICAL_ID,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE));
+        verify(reviewStateRepository, never()).find(TECHNICAL_ID);
+    }
+
+    @Test
+    void officeCannotOverwritePresidentReviewAfterReturn() {
+        when(correspondenceRepository.getAccessContext(TECHNICAL_ID))
+                .thenReturn(officeContext());
+        SavePresidentReviewStateCommand overwrite = new SavePresidentReviewStateCommand(
+                TECHNICAL_ID, 4L, new EmployeeId("18280"),
+                "{\"schemaVersion\":1}");
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> service.save(overwrite,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE));
+        verify(reviewStateRepository, never()).save(overwrite);
+    }
+
+    private static CorrespondenceAccessContext officeContext() {
+        return new CorrespondenceAccessContext(
+                CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                new DepartmentCode("117"),
+                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null);
     }
 
     private static CorrespondenceAccessContext presidentContext() {

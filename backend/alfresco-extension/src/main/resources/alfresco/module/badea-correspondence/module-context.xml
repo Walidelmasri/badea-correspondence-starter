@@ -328,6 +328,9 @@
 
     <constructor-arg
         ref="badeaPresidentReviewStateRepository" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceHistoryReader" />
 </bean>
 
 <!--
@@ -626,4 +629,33 @@
         <constructor-arg ref="badeaCorrespondenceDetailsService" />
         <constructor-arg ref="badeaCorrespondenceHistoryReader" />
     </bean>
+<!-- Office-authored additions are distinct from the President review state. -->
+<bean id="badeaOfficeCompletionRepository"
+      class="org.badea.correspondence.infrastructure.alfresco.AlfrescoOfficeCompletionRepository">
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="contentService" />
+    <constructor-arg ref="permissionService" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+    <constructor-arg ref="badeaCorrespondenceClock" />
+</bean>
+<bean id="badeaOfficeCompletionService"
+      class="org.badea.correspondence.application.OfficeCompletionService">
+    <constructor-arg ref="badeaCorrespondenceRepository" />
+    <constructor-arg ref="badeaCorrespondenceHistoryReader" />
+    <constructor-arg ref="badeaPresidentReviewStateRepository" />
+    <constructor-arg ref="badeaOfficeCompletionRepository" />
+</bean>
+<bean id="webscript.org.badea.correspondence.office-completion.get"
+      class="org.badea.correspondence.webscript.GetOfficeCompletionWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaOfficeCompletionService" />
+</bean>
+<bean id="webscript.org.badea.correspondence.office-completion.put"
+      class="org.badea.correspondence.webscript.SaveOfficeCompletionWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaOfficeCompletionService" />
+</bean>
 </beans>

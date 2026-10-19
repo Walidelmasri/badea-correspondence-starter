@@ -23,13 +23,18 @@ import {
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
+import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 
 const PAGE_SIZE = 25;
 
 @Component({
   selector: 'app-real-mailbox',
   standalone: true,
-  imports: [CorrespondenceWorkspaceComponent, CorrespondenceDocumentPreviewComponent],
+  imports: [
+    CorrespondenceWorkspaceComponent,
+    CorrespondenceDocumentPreviewComponent,
+    OfficeCompletionEditorComponent,
+  ],
   templateUrl: './real-mailbox.component.html',
   styleUrl: './real-mailbox.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,6 +84,18 @@ export class RealMailboxComponent implements OnInit {
       this.history(),
     ),
   );
+
+  readonly canCompleteOfficeReview = computed(() => {
+    if (this.box() !== 'inbox'
+        || this.session.currentUser()?.employeeProfile?.correspondenceRole !== 'PRESIDENT_OFFICE'
+        || this.details()?.state !== 'WITH_PRESIDENT_OFFICE') return false;
+    const actions = this.history();
+    if (!actions?.length) return false;
+    const last = actions[actions.length - 1];
+    return last.actionType === 'SEND_TO_OFFICE' && last.actorRole === 'PRESIDENT'
+      && last.fromState === 'WITH_PRESIDENT'
+      && last.toState === 'WITH_PRESIDENT_OFFICE';
+  });
 
   readonly canReview = computed(() => this.box() === 'inbox'
     && this.details()?.state === 'WITH_PRESIDENT'

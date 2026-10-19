@@ -112,6 +112,27 @@ export interface CorrespondenceTransitionResult {
   readonly state: CorrespondenceDetails['state'];
 }
 
+/** Office-only supplemental layer. These selections are additions, not replacements. */
+export interface OfficeCompletionDraft {
+  readonly schemaVersion: 1;
+  readonly selectedRecipientIds: readonly string[];
+  readonly selectedCopyRecipientIds: readonly string[];
+  readonly selectedActionCodes: readonly string[];
+  readonly otherRecipient: string;
+  readonly otherAction: string;
+  readonly typedExplanation: string;
+  readonly officeNotes: string;
+}
+export interface OfficeCompletionSnapshot {
+  readonly technicalId: string;
+  readonly revision: number;
+  readonly presidentReviewRevision: number;
+  readonly state: OfficeCompletionDraft | null;
+  readonly updatedByEmployeeId: string | null;
+  readonly updatedByNameEnglish: string | null;
+  readonly updatedAt: string | null;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -127,6 +148,21 @@ export class CorrespondenceApiService {
       request,
     );
   }
+  getOfficeCompletion(technicalId: string): Observable<OfficeCompletionSnapshot> {
+    return this.http.get<OfficeCompletionSnapshot>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/office-completion`,
+    );
+  }
+
+  saveOfficeCompletion(technicalId: string, expectedRevision: number,
+      expectedPresidentReviewRevision: number, state: OfficeCompletionDraft):
+      Observable<OfficeCompletionSnapshot> {
+    return this.http.put<OfficeCompletionSnapshot>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/office-completion`,
+      { expectedRevision, expectedPresidentReviewRevision, state },
+    );
+  }
+
   getHistory(technicalId: string): Observable<CorrespondenceHistoryPage> {
     return this.http.get<CorrespondenceHistoryPage>(
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/history`,
