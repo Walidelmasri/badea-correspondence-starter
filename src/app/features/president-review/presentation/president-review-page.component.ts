@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import {
   takeUntilDestroyed,
@@ -20,14 +20,22 @@ import {
 
 import {
   catchError,
+  forkJoin,
+  firstValueFrom,
   map,
   of,
   Subscription,
+  switchMap,
 } from 'rxjs';
 
 import {
   CorrespondenceService,
 } from '../../../core/correspondence/correspondence.service';
+
+import {
+  CorrespondenceApiService,
+  CorrespondenceDetails,
+} from '../../../shared/data-access/correspondence-api.service';
 
 import {
   TranslationService,
@@ -99,6 +107,8 @@ export class PresidentReviewPageComponent {
     inject(CorrespondenceService);
 
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly api = inject(CorrespondenceApiService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly pdfWorkspace =
@@ -108,6 +118,17 @@ export class PresidentReviewPageComponent {
    * Null means the existing standalone demonstration route.
    */
   readonly technicalId = signal<string | null>(null);
+
+  /** Only the real route uses Alfresco data; the standalone iPad demo is unchanged. */
+  readonly correspondenceDetails = signal<CorrespondenceDetails | null>(null);
+  readonly correspondenceLoaded = signal(true);
+  readonly correspondenceLoadError = signal(false);
+  readonly handoffInProgress = signal(false);
+  readonly handoffUncertain = signal(false);
+  readonly handoffError = signal(false);
+
+  private detailsRequest: Subscription | null = null;
+  private readonly pdfObjectUrls = new Set<string>();
 
   readonly revision = signal(0);
   readonly reviewLoaded = signal(true);
@@ -138,6 +159,22 @@ export class PresidentReviewPageComponent {
       const arabic =
         this.translation.language() === 'ar';
 
+      if (this.technicalId() !== null) {
+        const details = this.correspondenceDetails();
+        return {
+          reference: details?.documentNumber || '',
+          dateLabel: details?.documentDate || '',
+          subject: details?.subject || '',
+          senderName: details
+            ? (arabic
+              ? details.createdByNameArabic || details.createdByNameEnglish
+              : details.createdByNameEnglish)
+            : null,
+          senderDepartment: details?.sourceText || details?.originDepartmentCode || null,
+          message: details?.bodyText || null,
+        };
+      }
+
       return {
         reference: 'PR-2026-0184',
         dateLabel: '30 Sep 2026',
@@ -154,7 +191,7 @@ export class PresidentReviewPageComponent {
       };
     });
 
-  readonly attachments:
+  private readonly demonstrationAttachments:
     readonly PresidentReviewAttachment[] = [
       {
         id: 'main-letter',
@@ -181,6 +218,18 @@ export class PresidentReviewPageComponent {
         src: '/pdf/local/report-badea.pdf',
       },
     ];
+
+  /**
+   * The PDF's Alfresco node ID is its stable ink document key.
+   * Never use filename, URL or array index: they can change.
+   */
+  private readonly liveAttachments = signal<readonly PresidentReviewAttachment[]>([]);
+
+  readonly attachments = computed(() =>
+    this.technicalId() === null
+      ? this.demonstrationAttachments
+      : this.liveAttachments(),
+  );
 
   /**
    * Departments come from the backend Oracle directory.
@@ -277,7 +326,7 @@ export class PresidentReviewPageComponent {
     ];
 
   readonly activeAttachmentId =
-    signal(this.attachments[0].id);
+    signal<string | null>(this.demonstrationAttachments[0].id);
 
   readonly explanationMode =
     signal<PresidentReviewExplanationMode>('pen');
@@ -307,12 +356,9 @@ export class PresidentReviewPageComponent {
   readonly otherAction = signal('');
 
   readonly activeAttachment = computed(() => {
-    return (
-      this.attachments.find(
-        (attachment) =>
-          attachment.id === this.activeAttachmentId(),
-      ) ?? this.attachments[0]
-    );
+    return this.attachments().find(
+      (attachment) => attachment.id === this.activeAttachmentId(),
+    ) ?? this.attachments()[0] ?? null;
   });
 
   readonly visibleActions = computed(() => {
@@ -336,12 +382,13 @@ export class PresidentReviewPageComponent {
    * Loading and persistence errors are separate operational concerns.
    */
   readonly canHandoff = computed(() =>
-    this.technicalId() === null ||
-    (
-      this.reviewLoaded() &&
-      this.reviewSaveStatus() !== 'conflict' &&
-      this.reviewSaveStatus() !== 'error'
-    ),
+    this.technicalId() !== null &&
+    this.correspondenceLoaded() &&
+    this.reviewLoaded() &&
+    !this.handoffInProgress() &&
+    !this.handoffUncertain() &&
+    this.reviewSaveStatus() !== 'conflict' &&
+    this.reviewSaveStatus() !== 'error',
   );
 
   constructor() {
@@ -386,6 +433,8 @@ export class PresidentReviewPageComponent {
       this.clearSaveTimer();
       this.loadRequest?.unsubscribe();
       this.saveRequest?.unsubscribe();
+      this.detailsRequest?.unsubscribe();
+      this.releasePdfUrls();
     });
   }
 
@@ -410,7 +459,9 @@ export class PresidentReviewPageComponent {
   }
 
   selectAttachment(id: string): void {
-    this.activeAttachmentId.set(id);
+    if (this.attachments().some((attachment) => attachment.id === id)) {
+      this.activeAttachmentId.set(id);
+    }
   }
 
   setExplanationMode(
@@ -535,7 +586,7 @@ export class PresidentReviewPageComponent {
      * PDF annotations belong to individual attachment IDs.
      * Preserve the PDF page number inside each stroke.
      */
-    const documents = this.attachments
+    const documents = this.attachments()
       .map(
         (attachment): PresidentReviewPdfInkDocument => ({
           documentKey: attachment.id,
@@ -548,7 +599,7 @@ export class PresidentReviewPageComponent {
      * Don't discard data associated with another stored document.
      */
     const activeKeys = new Set(
-      this.attachments.map((item) => item.id),
+      this.attachments().map((item) => item.id),
     );
 
     const otherDocuments = this.pdfInkDocuments()
@@ -567,11 +618,16 @@ export class PresidentReviewPageComponent {
   retryLoad(): void {
     const technicalId = this.technicalId();
 
-    if (!technicalId || this.reviewLoaded()) {
+    if (!technicalId) {
       return;
     }
 
-    this.loadPresidentReview(technicalId);
+    if (!this.correspondenceLoaded()) {
+      this.loadCorrespondence(technicalId);
+    }
+    if (!this.reviewLoaded()) {
+      this.loadPresidentReview(technicalId);
+    }
   }
 
   retrySave(): void {
@@ -586,19 +642,79 @@ export class PresidentReviewPageComponent {
   }
 
   /**
-   * Workflow transition is intentionally NOT enabled yet.
-   *
-   * Final handoff must flush persistence successfully and
-   * only then transition the correspondence to the Office.
+   * Save and confirm the entire President review before transferring control.
+   * Every action-sheet field remains optional.
    */
-  handoff(): void {
-    if (!this.canHandoff()) {
+  async handoff(): Promise<void> {
+    const id = this.technicalId();
+    if (!id || !this.canHandoff()) {
       return;
     }
 
-    /*
-     * Do not perform SEND_TO_OFFICE yet.
-     */
+    const confirmation = this.translation.text().presidentReview.confirmReturn;
+    if (!window.confirm(confirmation)) {
+      return;
+    }
+
+    this.handoffInProgress.set(true);
+    this.handoffError.set(false);
+    this.clearSaveTimer();
+
+    try {
+      if (!await this.ensureReviewPersisted(id)) {
+        this.handoffError.set(true);
+        return;
+      }
+
+      const result = await firstValueFrom(
+        this.correspondenceService.transition(id, {
+          action: 'SEND_TO_OFFICE',
+        }),
+      );
+
+      if (result.technicalId !== id || result.state !== 'WITH_PRESIDENT_OFFICE') {
+        this.handoffUncertain.set(true);
+        return;
+      }
+      await this.router.navigate(['/inbox']);
+    } catch (error: unknown) {
+      // A lost transition response may mean that the handoff committed.
+      // Do not automatically repeat SEND_TO_OFFICE.
+      this.handoffUncertain.set(
+        error instanceof HttpErrorResponse &&
+        (error.status === 0 || error.status >= 500),
+      );
+      this.handoffError.set(true);
+    } finally {
+      this.handoffInProgress.set(false);
+    }
+  }
+
+  private async ensureReviewPersisted(id: string): Promise<boolean> {
+    // Preserve the established optimistic revision/autosave machinery.
+    if (!this.saveInFlight) {
+      this.flushAutosave();
+    }
+    const deadline = Date.now() + 20000;
+
+    while (Date.now() < deadline && id === this.technicalId()) {
+      const status = this.reviewSaveStatus();
+      if (status === 'conflict' || status === 'error') {
+        return false;
+      }
+
+      if (!this.saveInFlight && this.saveTimer === null) {
+        if (
+          this.lastPersistedStateJson ===
+          this.serializeDraftState(this.currentDraftState())
+        ) {
+          return true;
+        }
+        this.flushAutosave();
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 80));
+    }
+    return false;
   }
 
   private activateReview(
@@ -608,6 +724,19 @@ export class PresidentReviewPageComponent {
 
     this.loadRequest?.unsubscribe();
     this.saveRequest?.unsubscribe();
+    this.detailsRequest?.unsubscribe();
+    this.releasePdfUrls();
+
+    this.correspondenceDetails.set(null);
+    this.liveAttachments.set([]);
+    this.correspondenceLoaded.set(technicalId === null);
+    this.correspondenceLoadError.set(false);
+    this.handoffError.set(false);
+    this.handoffInProgress.set(false);
+    this.handoffUncertain.set(false);
+    this.activeAttachmentId.set(
+      technicalId === null ? this.demonstrationAttachments[0].id : null,
+    );
 
     this.saveInFlight = false;
     this.lastPersistedStateJson = null;
@@ -629,8 +758,89 @@ export class PresidentReviewPageComponent {
     );
 
     if (technicalId !== null) {
+      this.loadCorrespondence(technicalId);
       this.loadPresidentReview(technicalId);
     }
+  }
+
+  /**
+   * For real correspondence, fail closed until authenticated PDFs arrive.
+   * Keep object URLs private; never put authentication tickets into PDF URLs.
+   */
+  private loadCorrespondence(technicalId: string): void {
+    this.detailsRequest?.unsubscribe();
+    this.correspondenceLoaded.set(false);
+    this.correspondenceLoadError.set(false);
+
+    this.detailsRequest = this.api.getDetails(technicalId).pipe(
+      switchMap((details) => {
+        if (
+          details.technicalId !== technicalId ||
+          details.state !== 'WITH_PRESIDENT'
+        ) {
+          throw new Error('Correspondence is not assigned to the President.');
+        }
+        const pdfs = details.documents;
+        if (pdfs.some((document) => document.mimeType !== 'application/pdf')) {
+          throw new Error('Unsupported correspondence attachment.');
+        }
+        return pdfs.length === 0
+          ? of({ details, pdfs: [] as Blob[] })
+          : forkJoin(
+              pdfs.map((document) => this.api.getDocumentContent(
+                technicalId, document.nodeId,
+              )),
+            ).pipe(map((blobs) => ({ details, pdfs: blobs })));
+      }),
+    ).subscribe({
+      next: ({ details, pdfs }) => {
+        if (this.technicalId() !== technicalId) {
+          return;
+        }
+        if (pdfs.some((pdf) => pdf.size === 0 || pdf.type !== 'application/pdf')) {
+          this.correspondenceLoadError.set(true);
+          return;
+        }
+        const attachments: PresidentReviewAttachment[] = [];
+        try {
+          for (let index = 0; index < details.documents.length; index++) {
+            const document = details.documents[index];
+            const src = URL.createObjectURL(pdfs[index]);
+            this.pdfObjectUrls.add(src);
+            attachments.push({
+              id: document.nodeId,
+              filename: document.filename,
+              nameAr: document.filename,
+              nameEn: document.filename,
+              sizeLabel: `${(document.sizeBytes / (1024 * 1024)).toFixed(2)} MiB`,
+              src,
+            });
+          }
+        } catch {
+          this.releasePdfUrls();
+          this.correspondenceLoadError.set(true);
+          return;
+        }
+        this.correspondenceDetails.set(details);
+        this.liveAttachments.set(attachments);
+        this.activeAttachmentId.set(attachments[0]?.id ?? null);
+        this.correspondenceLoaded.set(true);
+        // The review snapshot may have loaded before real attachment IDs.
+        this.restorePdfInkDocuments(this.pdfInkDocuments());
+      },
+      error: () => {
+        if (this.technicalId() === technicalId) {
+          this.correspondenceLoadError.set(true);
+        }
+      },
+    });
+  }
+
+  private releasePdfUrls(): void {
+    for (const url of this.pdfObjectUrls) {
+      URL.revokeObjectURL(url);
+    }
+    this.pdfObjectUrls.clear();
   }
 
   private loadPresidentReview(
@@ -751,7 +961,7 @@ export class PresidentReviewPageComponent {
      * Explicitly restore empty lists too, so an
      * old correspondence's ink cannot leak into another.
      */
-    const complete = this.attachments.map(
+    const complete = this.attachments().map(
       (
         attachment,
       ): PresidentReviewPdfInkDocument => ({

@@ -95,9 +95,25 @@
         </div>
     </header>
 
+    @if (technicalId() && !correspondenceLoaded() && !correspondenceLoadError()) {
+        <p role="status">{{ translation.text().presidentReview.loadingDocuments }}</p>
+    }
+    @if (correspondenceLoadError()) {
+        <div role="alert">
+            <p>{{ translation.text().presidentReview.loadDocumentsFailed }}</p>
+            <button type="button" (click)="retryLoad()">
+                {{ translation.text().presidentReview.retryLoadDocuments }}
+            </button>
+        </div>
+    }
+
     <div
         class="president-review__workspace"
-        [attr.inert]="technicalId() && !reviewLoaded() ? '' : null"
+        [attr.inert]="
+            technicalId() &&
+            (!reviewLoaded() || !correspondenceLoaded() || handoffInProgress())
+                ? '' : null
+        "
     >
         <main class="document-desk">
             <app-correspondence-summary
@@ -131,13 +147,13 @@
                     </div>
 
                     <span class="attachment-count">
-                        {{ attachments.length }}
+                        {{ attachments().length }}
                     </span>
                 </div>
 
                 <div class="attachment-rail" role="list">
                     @for (
-                        attachment of attachments;
+                        attachment of attachments();
                         track attachment.id
                     ) {
                         <button
@@ -176,14 +192,16 @@
                 </div>
             </section>
 
-            <section class="pdf-stage">
-                <app-pdf-workspace
-                    [src]="activeAttachment().src"
-                    [filename]="activeAttachment().filename"
-                    [documentKey]="activeAttachment().id"
-                    (inkStateChanged)="onPdfInkStateChanged()"
-                />
-            </section>
+            @if (activeAttachment(); as attachment) {
+                <section class="pdf-stage">
+                    <app-pdf-workspace
+                        [src]="attachment.src"
+                        [filename]="attachment.filename"
+                        [documentKey]="attachment.id"
+                        (inkStateChanged)="onPdfInkStateChanged()"
+                    />
+                </section>
+            }
 
             <section class="explanation-card">
                 <header class="explanation-card__header">
@@ -495,6 +513,9 @@
             </section>
 
             <footer class="decision-panel__footer">
+                @if (handoffError() || handoffUncertain()) {
+                    <p role="alert">{{ translation.text().presidentReview.handoffNotConfirmed }}</p>
+                }
                 <button
                     class="handoff-button"
                     type="button"
