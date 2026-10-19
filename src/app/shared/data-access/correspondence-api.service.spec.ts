@@ -47,7 +47,7 @@ describe('CorrespondenceApiService', () => {
 
   it('loads only Office completion, not President review state', () => {
     service.getOfficeCompletion('test-id').subscribe();
-    const req = http.expectOne('/alfresco/service/badea/correspondence/test-id/office-completion');
+    const req = http.expectOne('/alfresco/service/badea/office-completion/test-id');
     expect(req.request.method).toBe('GET');
     req.flush({ technicalId: 'test-id', revision: 0, presidentReviewRevision: 3, state: null,
       updatedByEmployeeId: null, updatedByNameEnglish: null, updatedAt: null });
@@ -58,7 +58,7 @@ describe('CorrespondenceApiService', () => {
       selectedCopyRecipientIds: [], selectedActionCodes: [], otherRecipient: '',
       otherAction: '', typedExplanation: '', officeNotes: '' };
     service.saveOfficeCompletion('test-id', 2, 3, state).subscribe();
-    const req = http.expectOne('/alfresco/service/badea/correspondence/test-id/office-completion');
+    const req = http.expectOne('/alfresco/service/badea/office-completion/test-id');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ expectedRevision: 2,
       expectedPresidentReviewRevision: 3, state });

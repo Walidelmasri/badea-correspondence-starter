@@ -15,6 +15,9 @@ import {
 const CORRESPONDENCE_URL =
   '/alfresco/service/badea/correspondence';
 
+const OFFICE_COMPLETION_URL =
+  '/alfresco/service/badea/office-completion';
+
 export interface CreateCorrespondenceDraft {
   readonly subject: string;
   readonly bodyText: string | null;
@@ -150,7 +153,7 @@ export class CorrespondenceApiService {
   }
   getOfficeCompletion(technicalId: string): Observable<OfficeCompletionSnapshot> {
     return this.http.get<OfficeCompletionSnapshot>(
-      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/office-completion`,
+      `${OFFICE_COMPLETION_URL}/${encodeURIComponent(technicalId)}`,
     );
   }
 
@@ -158,7 +161,7 @@ export class CorrespondenceApiService {
       expectedPresidentReviewRevision: number, state: OfficeCompletionDraft):
       Observable<OfficeCompletionSnapshot> {
     return this.http.put<OfficeCompletionSnapshot>(
-      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/office-completion`,
+      `${OFFICE_COMPLETION_URL}/${encodeURIComponent(technicalId)}`,
       { expectedRevision, expectedPresidentReviewRevision, state },
     );
   }

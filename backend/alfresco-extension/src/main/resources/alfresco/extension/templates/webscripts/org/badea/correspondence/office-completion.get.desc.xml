@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <webscript>
     <shortname>Read BADEA Office Completion</shortname>
-    <url>/badea/correspondence/{technicalId}/office-completion</url>
+    <url>/badea/office-completion/{technicalId}</url>
     <authentication>user</authentication>
     <transaction>readonly</transaction>
     <format default="json">argument</format>
