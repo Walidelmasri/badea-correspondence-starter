@@ -344,6 +344,7 @@
             <parent>cm:content</parent>
             <properties>
                 <property name="bc:generatedReviewRevision"><type>d:long</type><mandatory>true</mandatory></property>
+                <property name="bc:generatedOfficeRevision"><type>d:long</type></property>
                 <property name="bc:generatedArtifactType"><type>d:text</type><mandatory>true</mandatory></property>
                 <property name="bc:generatedSourceDocumentNodeId"><type>d:text</type></property>
                 <property name="bc:generatedByEmployeeId"><type>d:text</type><mandatory>true</mandatory></property>
@@ -352,6 +353,27 @@
             </properties>
         </type>
 
+        <!-- One correspondence can have independent, persistent TO/COPY assignments. -->
+        <type name="bc:departmentAssignment">
+            <title>Departmental Correspondence Assignment</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:assignmentId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentDispatchId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentDepartmentCode"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentRecipientType"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentStatus"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentByEmployeeId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentAt"><type>d:datetime</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentCompletedByEmployeeId"><type>d:text</type></property>
+                <property name="bc:assignmentCompletedAt"><type>d:datetime</type></property>
+                <property name="bc:assignmentResponseText"><type>d:text</type></property>
+                <property name="bc:assignmentPresidentRevision"><type>d:long</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentOfficeRevision"><type>d:long</type><mandatory>true</mandatory></property>
+            </properties>
+        </type>
+
+        <!-- Revision provenance for official action-sheet generation. -->
         <!-- Append-only Office completion snapshot, not a source attachment. -->
         <type name="bc:officeCompletionSnapshot">
             <title>Office Completion Audit Revision</title>

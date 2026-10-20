@@ -24,6 +24,12 @@ public enum CorrespondenceAction {
      */
     SEND_TO_DIRECTOR,
 
+    /** Immutable Office fan-out to multiple independent departmental assignments. */
+    DISTRIBUTE_TO_DEPARTMENTS,
+
+    /** One Director's independently completed TO assignment; parent remains active. */
+    COMPLETE_DEPARTMENT_ASSIGNMENT,
+
     /**
      * President or Director completes the correspondence.
      */

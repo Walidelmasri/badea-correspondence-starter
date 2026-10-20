@@ -136,6 +136,35 @@
               </ul>
             </section>
           }
+          @if (assignments().length > 0) {
+            <section class="mailbox-detail__section">
+              <h3>{{ labels().departmentAssignments }}</h3>
+              <ul class="mailbox-files">
+                @for (assignment of assignments(); track assignment.assignmentId) {
+                  <li>
+                    <strong>{{ assignment.departmentCode }}</strong>
+                    <span>{{ assignment.recipientType === 'TO' ? labels().assignmentTo : labels().assignmentCopy }}</span>
+                    <span>{{ assignment.recipientType === 'COPY' ? labels().assignmentCopy : (assignment.status === 'COMPLETED' ? labels().assignmentCompleted : labels().assignmentPending) }}</span>
+                    @if (assignment.responseText) { <p>{{ assignment.responseText }}</p> }
+                  </li>
+                }
+              </ul>
+              @if (myActionableAssignment()) {
+                <label>{{ labels().assignmentResponse }}
+                  <textarea rows="3" maxlength="10000" [value]="assignmentResponse()"
+                    [disabled]="completingAssignment()"
+                    (input)="updateAssignmentResponse($event)"></textarea>
+                </label>
+                <button type="button" class="mailbox-action"
+                  [disabled]="completingAssignment() || !assignmentResponse().trim()"
+                  (click)="completeDepartmentAssignment()">
+                  {{ completingAssignment() ? labels().assignmentSending : labels().assignmentCompleteAction }}
+                </button>
+                @if (assignmentNotice() === 'failed') { <p role="alert">{{ labels().assignmentFailed }}</p> }
+                @if (assignmentNotice() === 'uncertain') { <p role="alert">{{ labels().assignmentUncertain }}</p> }
+              }
+            </section>
+          }
           <section class="mailbox-detail__section">
             <h3>{{ labels().historyTitle }}</h3>
             @if (historyLoading()) {
@@ -158,7 +187,8 @@
             }
           </section>
           @if (canCompleteOfficeReview()) {
-            <app-office-completion-editor [technicalId]="full.technicalId" />
+            <app-office-completion-editor [technicalId]="full.technicalId"
+              (dispatched)="loadPage(0)" />
           }
           @if (canForwardToPresident()) {
             <button class="mailbox-action" type="button"

@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Dispatch completed Office correspondence to departments</shortname>
+    <description>Persist official action sheet and independent To/Copy departmental assignments</description>
+    <url>/badea/office-dispatch/{technicalId}</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>

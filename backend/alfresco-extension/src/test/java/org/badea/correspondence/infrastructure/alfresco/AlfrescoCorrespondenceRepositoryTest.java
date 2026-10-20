@@ -223,6 +223,12 @@ class AlfrescoCorrespondenceRepositoryTest {
 
         when(nodeService.getProperty(
                 correspondence,
+                qname("technicalId")))
+                .thenReturn(
+                        TECHNICAL_ID);
+
+        when(nodeService.getProperty(
+                correspondence,
                 qname("state")))
                 .thenReturn(
                         CorrespondenceState.WITH_DIRECTOR.name());

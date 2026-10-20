@@ -12,12 +12,19 @@ public record CorrespondenceAccessContext(
         DepartmentCode originDepartmentCode,
         CorrespondenceActorRole assignedRole,
         DepartmentCode assignedDepartmentCode,
-        List<CorrespondenceParticipation> participation) {
+        List<CorrespondenceParticipation> participation,
+        List<DepartmentAssignment> assignments) {
 
     public CorrespondenceAccessContext(CorrespondenceState state,
             DepartmentCode originDepartmentCode,
             CorrespondenceActorRole assignedRole, DepartmentCode assignedDepartmentCode) {
-        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode, List.of());
+        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode, List.of(), List.of());
+    }
+
+    public CorrespondenceAccessContext(CorrespondenceState state,
+            DepartmentCode originDepartmentCode, CorrespondenceActorRole assignedRole,
+            DepartmentCode assignedDepartmentCode, List<CorrespondenceParticipation> participation) {
+        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode, participation, List.of());
     }
 
     public CorrespondenceAccessContext {
@@ -30,5 +37,6 @@ public record CorrespondenceAccessContext(
                 originDepartmentCode,
                 "originDepartmentCode must not be null");
         participation = List.copyOf(Objects.requireNonNull(participation));
+        assignments = List.copyOf(Objects.requireNonNull(assignments));
     }
 }

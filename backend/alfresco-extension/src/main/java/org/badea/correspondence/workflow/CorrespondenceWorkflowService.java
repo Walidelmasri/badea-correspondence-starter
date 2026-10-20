@@ -101,7 +101,7 @@ public final class CorrespondenceWorkflowService {
             case SEND_TO_PRESIDENT ->
                 CorrespondenceState.WITH_PRESIDENT;
 
-            case SEND_TO_DIRECTOR ->
+            case SEND_TO_DIRECTOR, DISTRIBUTE_TO_DEPARTMENTS ->
                 CorrespondenceState.WITH_DIRECTOR;
 
             case ADMINISTRATIVE_CLOSE ->

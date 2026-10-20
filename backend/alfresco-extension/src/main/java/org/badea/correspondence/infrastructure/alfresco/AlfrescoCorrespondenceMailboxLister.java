@@ -48,6 +48,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private final PermissionService permissions;
     private final CorrespondenceFolderLocator folders;
     private final AlfrescoCorrespondenceParticipationReader participationReader;
+    private final AlfrescoDepartmentAssignmentReader departmentAssignments;
 
     public AlfrescoCorrespondenceMailboxLister(NodeService nodes,
             PermissionService permissions, CorrespondenceFolderLocator folders) {
@@ -55,6 +56,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
         this.permissions = Objects.requireNonNull(permissions);
         this.folders = Objects.requireNonNull(folders);
         this.participationReader = new AlfrescoCorrespondenceParticipationReader(nodes);
+        this.departmentAssignments = new AlfrescoDepartmentAssignmentReader(nodes);
     }
 
     /** Backward-compatible API; production passes authenticated employee identity. */
@@ -105,12 +107,16 @@ public final class AlfrescoCorrespondenceMailboxLister {
 
             CorrespondenceState state = readState(node);
             String origin = required(node, PROP_ORIGIN);
-            boolean active = isAssigned(node, state, role, department);
+            var distributed = departmentAssignments.read(node);
+            boolean directorReceived = role == CorrespondenceActorRole.DIRECTOR && department != null
+                    && distributed.stream().anyMatch(a -> a.isVisibleTo(department));
+            boolean directorNeedsAction = directorReceived && distributed.stream().anyMatch(a -> a.isActionableFor(department));
+            boolean active = isAssigned(node, state, role, department) || directorNeedsAction;
             // Never expose an unsubmitted Director draft to other institutional roles.
             if (state == CorrespondenceState.DRAFT && role != CorrespondenceActorRole.DIRECTOR)
                 continue;
             List<CorrespondenceParticipation> actions = participationReader.read(node);
-            boolean received = actions.stream().anyMatch(a -> a.receivedBy(role, department));
+            boolean received = directorReceived || actions.stream().anyMatch(a -> a.receivedBy(role, department));
             boolean sent = actions.stream().anyMatch(a -> a.sentBy(role, employeeId));
             // Director Sent has historically been departmental; retain that scope.
             if (role == CorrespondenceActorRole.DIRECTOR && department != null

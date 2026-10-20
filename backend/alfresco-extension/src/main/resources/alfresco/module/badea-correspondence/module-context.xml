@@ -686,4 +686,67 @@
     <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
     <constructor-arg ref="badeaOfficeCompletionService" />
 </bean>
+
+<!-- Official action-sheet generation follows the supplied BADEA Word form. -->
+<bean id="badeaOfficeDistributionPlanner"
+    class="org.badea.correspondence.application.OfficeDistributionPlanner"
+    lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceDepartmentService" />
+</bean>
+<bean id="badeaOfficeActionSheetRenderer"
+    class="org.badea.correspondence.infrastructure.pdf.PdfBoxOfficeActionSheetRenderer"
+    lazy-init="true" />
+<bean id="badeaOfficeDistributionRepository"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoOfficeDistributionRepository"
+    lazy-init="true">
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+    <constructor-arg ref="badeaCorrespondenceRepository" />
+    <constructor-arg ref="badeaPresidentGeneratedDocumentStore" />
+</bean>
+<bean id="badeaOfficeDistributionService"
+    class="org.badea.correspondence.application.OfficeDistributionService"
+    lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceRepository" />
+    <constructor-arg ref="badeaCorrespondenceHistoryReader" />
+    <constructor-arg ref="badeaPresidentReviewStateRepository" />
+    <constructor-arg ref="badeaOfficeCompletionRepository" />
+    <constructor-arg ref="badeaCorrespondenceDetailsRepository" />
+    <constructor-arg ref="badeaCorrespondenceDepartmentService" />
+    <constructor-arg ref="badeaOfficeDistributionPlanner" />
+    <constructor-arg ref="badeaOfficeActionSheetRenderer" />
+    <constructor-arg ref="badeaOfficeDistributionRepository" />
+    <constructor-arg ref="badeaCorrespondenceClock" />
+</bean>
+<bean id="webscript.org.badea.correspondence.office-dispatch.post"
+    class="org.badea.correspondence.webscript.OfficeDispatchWebScript"
+    parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaOfficeDistributionService" />
+</bean>
+
+<bean id="badeaDepartmentAssignmentService"
+    class="org.badea.correspondence.application.DepartmentAssignmentService"
+    lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceRepository" />
+    <constructor-arg ref="badeaCorrespondenceAccessAuthorizer" />
+    <constructor-arg ref="badeaOfficeDistributionRepository" />
+</bean>
+<bean id="webscript.org.badea.correspondence.department-assignments.get"
+    class="org.badea.correspondence.webscript.DepartmentAssignmentsWebScript"
+    parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaDepartmentAssignmentService" />
+    <constructor-arg value="false" />
+</bean>
+<bean id="webscript.org.badea.correspondence.department-assignment-complete.post"
+    class="org.badea.correspondence.webscript.DepartmentAssignmentsWebScript"
+    parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaDepartmentAssignmentService" />
+    <constructor-arg value="true" />
+</bean>
 </beans>

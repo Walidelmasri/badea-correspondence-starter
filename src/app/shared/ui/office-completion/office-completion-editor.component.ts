@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CorrespondenceService } from '../../../core/correspondence/correspondence.service';
 import { CorrespondenceDepartment } from '../../../core/correspondence/correspondence.model';
@@ -28,6 +28,7 @@ const ACTIONS = [
 })
 export class OfficeCompletionEditorComponent {
   readonly technicalId = input.required<string>();
+  readonly dispatched = output<void>();
   private readonly api = inject(CorrespondenceApiService);
   private readonly correspondence = inject(CorrespondenceService);
   readonly translation = inject(TranslationService);
@@ -38,9 +39,12 @@ export class OfficeCompletionEditorComponent {
   readonly actions = ACTIONS;
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly dispatching = signal(false);
+  readonly dirty = signal(false);
+  readonly hasSavedRevision = signal(false);
   readonly locked = signal(false);
   readonly error = signal(false);
-  readonly notice = signal<'saved' | 'failed' | 'conflict' | 'uncertain' | null>(null);
+  readonly notice = signal<'saved' | 'failed' | 'conflict' | 'uncertain' | 'sent' | null>(null);
   private revision = 0;
   private presidentRevision = 0;
   private requestVersion = 0;
@@ -69,7 +73,9 @@ export class OfficeCompletionEditorComponent {
       }
       this.president.set(normalizePresidentReviewDraftState(president.state));
       this.office.set(office.state ?? empty());
+      this.dirty.set(false);
       this.revision = office.revision;
+      this.hasSavedRevision.set(office.revision > 0);
       this.presidentRevision = office.presidentReviewRevision;
       this.departments.set(departments);
     } catch {
@@ -99,16 +105,44 @@ export class OfficeCompletionEditorComponent {
       const next = values.includes(id) ? values.filter(item => item !== id) : [...values, id];
       return { ...current, [field]: next };
     });
+    this.dirty.set(true);
     this.notice.set(null);
   }
   change(field: 'otherRecipient' | 'otherAction' | 'typedExplanation' | 'officeNotes', event: Event): void {
     if (this.saving() || this.locked()) return;
     const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
     this.office.update(current => current ? { ...current, [field]: value } : null);
+    this.dirty.set(true);
     this.notice.set(null);
   }
   actionLabel(code: typeof ACTIONS[number]): string {
     return this.labels().actions[code];
+  }
+
+  async dispatch(): Promise<void> {
+    if (this.revision < 1 || this.presidentRevision < 1 || this.dirty()
+        || this.saving() || this.dispatching() || this.locked() || this.loading()) return;
+    if (!window.confirm(this.labels().confirmDispatch)) return;
+    const id = this.technicalId();
+    const version = this.requestVersion;
+    this.dispatching.set(true);
+    this.notice.set(null);
+    try {
+      await firstValueFrom(this.api.dispatchOffice(id, this.presidentRevision, this.revision));
+      if (version !== this.requestVersion) return;
+      this.locked.set(true);
+      this.notice.set('sent');
+      this.dispatched.emit();
+    } catch (error: unknown) {
+      if (version !== this.requestVersion) return;
+      if (error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)) {
+        this.locked.set(true); this.notice.set('uncertain');
+      } else if (error instanceof HttpErrorResponse && error.status === 409) {
+        this.locked.set(true); this.notice.set('conflict');
+      } else { this.notice.set('failed'); }
+    } finally {
+      if (version === this.requestVersion) this.dispatching.set(false);
+    }
   }
 
   async save(): Promise<void> {
@@ -121,7 +155,9 @@ export class OfficeCompletionEditorComponent {
         id, this.revision, this.presidentRevision, state));
       if (version !== this.requestVersion) return;
       this.revision = saved.revision;
+      this.hasSavedRevision.set(true);
       this.office.set(saved.state);
+      this.dirty.set(false);
       this.notice.set('saved');
     } catch (error: unknown) {
       if (version !== this.requestVersion) return;

@@ -57,6 +57,16 @@ public final class CorrespondenceTransitionService {
                 repository.getAccessContext(
                         command.technicalId());
 
+        // Distribution is a separate transactional operation. The legacy transition API
+        // may not fabricate a fan-out without persisted assignments/action sheet.
+        if (command.action() == CorrespondenceAction.DISTRIBUTE_TO_DEPARTMENTS) {
+            throw new IllegalArgumentException("Use the Office distribution endpoint");
+        }
+        if (!accessContext.assignments().isEmpty()) {
+            throw new IllegalStateException("Use per-department assignment actions after distribution");
+        }
+
+
         accessAuthorizer.authorizeTransition(
                 accessContext,
                 command.actorRole(),

@@ -31,6 +31,21 @@ export interface CreatedCorrespondenceDraft {
   readonly state: 'DRAFT';
 }
 
+export interface DepartmentAssignment {
+  readonly assignmentId: string;
+  readonly departmentCode: string;
+  readonly recipientType: 'TO' | 'COPY';
+  readonly status: 'PENDING' | 'COMPLETED';
+  readonly assignedAt: string;
+  readonly responseText: string | null;
+  readonly completedAt: string | null;
+}
+export interface DepartmentAssignmentPage {
+  readonly technicalId: string;
+  readonly total: number;
+  readonly items: readonly DepartmentAssignment[];
+}
+
 export interface CorrespondenceDocumentUpload {
   readonly nodeId: string;
   readonly filename: string;
@@ -38,7 +53,7 @@ export interface CorrespondenceDocumentUpload {
   readonly sizeBytes: number;
 }
 export interface CorrespondenceGeneratedDocument extends CorrespondenceDocumentUpload {
-  readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION';
+  readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION' | 'OFFICIAL_ACTION_SHEET';
   readonly sourceDocumentNodeId: string | null;
   readonly reviewRevision: number;
 }
@@ -160,6 +175,28 @@ export class CorrespondenceApiService {
       request,
     );
   }
+  dispatchOffice(technicalId: string, expectedPresidentReviewRevision: number,
+      expectedOfficeRevision: number): Observable<{technicalId: string; dispatchId: string; state: 'WITH_DIRECTOR'}> {
+    return this.http.post<{technicalId: string; dispatchId: string; state: 'WITH_DIRECTOR'}>(
+      `/alfresco/service/badea/office-dispatch/${encodeURIComponent(technicalId)}`,
+      { expectedPresidentReviewRevision, expectedOfficeRevision },
+    );
+  }
+
+  getDepartmentAssignments(technicalId: string): Observable<DepartmentAssignmentPage> {
+    return this.http.get<DepartmentAssignmentPage>(
+      `/alfresco/service/badea/department-assignments/${encodeURIComponent(technicalId)}`,
+    );
+  }
+
+  completeDepartmentAssignment(technicalId: string, assignmentId: string, responseText: string):
+      Observable<DepartmentAssignmentPage> {
+    return this.http.post<DepartmentAssignmentPage>(
+      `/alfresco/service/badea/department-assignments/${encodeURIComponent(technicalId)}/${encodeURIComponent(assignmentId)}/complete`,
+      { responseText },
+    );
+  }
+
   getOfficeCompletion(technicalId: string): Observable<OfficeCompletionSnapshot> {
     return this.http.get<OfficeCompletionSnapshot>(
       `${OFFICE_COMPLETION_URL}/${encodeURIComponent(technicalId)}`,

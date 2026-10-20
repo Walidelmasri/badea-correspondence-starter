@@ -20,6 +20,7 @@ import {
   CorrespondenceMailboxBox,
   CorrespondenceInboxView,
   CorrespondenceMailboxPage,
+  DepartmentAssignment,
 } from '../../data-access/correspondence-api.service';
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
@@ -63,6 +64,10 @@ export class RealMailboxComponent implements OnInit {
   readonly detailsLoading = signal(false);
   readonly detailsError = signal(false);
   readonly history = signal<readonly CorrespondenceHistoryEntry[] | null>(null);
+  readonly assignments = signal<readonly DepartmentAssignment[]>([]);
+  readonly assignmentResponse = signal('');
+  readonly completingAssignment = signal(false);
+  readonly assignmentNotice = signal<'failed' | 'uncertain' | null>(null);
   readonly historyLoading = signal(false);
   readonly historyError = signal(false);
   readonly forwarding = signal(false);
@@ -167,6 +172,9 @@ export class RealMailboxComponent implements OnInit {
     this.details.set(null);
     this.detailsError.set(false);
     this.history.set(null);
+    this.assignments.set([]);
+    this.assignmentNotice.set(null);
+    this.assignmentResponse.set('');
     this.historyError.set(false);
     this.historyLoading.set(true);
     this.detailsLoading.set(true);
@@ -175,6 +183,15 @@ export class RealMailboxComponent implements OnInit {
       if (version !== this.detailVersion || this.selectedId() !== id) return;
       this.details.set(result);
       this.detailsLoading.set(false);
+      // Assignment API is independent of correspondence details/history.
+      try {
+        const assigned = await firstValueFrom(this.api.getDepartmentAssignments(id));
+        if (version === this.detailVersion && this.selectedId() === id) {
+          this.assignments.set(assigned.items);
+        }
+      } catch {
+        // Existing correspondence may be pre-distribution; keep its PDFs readable.
+      }
       // History failure must never block correspondence details or PDF viewing.
       try {
         const actionPage = await firstValueFrom(this.api.getHistory(id));
@@ -247,11 +264,42 @@ export class RealMailboxComponent implements OnInit {
     }
   }
 
+  readonly myActionableAssignment = computed(() => {
+    if (this.box() !== 'inbox' || this.details()?.state !== 'WITH_DIRECTOR'
+        || this.session.currentUser()?.employeeProfile?.correspondenceRole !== 'DIRECTOR') return null;
+    const code = this.session.currentUser()?.employeeProfile?.department?.code;
+    return this.assignments().find(item => item.departmentCode === code
+      && item.recipientType === 'TO' && item.status === 'PENDING') ?? null;
+  });
+
+  updateAssignmentResponse(event: Event): void {
+    this.assignmentResponse.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  async completeDepartmentAssignment(): Promise<void> {
+    const assignment = this.myActionableAssignment();
+    const id = this.selectedId();
+    const response = this.assignmentResponse().trim();
+    if (!assignment || !id || !response || this.completingAssignment()) return;
+    if (!window.confirm(this.labels().confirmAssignmentComplete)) return;
+    this.completingAssignment.set(true);
+    this.assignmentNotice.set(null);
+    try {
+      await firstValueFrom(this.api.completeDepartmentAssignment(id, assignment.assignmentId, response));
+      await this.loadPage(0);
+    } catch (error: unknown) {
+      const uncertain = error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500);
+      this.assignmentNotice.set(uncertain ? 'uncertain' : 'failed');
+    } finally { this.completingAssignment.set(false); }
+  }
+
   actionLabel(actionType: string): string {
     switch (actionType) {
       case 'SEND_TO_OFFICE': return this.labels().historyActions.sentToOffice;
       case 'SEND_TO_PRESIDENT': return this.labels().historyActions.sentToPresident;
       case 'SEND_TO_DIRECTOR': return this.labels().historyActions.sentToDirector;
+      case 'DISTRIBUTE_TO_DEPARTMENTS': return this.labels().historyActions.distributedToDepartments;
+      case 'COMPLETE_DEPARTMENT_ASSIGNMENT': return this.labels().historyActions.assignmentCompleted;
       case 'MARK_DONE': return this.labels().historyActions.completed;
       case 'ADMINISTRATIVE_CLOSE': return this.labels().historyActions.archived;
       default: return actionType;

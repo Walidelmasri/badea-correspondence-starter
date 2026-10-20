@@ -1,0 +1,7 @@
+<webscript>
+    <shortname>Read departmental correspondence assignments</shortname>
+    <url>/badea/department-assignments/{technicalId}</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction allow="readonly">required</transaction>
+</webscript>

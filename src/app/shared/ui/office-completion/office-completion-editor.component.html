@@ -83,6 +83,12 @@
         <button type="button" class="office-completion__save" [disabled]="saving() || locked()" (click)="save()">
           {{ saving() ? labels().saving : labels().save }}
         </button>
+        <button type="button" class="office-completion__save"
+          [disabled]="saving() || dispatching() || locked() || dirty() || !hasSavedRevision()"
+          (click)="dispatch()">
+          {{ dispatching() ? labels().dispatching : labels().dispatch }}
+        </button>
+        @if (dirty()) { <span role="status">{{ labels().saveBeforeDispatch }}</span> }
         @if (locked()) { <button type="button" (click)="load(technicalId())">{{ labels().reload }}</button> }
       </div>
     </section>

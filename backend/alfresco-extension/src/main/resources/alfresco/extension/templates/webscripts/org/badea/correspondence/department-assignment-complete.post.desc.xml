@@ -1,0 +1,7 @@
+<webscript>
+    <shortname>Complete one departmental action</shortname>
+    <url>/badea/department-assignments/{technicalId}/{assignmentId}/complete</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>

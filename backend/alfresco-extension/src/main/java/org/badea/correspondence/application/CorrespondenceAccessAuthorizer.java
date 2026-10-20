@@ -31,6 +31,10 @@ public final class CorrespondenceAccessAuthorizer {
         } catch (CorrespondenceAuthorizationException notAssigned) {
             // A historical read may still be legitimate, but never a workflow mutation.
         }
+        if (actorRole == CorrespondenceActorRole.DIRECTOR && actorDepartmentCode != null
+                && correspondence.assignments().stream().anyMatch(a -> a.isVisibleTo(actorDepartmentCode))) {
+            return;
+        }
         if (correspondence.state() != CorrespondenceState.DRAFT) {
             for (CorrespondenceParticipation action : correspondence.participation()) {
                 if (action.receivedBy(actorRole, actorDepartmentCode)
@@ -114,6 +118,10 @@ public final class CorrespondenceAccessAuthorizer {
             throw forbidden();
         }
 
+        if (!correspondence.assignments().isEmpty()) {
+            // Director workflows become per-assignment; parent changes are forbidden.
+            throw forbidden();
+        }
         if (correspondence.state() == CorrespondenceState.WITH_DIRECTOR) {
 
             if (correspondence.assignedRole() != CorrespondenceActorRole.DIRECTOR) {

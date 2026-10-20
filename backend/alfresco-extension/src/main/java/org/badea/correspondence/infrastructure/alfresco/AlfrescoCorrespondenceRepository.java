@@ -287,7 +287,8 @@ public final class AlfrescoCorrespondenceRepository
                 originDepartmentCode,
                 assignedRole,
                 assignedDepartmentCode,
-                new AlfrescoCorrespondenceParticipationReader(nodeService).read(correspondence));
+                new AlfrescoCorrespondenceParticipationReader(nodeService).read(correspondence),
+                new AlfrescoDepartmentAssignmentReader(nodeService).read(correspondence));
     }
 
     @Override
@@ -368,6 +369,20 @@ public final class AlfrescoCorrespondenceRepository
                 correspondence,
                 PROP_LAST_ACTION_SEQUENCE,
                 nextSequence);
+    }
+
+    /** Append-only completion event; does not change parent assignment or state. */
+    public void recordDepartmentCompletion(TransitionCorrespondenceCommand command) {
+        NodeRef parent = nodeLocator.locate(command.technicalId());
+        CorrespondenceState state = readState(parent);
+        if (state != CorrespondenceState.WITH_DIRECTOR
+                || command.action() != CorrespondenceAction.COMPLETE_DEPARTMENT_ASSIGNMENT) {
+            throw new CorrespondenceRepositoryException("Invalid departmental completion state");
+        }
+        long sequence = readLastActionSequence(parent) + 1L;
+        createWorkflowAction(parent, sequence, command, state, state,
+                CorrespondenceActorRole.PRESIDENT_OFFICE);
+        nodeService.setProperty(parent, PROP_LAST_ACTION_SEQUENCE, sequence);
     }
 
     private boolean lastActionWasDirectorHandoff(
@@ -688,6 +703,10 @@ public final class AlfrescoCorrespondenceRepository
         if (targetRole
                 == CorrespondenceActorRole.DIRECTOR) {
 
+            if (command.action() == CorrespondenceAction.DISTRIBUTE_TO_DEPARTMENTS) {
+                nodeService.removeProperty(correspondence, PROP_ASSIGNED_DEPARTMENT_CODE);
+                return;
+            }
             if (command.targetDepartmentCode() == null) {
                 throw new CorrespondenceRepositoryException(
                         "Director assignment requires a target department.");
