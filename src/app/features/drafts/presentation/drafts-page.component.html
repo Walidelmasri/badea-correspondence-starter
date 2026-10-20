@@ -5,6 +5,7 @@
   [searchLabel]="labels().search.label"
   [searchPlaceholder]="labels().search.placeholder"
   [primaryActionLabel]="labels().newCorrespondence"
+  [showPrimaryAction]="currentRole() === 'DIRECTOR'"
   [showSearch]="false"
   (primaryAction)="openCompose()"
 >
@@ -221,10 +222,10 @@
 
                     <div class="drafts-detail__attachment-info">
                       <strong>{{ document.filename }}</strong>
-
-                      <span>
-                        {{ formatSize(document.sizeBytes) }}
-                      </span>
+                      <span>{{ formatSize(document.sizeBytes) }}</span>
+                      <button type="button" class="drafts-action"
+                        [disabled]="document.mimeType !== 'application/pdf'"
+                        (click)="openDocument(document)">{{ labels().detail.previewDocument }}</button>
                     </div>
                   </li>
                 }
@@ -233,6 +234,9 @@
           </section>
         }
 
+        @if (currentRole() === 'PRESIDENT_OFFICE' && details()) {
+          <app-office-completion-editor [technicalId]="draft.technicalId" />
+        } @else {
         <button
           class="drafts-action"
           type="button"
@@ -243,8 +247,10 @@
           "
           (click)="openDraft(draft.technicalId)"
         >
-          {{ labels().detail.editDraft }}
+          {{ currentRole() === 'PRESIDENT'
+             ? labels().detail.resumeReview : labels().detail.editDraft }}
         </button>
+        }
       </article>
     } @else {
       <div class="drafts-detail-placeholder">
@@ -279,3 +285,10 @@
     }
   </div>
 </app-correspondence-workspace>
+@if (previewDocument(); as document) {
+  @if (selectedId(); as technicalId) {
+    <app-correspondence-document-preview
+      [technicalId]="technicalId" [document]="document"
+      (closed)="closePreview()" />
+  }
+}

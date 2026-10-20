@@ -50,7 +50,7 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
             DepartmentCode department = employee.department()
                     .map(d -> d.code()).orElse(null);
             // This call enforces both role/department visibility and Alfresco READ.
-            details.getDetails(id, role, department);
+            details.getDetails(id, role, department, employee.employeeId().value());
             List<AlfrescoCorrespondenceHistoryReader.ActionEntry> history = reader.list(id);
             JSONArray items = new JSONArray();
             for (var a : history) {

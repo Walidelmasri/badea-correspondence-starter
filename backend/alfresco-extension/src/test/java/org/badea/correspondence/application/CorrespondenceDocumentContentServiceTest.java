@@ -67,7 +67,7 @@ class CorrespondenceDocumentContentServiceTest {
         when(detailsService.getDetails(
                 TECHNICAL_ID,
                 CorrespondenceActorRole.PRESIDENT,
-                null))
+                null, null))
                 .thenReturn(details);
 
         when(contentRepository.openByNodeId(DOCUMENT_ID))
@@ -107,7 +107,7 @@ class CorrespondenceDocumentContentServiceTest {
                 original.createdByNameEnglish(), original.createdByNameArabic(),
                 original.documents(), List.of(generated));
         when(detailsService.getDetails(TECHNICAL_ID,
-                CorrespondenceActorRole.PRESIDENT_OFFICE, null)).thenReturn(withGenerated);
+                CorrespondenceActorRole.PRESIDENT_OFFICE, null, null)).thenReturn(withGenerated);
         InputStream stream = new ByteArrayInputStream(new byte[]{1, 2});
         when(contentRepository.openByNodeId(UNRELATED_DOCUMENT_ID)).thenReturn(stream);
         CorrespondenceDocumentStream result = service.open(TECHNICAL_ID,
@@ -122,7 +122,7 @@ class CorrespondenceDocumentContentServiceTest {
         when(detailsService.getDetails(
                 TECHNICAL_ID,
                 CorrespondenceActorRole.PRESIDENT,
-                null))
+                null, null))
                 .thenReturn(correspondenceDetails());
 
         assertThrows(
@@ -143,7 +143,7 @@ class CorrespondenceDocumentContentServiceTest {
         when(detailsService.getDetails(
                 TECHNICAL_ID,
                 CorrespondenceActorRole.DIRECTOR,
-                new DepartmentCode("117")))
+                new DepartmentCode("117"), null))
                 .thenThrow(
                         new CorrespondenceAuthorizationException(
                                 "Access denied."));

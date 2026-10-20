@@ -284,4 +284,22 @@ class CorrespondenceAccessAuthorizerTest {
                         CorrespondenceActorRole.DIRECTOR,
                         null));
     }
+    @Test
+    void historicalOfficeReaderCannotModifyCorrespondence() {
+        CorrespondenceParticipation priorReceipt = new CorrespondenceParticipation(
+                "10001", CorrespondenceActorRole.DIRECTOR,
+                CorrespondenceActorRole.PRESIDENT_OFFICE, null,
+                java.time.Instant.parse("2026-10-20T08:00:00Z"));
+        CorrespondenceAccessContext context = new CorrespondenceAccessContext(
+                CorrespondenceState.WITH_PRESIDENT, new DepartmentCode("117"),
+                CorrespondenceActorRole.PRESIDENT, null, java.util.List.of(priorReceipt));
+        assertDoesNotThrow(() -> authorizer.authorizeRead(context,
+                CorrespondenceActorRole.PRESIDENT_OFFICE, null, "10009"));
+        assertThrows(CorrespondenceAuthorizationException.class, () ->
+                authorizer.authorizeTransition(context, CorrespondenceActorRole.PRESIDENT_OFFICE, null));
+        assertThrows(CorrespondenceAuthorizationException.class, () ->
+                authorizer.authorizeRead(context, CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("118"), "10009"));
+    }
+
 }

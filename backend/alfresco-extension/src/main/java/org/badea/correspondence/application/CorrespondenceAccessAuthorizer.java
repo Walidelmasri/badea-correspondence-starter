@@ -8,28 +8,36 @@ import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
 public final class CorrespondenceAccessAuthorizer {
-    /**
-     * For the current active-workflow read endpoint, visibility is
-     * restricted to the role and department assigned to the
-     * correspondence.
-     *
-     * Historical access rules will be separate when the archive
-     * and Sent correspondence features are implemented.
-     */
-    public void authorizeRead(
-            CorrespondenceAccessContext correspondence,
-            CorrespondenceActorRole actorRole,
-            DepartmentCode actorDepartmentCode) {
+    public void authorizeRead(CorrespondenceAccessContext correspondence,
+            CorrespondenceActorRole actorRole, DepartmentCode actorDepartmentCode) {
+        authorizeRead(correspondence, actorRole, actorDepartmentCode, null);
+    }
 
+    /** Read access is distinct from permission to perform the next workflow action. */
+    public void authorizeRead(CorrespondenceAccessContext correspondence,
+            CorrespondenceActorRole actorRole, DepartmentCode actorDepartmentCode,
+            String authenticatedEmployeeId) {
         Objects.requireNonNull(correspondence, "correspondence must not be null");
         Objects.requireNonNull(actorRole, "actorRole must not be null");
 
+        // Preserve the established origin-department permission, including its drafts.
         if (actorRole == CorrespondenceActorRole.DIRECTOR
                 && actorDepartmentCode != null
-                && actorDepartmentCode.equals(correspondence.originDepartmentCode())) {
+                && actorDepartmentCode.equals(correspondence.originDepartmentCode())) return;
+
+        try {
+            authorizeTransition(correspondence, actorRole, actorDepartmentCode);
             return;
+        } catch (CorrespondenceAuthorizationException notAssigned) {
+            // A historical read may still be legitimate, but never a workflow mutation.
         }
-        authorizeTransition(correspondence, actorRole, actorDepartmentCode);
+        if (correspondence.state() != CorrespondenceState.DRAFT) {
+            for (CorrespondenceParticipation action : correspondence.participation()) {
+                if (action.receivedBy(actorRole, actorDepartmentCode)
+                        || action.sentBy(actorRole, authenticatedEmployeeId)) return;
+            }
+        }
+        throw forbidden();
     }
 
     public void authorizeTransition(

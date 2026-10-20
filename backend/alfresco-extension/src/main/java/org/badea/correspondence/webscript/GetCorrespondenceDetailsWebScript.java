@@ -70,7 +70,8 @@ public final class GetCorrespondenceDetailsWebScript
                     detailsService.getDetails(
                             technicalId,
                             actorRole,
-                            actorDepartmentCode);
+                            actorDepartmentCode,
+                            employee.employeeId().value());
 
             writeJson(
                     response,

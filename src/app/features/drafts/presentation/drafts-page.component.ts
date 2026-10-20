@@ -8,6 +8,9 @@ import {
 } from '@angular/core';
 
 import { Router } from '@angular/router';
+import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { CorrespondenceDocumentPreviewComponent } from '../../../shared/ui/correspondence-document-preview/correspondence-document-preview.component';
+import { OfficeCompletionEditorComponent } from '../../../shared/ui/office-completion/office-completion-editor.component';
 import { firstValueFrom } from 'rxjs';
 
 import {
@@ -29,13 +32,18 @@ const PAGE_SIZE = 25;
 @Component({
   selector: 'app-drafts-page',
   standalone: true,
-  imports: [CorrespondenceWorkspaceComponent],
+  imports: [CorrespondenceWorkspaceComponent,
+    CorrespondenceDocumentPreviewComponent, OfficeCompletionEditorComponent],
   templateUrl: './drafts-page.component.html',
   styleUrl: './drafts-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DraftsPageComponent implements OnInit {
   private readonly router = inject(Router);
+  private readonly session = inject(AuthSessionStore);
+  readonly currentRole = computed(() =>
+    this.session.currentUser()?.employeeProfile?.correspondenceRole ?? null);
+  readonly previewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
 
   private readonly api =
     inject(CorrespondenceApiService);
@@ -103,6 +111,7 @@ export class DraftsPageComponent implements OnInit {
     ++this.detailsRequestVersion;
 
     this.details.set(null);
+    this.previewDocument.set(null);
     this.detailsLoading.set(false);
     this.detailsError.set(false);
 
@@ -144,6 +153,7 @@ export class DraftsPageComponent implements OnInit {
     }
 
     this.selectedId.set(technicalId);
+    this.previewDocument.set(null);
     void this.loadSelectedDetails(technicalId);
   }
 
@@ -177,7 +187,10 @@ export class DraftsPageComponent implements OnInit {
         return;
       }
 
-      if (result.state !== 'DRAFT') {
+      const expectedState = this.currentRole() === 'PRESIDENT'
+        ? 'WITH_PRESIDENT' : this.currentRole() === 'PRESIDENT_OFFICE'
+          ? 'WITH_PRESIDENT_OFFICE' : 'DRAFT';
+      if (result.state !== expectedState) {
         this.detailsError.set(true);
         return;
       }
@@ -195,15 +208,21 @@ export class DraftsPageComponent implements OnInit {
   }
 
   openDraft(technicalId: string): void {
-    void this.router.navigate(
-      ['/director/new'],
-      {
-        queryParams: {
-          draft: technicalId,
-        },
-      },
-    );
+    if (this.currentRole() === 'PRESIDENT') {
+      void this.router.navigate(['/president-review', technicalId]);
+    } else if (this.currentRole() === 'DIRECTOR') {
+      void this.router.navigate(['/director/new'],
+        { queryParams: { draft: technicalId } });
+    }
+    // The Office editor is mounted directly in the selected Draft detail.
   }
+
+  openDocument(document: CorrespondenceDetails['documents'][number]): void {
+    if (document.mimeType === 'application/pdf' && this.details())
+      this.previewDocument.set(document);
+  }
+
+  closePreview(): void { this.previewDocument.set(null); }
 
   openCompose(): void {
     void this.router.navigate(['/compose']);

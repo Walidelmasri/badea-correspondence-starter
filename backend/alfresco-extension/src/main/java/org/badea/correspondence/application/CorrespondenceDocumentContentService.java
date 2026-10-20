@@ -43,6 +43,15 @@ public final class CorrespondenceDocumentContentService {
                 actorRole,
                 "actorRole must not be null");
 
+        return open(technicalId, documentNodeId, actorRole, actorDepartmentCode, null);
+    }
+
+    public CorrespondenceDocumentStream open(String technicalId, String documentNodeId,
+            CorrespondenceActorRole actorRole, DepartmentCode actorDepartmentCode,
+            String authenticatedEmployeeId) {
+        Objects.requireNonNull(technicalId, "technicalId must not be null");
+        Objects.requireNonNull(actorRole, "actorRole must not be null");
+
         String validatedNodeId =
                 validateNodeId(documentNodeId);
 
@@ -56,7 +65,8 @@ public final class CorrespondenceDocumentContentService {
                 detailsService.getDetails(
                         technicalId,
                         actorRole,
-                        actorDepartmentCode);
+                        actorDepartmentCode,
+                        authenticatedEmployeeId);
 
         /*
          * Only files returned as direct source-document children

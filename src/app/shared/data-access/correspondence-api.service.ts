@@ -57,6 +57,7 @@ export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly generatedDocuments?: readonly CorrespondenceGeneratedDocument[];
 }
 export interface CorrespondenceDraftSummary {
+  readonly state?: CorrespondenceDetails['state'];
   readonly technicalId: string;
   readonly subject: string;
   readonly documentNumber: string | null;
@@ -82,11 +83,13 @@ export interface CorrespondenceHistoryPage {
 }
 
 export type CorrespondenceMailboxBox = 'inbox' | 'sent';
+export type CorrespondenceInboxView = 'all' | 'needs_action' | 'handled' | 'archived';
 
 export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary {
   readonly state: CorrespondenceDetails['state'];
   readonly originDepartmentCode: string;
   readonly senderName: string;
+  readonly needsAction: boolean;
 }
 
 export interface CorrespondenceMailboxPage {
@@ -189,10 +192,11 @@ export class CorrespondenceApiService {
     box: CorrespondenceMailboxBox,
     offset = 0,
     limit = 25,
+    view: CorrespondenceInboxView = 'all',
   ): Observable<CorrespondenceMailboxPage> {
     return this.http.get<CorrespondenceMailboxPage>(
       CORRESPONDENCE_URL,
-      { params: { box, offset, limit } },
+      { params: { box, offset, limit, view } },
     );
   }
 

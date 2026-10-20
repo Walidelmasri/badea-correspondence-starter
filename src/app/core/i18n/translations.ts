@@ -23,6 +23,8 @@ const AR_TRANSLATIONS = {
   },
 
   mailbox: {
+    inboxFilterLabel: 'تصفية الوارد',
+    inboxFilters: { all: 'الكل', needs_action: 'يتطلب إجراء', handled: 'تم التعامل معه', archived: 'مؤرشف' },
     forwardToPresident: 'إرسال إلى الرئيس',
     confirmForwardToPresident: 'هل تريد إرسال هذه المراسلة إلى الرئيس؟',
     forwarding: 'جارٍ الإرسال...',
@@ -179,6 +181,9 @@ drafts: {
     createdAt: 'تاريخ الإنشاء',
     modifiedAt: 'آخر تعديل',
     editDraft: 'تعديل المسودة',
+    resumeReview: 'متابعة مراجعة الرئيس',
+    officeDraft: 'استكمال المكتب',
+    previewDocument: 'عرض PDF',
 
     description: 'وصف المراسلة',
     noDescription: 'لم تتم إضافة وصف للمراسلة.',
@@ -438,6 +443,8 @@ const EN_TRANSLATIONS = {
   },
 
   mailbox: {
+    inboxFilterLabel: 'Inbox filter',
+    inboxFilters: { all: 'All', needs_action: 'Needs action', handled: 'Previously handled', archived: 'Archived' },
     forwardToPresident: 'Forward to President',
     confirmForwardToPresident: 'Forward this correspondence to the President?',
     forwarding: 'Forwarding...',
@@ -595,6 +602,9 @@ drafts: {
     createdAt: 'Created',
     modifiedAt: 'Last Modified',
     editDraft: 'Edit Draft',
+    resumeReview: 'Continue President Review',
+    officeDraft: 'Continue Office Completion',
+    previewDocument: 'View PDF',
 
     description: 'Description',
     noDescription: 'No description provided.',

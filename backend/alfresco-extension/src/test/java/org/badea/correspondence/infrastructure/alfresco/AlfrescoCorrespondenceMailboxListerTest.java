@@ -74,7 +74,7 @@ class AlfrescoCorrespondenceMailboxListerTest {
         assertEquals(1, page.total());
         assertEquals("Subject", page.items().getFirst().subject());
         assertEquals("WITH_PRESIDENT_OFFICE", page.items().getFirst().state());
-        verify(folders).locateDepartmentFolder(DEPARTMENT);
+        verify(folders).locateCorrespondenceRoot();
     }
 
     @Test
@@ -135,11 +135,11 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
-    void rejectsSentForRolesWithoutImplementedHistoricalAccess() {
-        assertThrows(CorrespondenceAuthorizationException.class,
-                () -> lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE, null, 0, 25));
-        assertThrows(CorrespondenceAuthorizationException.class,
-                () -> lister.list("sent", CorrespondenceActorRole.PRESIDENT, null, 0, 25));
+    void officeAndPresidentSentAreAvailableWithoutSecurityBypass() {
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT,
+                null, "10001", "all", 0, 25).total());
     }
 
     @Test
@@ -154,6 +154,90 @@ class AlfrescoCorrespondenceMailboxListerTest {
                 () -> lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE, null, -1, 25));
         assertThrows(IllegalArgumentException.class,
                 () -> lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE, null, 0, 101));
+    }
+
+    @Test
+    void historicalOfficeInboxRemainsVisibleAfterForwardAndIsNotActionable() {
+        action("10001", "PRESIDENT_OFFICE", "PRESIDENT", null);
+        // The Office received this correspondence before forwarding it to the President.
+        NodeRef directorAction = node("55555555-5555-5555-5555-555555555555");
+        ChildAssociationRef inboundAssoc = association(directorAction);
+        ChildAssociationRef outboundAssoc = association(
+                node("44444444-4444-4444-4444-444444444444"));
+        when(nodes.getChildAssocs(document)).thenReturn(List.of(inboundAssoc, outboundAssoc));
+        when(nodes.getType(directorAction)).thenReturn(qname("workflowAction"));
+        when(nodes.getProperty(directorAction, qname("actorEmployeeId")))
+                .thenReturn("10003");
+        when(nodes.getProperty(directorAction, qname("actorRole")))
+                .thenReturn("DIRECTOR");
+        when(nodes.getProperty(directorAction, qname("targetRole")))
+                .thenReturn("PRESIDENT_OFFICE");
+        when(nodes.getProperty(directorAction, qname("actedAt")))
+                .thenReturn(Date.from(Instant.parse("2026-10-18T07:00:00Z")));
+        prop("state", "WITH_PRESIDENT");
+        prop("assignedRole", "PRESIDENT");
+        var all = lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "all", 0, 25);
+        assertEquals(0, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "needs_action", 0, 25).total());
+        assertEquals(1, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "handled", 0, 25).total());
+        assertEquals(1, all.total());
+        assertFalse(all.items().getFirst().needsAction());
+        assertEquals(1, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10002", "all", 0, 25).total());
+    }
+
+    @Test
+    void presidentSentAndReceivedRemainVisibleAfterReturn() {
+        action("10001", "PRESIDENT", "PRESIDENT_OFFICE", null);
+        assertEquals(1, lister.list("sent", CorrespondenceActorRole.PRESIDENT,
+                null, "10001", "all", 0, 25).total());
+        // President had to receive previously; set an inbound action as well.
+        NodeRef second = node("55555555-5555-5555-5555-555555555555");
+        ChildAssociationRef sentAssoc = association(
+                node("44444444-4444-4444-4444-444444444444"));
+        ChildAssociationRef receivedAssoc = association(second);
+        when(nodes.getChildAssocs(document)).thenReturn(List.of(sentAssoc, receivedAssoc));
+        when(nodes.getType(second)).thenReturn(qname("workflowAction"));
+        when(nodes.getProperty(second,qname("actorEmployeeId"))).thenReturn("10001");
+        when(nodes.getProperty(second,qname("actorRole"))).thenReturn("PRESIDENT_OFFICE");
+        when(nodes.getProperty(second,qname("targetRole"))).thenReturn("PRESIDENT");
+        when(nodes.getProperty(second,qname("actedAt")))
+                .thenReturn(Date.from(Instant.parse("2026-10-18T07:00:00Z")));
+        assertEquals(1, lister.list("inbox", CorrespondenceActorRole.PRESIDENT,
+                null, "10001", "all", 0, 25).total());
+    }
+
+    @Test
+    void presidentDraftRequiresSavedReviewSinceLatestAssignment() {
+        action("10001", "PRESIDENT_OFFICE", "PRESIDENT", null);
+        prop("state", "WITH_PRESIDENT");
+        prop("assignedRole", "PRESIDENT");
+        when(nodes.getProperty(document,qname("presidentReviewRevision"))).thenReturn(2L);
+        when(nodes.getProperty(document,qname("presidentReviewUpdatedAt")))
+                .thenReturn(Date.from(Instant.parse("2026-10-18T09:00:00Z")));
+        assertEquals(1, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,
+                null, "10001", "all", 0, 25).total());
+        when(nodes.getProperty(document,qname("presidentReviewUpdatedAt")))
+                .thenReturn(Date.from(Instant.parse("2026-10-18T07:00:00Z")));
+        assertEquals(0, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,
+                null, "10001", "all", 0, 25).total());
+    }
+
+    private void action(String employee, String role, String target, String targetDepartment) {
+        NodeRef action = node("44444444-4444-4444-4444-444444444444");
+        ChildAssociationRef actionAssoc = association(action);
+        when(nodes.getChildAssocs(document)).thenReturn(List.of(actionAssoc));
+        when(nodes.getType(action)).thenReturn(qname("workflowAction"));
+        when(nodes.getProperty(action, qname("actorEmployeeId"))).thenReturn(employee);
+        when(nodes.getProperty(action, qname("actorRole"))).thenReturn(role);
+        when(nodes.getProperty(action, qname("targetRole"))).thenReturn(target);
+        if (targetDepartment != null)
+            when(nodes.getProperty(action, qname("targetDepartmentCode")))
+                    .thenReturn(targetDepartment);
+        when(nodes.getProperty(action, qname("actedAt")))
+                .thenReturn(Date.from(Instant.parse("2026-10-18T08:00:00Z")));
     }
 
     private void prop(String name, String value) {

@@ -60,3 +60,9 @@
 .mailbox-transition-notice { margin: 1.1rem; padding: .8rem 1rem; border: 1px solid var(--color-border);
   border-radius: var(--radius-sm); background: var(--color-surface); }
 .mailbox-action:disabled { cursor: wait; opacity: .55; }
+
+/* Historic mailbox filters: never imply that a read-only item can be acted on. */
+.mailbox-views { display: flex; flex-wrap: wrap; gap: .35rem; padding: .7rem; }
+.mailbox-view { border: 1px solid #cbd5d1; border-radius: 6px; background: #fff;
+  padding: .45rem .65rem; font: inherit; cursor: pointer; }
+.mailbox-view--active { border-color: #155447; background: #e6f1ed; font-weight: 700; }

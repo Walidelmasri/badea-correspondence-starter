@@ -75,16 +75,16 @@ public final class ListCorrespondenceWebScript
             DepartmentCode department = employee.department()
                     .map(entry -> entry.code()).orElse(null);
 
+            String view = request.getParameter("view");
+            if (view == null) view = "all";
             JSONObject result;
-            if ("drafts".equals(box)) {
-                if (role != CorrespondenceActorRole.DIRECTOR || department == null) {
-                    throw new CorrespondenceAuthorizationException(
-                            "Director department required for drafts");
-                }
+            if ("drafts".equals(box) && role == CorrespondenceActorRole.DIRECTOR) {
+                if (department == null) throw new CorrespondenceAuthorizationException(
+                        "Director department required for drafts");
                 result = serialize(draftLister.list(department, offset, limit));
             } else {
-                result = serializeMailbox(mailboxLister.list(
-                        box, role, department, offset, limit));
+                result = serializeMailbox(mailboxLister.list(box, role, department,
+                        employee.employeeId().value(), view, offset, limit));
             }
             writeJson(response, Status.STATUS_OK, result);
 
@@ -204,6 +204,7 @@ public final class ListCorrespondenceWebScript
             item.put("state", summary.state());
             item.put("originDepartmentCode", summary.originDepartmentCode());
             item.put("senderName", summary.senderName());
+            item.put("needsAction", summary.needsAction());
             item.put("createdAt", summary.createdAt().toString());
             item.put("modifiedAt", summary.modifiedAt().toString());
             items.put(item);

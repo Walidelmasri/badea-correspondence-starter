@@ -151,36 +151,26 @@ class ListCorrespondenceWebScriptTest {
     }
 
     @Test
-    void rejectsPresidentOffice() throws IOException {
-
+    void officeDraftsComeFromSavedReviewProjection() throws IOException {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
-
-        JSONObject result = execute();
-
-        verify(response).setStatus(Status.STATUS_FORBIDDEN);
-
-        assertEquals(
-                "CORRESPONDENCE_FORBIDDEN",
-                result.getString("code"));
-
+        when(mailboxLister.list("drafts", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "10001", "all", 0, 25))
+                .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                        List.of(), 0, 25, 0));
+        assertEquals(0, execute().getInt("total"));
         verifyNoInteractions(draftLister);
     }
 
     @Test
-    void rejectsPresident() throws IOException {
-
+    void presidentDraftsComeFromSavedReviewProjection() throws IOException {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT);
-
-        JSONObject result = execute();
-
-        verify(response).setStatus(Status.STATUS_FORBIDDEN);
-
-        assertEquals(
-                "CORRESPONDENCE_FORBIDDEN",
-                result.getString("code"));
-
+        when(mailboxLister.list("drafts", CorrespondenceActorRole.PRESIDENT,
+                DEPARTMENT, "10001", "all", 0, 25))
+                .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                        List.of(), 0, 25, 0));
+        assertEquals(0, execute().getInt("total"));
         verifyNoInteractions(draftLister);
     }
 
@@ -281,7 +271,7 @@ class ListCorrespondenceWebScriptTest {
                 Instant.parse("2026-10-18T08:00:00Z"),
                 Instant.parse("2026-10-18T09:00:00Z"));
         when(mailboxLister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
-                DEPARTMENT, 0, 25))
+                DEPARTMENT, "10001", "all", 0, 25))
                 .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
                         List.of(summary), 0, 25, 1));
 
@@ -295,26 +285,27 @@ class ListCorrespondenceWebScriptTest {
     @Test
     void returnsOriginatingDirectorSent() throws IOException {
         when(request.getParameter("box")).thenReturn("sent");
-        when(mailboxLister.list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, 0, 25))
+        when(mailboxLister.list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, "10001", "all", 0, 25))
                 .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
                         List.of(), 0, 25, 0));
         JSONObject result = execute();
         verify(response).setStatus(Status.STATUS_OK);
         assertEquals(0, result.getInt("total"));
-        verify(mailboxLister).list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, 0, 25);
+        verify(mailboxLister).list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, "10001", "all", 0, 25);
     }
 
     @Test
-    void blocksOfficeSentUntilActionHistoryAuthorizationExists() throws IOException {
+    void officeSentUsesHistoricalActionProjection() throws IOException {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
         when(request.getParameter("box")).thenReturn("sent");
-        when(mailboxLister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE, DEPARTMENT, 0, 25))
-                .thenThrow(new org.badea.correspondence.security.CorrespondenceAuthorizationException(
-                        "Office Sent not yet authorized"));
+        when(mailboxLister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "10001", "all", 0, 25))
+                .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                        List.of(), 0, 25, 0));
         JSONObject result = execute();
-        verify(response).setStatus(Status.STATUS_FORBIDDEN);
-        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
+        verify(response).setStatus(Status.STATUS_OK);
+        assertEquals(0, result.getInt("total"));
     }
 
     private JSONObject execute() throws IOException {

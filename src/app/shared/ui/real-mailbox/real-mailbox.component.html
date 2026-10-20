@@ -5,10 +5,21 @@
   [searchLabel]="headings().search.label"
   [searchPlaceholder]="headings().search.placeholder"
   [primaryActionLabel]="headings().newCorrespondence"
+  [showPrimaryAction]="session.currentUser()?.employeeProfile?.correspondenceRole === 'DIRECTOR'"
   [showSearch]="false"
   (primaryAction)="openCompose()"
 >
   <div workspace-list>
+    @if (box() === 'inbox') {
+      <div class="mailbox-views" role="group" [attr.aria-label]="labels().inboxFilterLabel">
+        @for (view of inboxViews; track view) {
+          <button type="button" class="mailbox-view"
+            [class.mailbox-view--active]="inboxView() === view"
+            [attr.aria-pressed]="inboxView() === view"
+            (click)="setInboxView(view)">{{ labels().inboxFilters[view] }}</button>
+        }
+      </div>
+    }
     @if (loading() && !page()) {
       <div class="mailbox-empty" role="status">{{ labels().loading }}</div>
     } @else if (listError()) {

@@ -286,7 +286,8 @@ public final class AlfrescoCorrespondenceRepository
                 state,
                 originDepartmentCode,
                 assignedRole,
-                assignedDepartmentCode);
+                assignedDepartmentCode,
+                new AlfrescoCorrespondenceParticipationReader(nodeService).read(correspondence));
     }
 
     @Override

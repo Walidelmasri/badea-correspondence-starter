@@ -88,7 +88,8 @@ public final class GetCorrespondenceDocumentContentWebScript
                     technicalId,
                     nodeId,
                     actorRole,
-                    departmentCode);
+                    departmentCode,
+                    employee.employeeId().value());
 
         } catch (CurrentEmployeeNotFoundException exception) {
 

@@ -138,7 +138,7 @@ class GetCorrespondenceDetailsWebScriptTest {
         when(detailsService.getDetails(
                 TECHNICAL_ID,
                 CorrespondenceActorRole.PRESIDENT,
-                new DepartmentCode("117")))
+                new DepartmentCode("117"), "10001"))
                 .thenReturn(details);
 
         webScript.execute(request, response);
@@ -203,7 +203,7 @@ class GetCorrespondenceDetailsWebScriptTest {
         when(detailsService.getDetails(
                 TECHNICAL_ID,
                 CorrespondenceActorRole.DIRECTOR,
-                new DepartmentCode("117")))
+                new DepartmentCode("117"), "10001"))
                 .thenThrow(
                         new CorrespondenceAuthorizationException(
                                 "Access denied"));

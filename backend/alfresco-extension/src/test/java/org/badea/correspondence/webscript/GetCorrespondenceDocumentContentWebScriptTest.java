@@ -140,7 +140,7 @@ class GetCorrespondenceDocumentContentWebScriptTest {
                 TECHNICAL_ID,
                 NODE_ID,
                 CorrespondenceActorRole.PRESIDENT,
-                DEPARTMENT_CODE))
+                DEPARTMENT_CODE, "10001"))
                 .thenReturn(
                         new CorrespondenceDocumentStream(
                                 "main-letter.pdf",
@@ -184,7 +184,7 @@ class GetCorrespondenceDocumentContentWebScriptTest {
                 TECHNICAL_ID,
                 NODE_ID,
                 CorrespondenceActorRole.PRESIDENT,
-                DEPARTMENT_CODE))
+                DEPARTMENT_CODE, "10001"))
                 .thenThrow(
                         new CorrespondenceAuthorizationException(
                                 "Access denied."));
@@ -215,7 +215,7 @@ class GetCorrespondenceDocumentContentWebScriptTest {
                 TECHNICAL_ID,
                 NODE_ID,
                 CorrespondenceActorRole.PRESIDENT,
-                DEPARTMENT_CODE))
+                DEPARTMENT_CODE, "10001"))
                 .thenThrow(
                         new CorrespondenceDocumentNotFoundException());
 

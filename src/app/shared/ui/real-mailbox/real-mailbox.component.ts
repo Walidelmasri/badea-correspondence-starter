@@ -18,6 +18,7 @@ import {
   CorrespondenceDetails,
   CorrespondenceHistoryEntry,
   CorrespondenceMailboxBox,
+  CorrespondenceInboxView,
   CorrespondenceMailboxPage,
 } from '../../data-access/correspondence-api.service';
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
@@ -43,7 +44,7 @@ export class RealMailboxComponent implements OnInit {
   readonly box = input.required<CorrespondenceMailboxBox>();
   private readonly api = inject(CorrespondenceApiService);
   private readonly router = inject(Router);
-  private readonly session = inject(AuthSessionStore);
+  readonly session = inject(AuthSessionStore);
   readonly translation = inject(TranslationService);
 
   readonly headings = computed(() => this.box() === 'inbox'
@@ -51,6 +52,9 @@ export class RealMailboxComponent implements OnInit {
     : this.translation.text().sent);
   readonly labels = computed(() => this.translation.text().mailbox);
 
+  readonly inboxView = signal<CorrespondenceInboxView>('all');
+  readonly inboxViews: readonly CorrespondenceInboxView[] =
+    ['all', 'needs_action', 'handled', 'archived'];
   readonly page = signal<CorrespondenceMailboxPage | null>(null);
   readonly loading = signal(false);
   readonly listError = signal(false);
@@ -105,6 +109,16 @@ export class RealMailboxComponent implements OnInit {
     void this.loadPage(0);
   }
 
+  setInboxView(view: CorrespondenceInboxView): void {
+    if (this.box() !== 'inbox' || this.inboxView() === view) return;
+    this.inboxView.set(view);
+    this.selectedId.set(null);
+    // Invalidate the previous page request so switching filters while loading works.
+    ++this.pageVersion;
+    this.loading.set(false);
+    void this.loadPage(0);
+  }
+
   async loadPage(offset: number): Promise<void> {
     if (this.loading()) return;
     const version = ++this.pageVersion;
@@ -118,7 +132,7 @@ export class RealMailboxComponent implements OnInit {
     this.historyError.set(false);
     this.forwardUncertain.set(false);
     try {
-      const page = await firstValueFrom(this.api.listMailbox(this.box(), offset, PAGE_SIZE));
+      const page = await firstValueFrom(this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
       if (version !== this.pageVersion) return;
       this.page.set(page);
       const id = page.items.find(item => item.technicalId === this.selectedId())?.technicalId

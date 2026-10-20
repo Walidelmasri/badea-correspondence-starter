@@ -50,6 +50,15 @@ public final class CorrespondenceDetailsService {
                 actorRole,
                 "actorRole must not be null");
 
+        return getDetails(technicalId, actorRole, actorDepartmentCode, null);
+    }
+
+    public CorrespondenceDetails getDetails(String technicalId,
+            CorrespondenceActorRole actorRole, DepartmentCode actorDepartmentCode,
+            String authenticatedEmployeeId) {
+        Objects.requireNonNull(technicalId, "technicalId must not be null");
+        Objects.requireNonNull(actorRole, "actorRole must not be null");
+
         CorrespondenceAccessContext accessContext =
                 transitionRepository.getAccessContext(
                         technicalId);
@@ -57,7 +66,8 @@ public final class CorrespondenceDetailsService {
         accessAuthorizer.authorizeRead(
                 accessContext,
                 actorRole,
-                actorDepartmentCode);
+                actorDepartmentCode,
+                authenticatedEmployeeId);
 
         return detailsRepository.findByTechnicalId(
                 technicalId);

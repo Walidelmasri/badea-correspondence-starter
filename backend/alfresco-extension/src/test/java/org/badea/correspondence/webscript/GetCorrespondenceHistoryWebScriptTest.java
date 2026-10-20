@@ -62,7 +62,7 @@ class GetCorrespondenceHistoryWebScriptTest {
         endpoint.execute(request,response);
         writer.flush();
         verify(details).getDetails(ID,CorrespondenceActorRole.PRESIDENT_OFFICE,
-            new DepartmentCode("117"));
+            new DepartmentCode("117"), "10001");
         verify(response).setStatus(Status.STATUS_OK);
         JSONObject result=new JSONObject(output.toString());
         assertEquals(1,result.getInt("total"));
@@ -72,7 +72,7 @@ class GetCorrespondenceHistoryWebScriptTest {
     @Test
     void neverReadsHistoryAfterAuthorizationFailure() throws Exception {
         when(details.getDetails(ID,CorrespondenceActorRole.PRESIDENT_OFFICE,
-            new DepartmentCode("117")))
+            new DepartmentCode("117"), "10001"))
             .thenThrow(new CorrespondenceAuthorizationException("Access denied"));
         endpoint.execute(request,response);
         writer.flush();
