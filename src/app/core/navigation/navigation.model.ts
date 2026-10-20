@@ -1,4 +1,5 @@
 export type NavigationKey =
+  | 'dashboard'
   | 'inbox'
   | 'sent'
   | 'drafts'

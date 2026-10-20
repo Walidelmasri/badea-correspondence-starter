@@ -27,6 +27,12 @@ public enum CorrespondenceAction {
     /** Immutable Office fan-out to multiple independent departmental assignments. */
     DISTRIBUTE_TO_DEPARTMENTS,
 
+    /** Office opens a new, independently audited round after all departments finish. */
+    CONTINUE_CORRESPONDENCE,
+
+    /** Completed assigned Director initiates another round on the same correspondence. */
+    DIRECTOR_CONTINUE_CORRESPONDENCE,
+
     /** One Director's independently completed TO assignment; parent remains active. */
     COMPLETE_DEPARTMENT_ASSIGNMENT,
 

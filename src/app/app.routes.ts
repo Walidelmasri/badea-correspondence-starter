@@ -39,6 +39,13 @@ export const routes: Routes = [
       },
 
       {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./features/dashboard/presentation/dashboard-page.component')
+            .then(module => module.DashboardPageComponent),
+      },
+
+      {
         path: 'inbox',
 
         loadComponent: () =>

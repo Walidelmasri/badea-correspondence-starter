@@ -132,6 +132,17 @@ public final class CorrespondenceWorkflowService {
     private CorrespondenceState resolveDirectorTransition(
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action) {
+        // Office may close a distributed correspondence after every required
+        // department has completed. Assignment eligibility is enforced in the
+        // application service and rechecked against Alfresco before writing.
+        if (actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE
+                && action == CorrespondenceAction.CONTINUE_CORRESPONDENCE) {
+            return CorrespondenceState.WITH_PRESIDENT_OFFICE;
+        }
+        if (actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE
+                && action == CorrespondenceAction.ADMINISTRATIVE_CLOSE) {
+            return CorrespondenceState.ARCHIVED;
+        }
         if (actorRole != CorrespondenceActorRole.DIRECTOR) {
             return null;
         }

@@ -16,6 +16,34 @@ describe('Office first-handoff eligibility', () => {
   it('allows Office Inbox after Director sends it', () => {
     expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE', [initial])).toBe(true);
   });
+  it('allows Office to forward after starting another workflow cycle', () => {
+    const continued: CorrespondenceHistoryEntry = {
+      ...initial, sequence: 5, actionType: 'CONTINUE_CORRESPONDENCE',
+      actorRole: 'PRESIDENT_OFFICE', fromState: 'WITH_DIRECTOR',
+    };
+    expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE',
+      [initial, returned, continued])).toBe(true);
+    expect(eligible('sent', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE',
+      [initial, returned, continued])).toBe(false);
+  });
+  it('allows an assigned Director to initiate a new round for Office review', () => {
+    const followUp: CorrespondenceHistoryEntry = {
+      ...initial, sequence: 6, actionType: 'DIRECTOR_CONTINUE_CORRESPONDENCE',
+      actorRole: 'DIRECTOR', fromState: 'WITH_DIRECTOR',
+    };
+    expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE',
+      [initial, returned, followUp])).toBe(true);
+    expect(eligible('sent', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE',
+      [initial, returned, followUp])).toBe(false);
+  });
+  it('rejects a malformed or unrelated continuation event', () => {
+    const continued: CorrespondenceHistoryEntry = {
+      ...initial, sequence: 5, actionType: 'CONTINUE_CORRESPONDENCE',
+      actorRole: 'DIRECTOR', fromState: 'WITH_DIRECTOR',
+    };
+    expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE',
+      [initial, continued])).toBe(false);
+  });
   it('rejects correspondence returned by President', () => {
     expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE', [initial, returned])).toBe(false);
   });

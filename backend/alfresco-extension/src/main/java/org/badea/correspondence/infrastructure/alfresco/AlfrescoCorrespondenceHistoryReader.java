@@ -59,11 +59,18 @@ public final class AlfrescoCorrespondenceHistoryReader
                     || !(date instanceof Date d)) {
                 throw new CorrespondenceRepositoryException("Invalid workflow history action.");
             }
+            String actionType = required(child, "actionType");
+            String explanation = optional(child, "explanation");
+            // A closure reason is its own immutable property. Expose it in the
+            // existing history explanation field without altering the API shape.
+            if ("ADMINISTRATIVE_CLOSE".equals(actionType)) {
+                explanation = optional(child, "closureReason");
+            }
             entries.add(new ActionEntry(
-                n.longValue(), required(child,"actionType"),
+                n.longValue(), actionType,
                 required(child,"actorRole"), required(child,"actorNameEnglish"),
                 optional(child,"actorNameArabic"), required(child,"fromState"),
-                required(child,"toState"), d.toInstant(), optional(child,"explanation")));
+                required(child,"toState"), d.toInstant(), explanation));
         }
         entries.sort(Comparator.comparingLong(ActionEntry::sequence));
         for (int i=1; i<entries.size(); i++) {

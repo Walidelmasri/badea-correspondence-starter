@@ -28,6 +28,11 @@ public final class OfficeCompletionService {
         return presidentReview.find(id).map(PresidentReviewState::revision).orElse(0L);
     }
 
+    public long headRevision(String id, CorrespondenceActorRole role) {
+        authorize(id, role);
+        return completion.headRevision(id);
+    }
+
     public Optional<OfficeCompletionState> load(String id, CorrespondenceActorRole role) {
         authorize(id,role);
         return completion.find(id);

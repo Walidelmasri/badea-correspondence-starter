@@ -32,6 +32,7 @@ public final class AlfrescoOfficeCompletionRepository implements OfficeCompletio
     private static final QName TYPE = q("officeCompletionSnapshot");
     private static final QName P_REVISION = q("officeCompletionCurrentRevision");
     private static final QName P_SNAPSHOT_REVISION = q("officeSnapshotRevision");
+    private static final QName P_SNAPSHOT_CYCLE = q("officeSnapshotCycle");
     private static final QName P_PRESIDENT_REVISION = q("officePresidentReviewRevision");
     private static final QName P_EMPLOYEE = q("officeActorEmployeeId");
     private static final QName P_ROLE = q("officeActorRole");
@@ -61,6 +62,10 @@ public final class AlfrescoOfficeCompletionRepository implements OfficeCompletio
         long revision = currentRevision(correspondence);
         if (revision == 0L) return Optional.empty();
         NodeRef snapshot = latestSnapshot(correspondence, revision);
+        long activeCycle = new AlfrescoCorrespondenceCycleReader(nodes).current(correspondence);
+        long snapshotCycle = AlfrescoCorrespondenceCycleReader.number(
+                nodes.getProperty(snapshot, P_SNAPSHOT_CYCLE), "officeSnapshotCycle");
+        if (snapshotCycle != activeCycle) return Optional.empty();
         ContentReader reader = content.getReader(snapshot,ContentModel.PROP_CONTENT);
         if (reader == null || !reader.exists()) {
             throw new CorrespondenceRepositoryException("Missing Office completion snapshot content");
@@ -84,6 +89,12 @@ public final class AlfrescoOfficeCompletionRepository implements OfficeCompletio
                 employeeId,english,arabic instanceof String ar ? ar : null,at.toInstant()));
     }
 
+    @Override public long headRevision(String id) {
+        NodeRef correspondence = locate(id);
+        require(correspondence, PermissionService.READ);
+        return currentRevision(correspondence);
+    }
+
     @Override public OfficeCompletionState save(SaveOfficeCompletionCommand command) {
         Objects.requireNonNull(command);
         NodeRef correspondence = locate(command.technicalId());
@@ -97,6 +108,7 @@ public final class AlfrescoOfficeCompletionRepository implements OfficeCompletio
         Map<QName,Serializable> properties = new HashMap<>();
         properties.put(ContentModel.PROP_NAME, String.format("office-completion-revision-%010d.json", next));
         properties.put(P_SNAPSHOT_REVISION, next);
+        properties.put(P_SNAPSHOT_CYCLE, new AlfrescoCorrespondenceCycleReader(nodes).current(correspondence));
         properties.put(P_PRESIDENT_REVISION, command.expectedPresidentReviewRevision());
         properties.put(P_EMPLOYEE, command.actorEmployeeId().value());
         properties.put(P_ROLE, "PRESIDENT_OFFICE");

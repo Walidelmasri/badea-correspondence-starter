@@ -62,15 +62,26 @@ public final class CorrespondenceTransitionService {
         if (command.action() == CorrespondenceAction.DISTRIBUTE_TO_DEPARTMENTS) {
             throw new IllegalArgumentException("Use the Office distribution endpoint");
         }
-        if (!accessContext.assignments().isEmpty()) {
-            throw new IllegalStateException("Use per-department assignment actions after distribution");
+        boolean distributedClosure = !accessContext.assignments().isEmpty()
+                && command.action() == CorrespondenceAction.ADMINISTRATIVE_CLOSE
+                && command.actorRole() == CorrespondenceActorRole.PRESIDENT_OFFICE;
+        if (!accessContext.assignments().isEmpty() && !distributedClosure) {
+            throw new org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException(
+                    accessContext.state(), command.actorRole(), command.action());
         }
-
-
-        accessAuthorizer.authorizeTransition(
-                accessContext,
-                command.actorRole(),
-                command.actorDepartmentCode());
+        if (distributedClosure) {
+            if (accessContext.state() != CorrespondenceState.WITH_DIRECTOR
+                    || accessContext.assignedRole() != CorrespondenceActorRole.DIRECTOR
+                    || accessContext.assignments().stream().anyMatch(assignment ->
+                            assignment.recipientType() == DepartmentRecipientType.TO
+                            && assignment.status() != DepartmentAssignmentStatus.COMPLETED)) {
+                throw new org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException(
+                        accessContext.state(), command.actorRole(), command.action());
+            }
+        } else {
+            accessAuthorizer.authorizeTransition(
+                    accessContext, command.actorRole(), command.actorDepartmentCode());
+        }
 
         CorrespondenceState nextState =
                 workflowService.nextState(
@@ -98,6 +109,14 @@ public final class CorrespondenceTransitionService {
             } catch (RuntimeException failure) {
                 throw new IllegalStateException(
                         "President submission could not be committed", failure);
+            }
+        } else if (distributedClosure) {
+            // A Web Script can catch domain failures; force storage failures to
+            // escape the REQUIRED transaction rather than commit a partial archive.
+            try {
+                repository.applyTransition(command, accessContext.state(), nextState, targetRole);
+            } catch (RuntimeException failure) {
+                throw new IllegalStateException("Distributed administrative closure was not committed", failure);
             }
         } else {
             repository.applyTransition(command, accessContext.state(), nextState, targetRole);

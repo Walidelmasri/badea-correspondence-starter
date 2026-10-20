@@ -45,6 +45,18 @@ describe('CorrespondenceApiService', () => {
     );
   });
 
+  it('continues an Office correspondence cycle without client-controlled state', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    service.continueOfficeCycle(id).subscribe(result => {
+      expect(result.currentWorkflowCycle).toBe(2);
+    });
+    const request = http.expectOne(`/alfresco/service/badea/office-continue/${id}`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
+    request.flush({ technicalId: id, state: 'WITH_PRESIDENT_OFFICE',
+      currentWorkflowCycle: 2 });
+  });
+
   it('loads only Office completion, not President review state', () => {
     service.getOfficeCompletion('test-id').subscribe();
     const req = http.expectOne('/alfresco/service/badea/office-completion/test-id');

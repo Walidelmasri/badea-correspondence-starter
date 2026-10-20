@@ -66,3 +66,83 @@
 .mailbox-view { border: 1px solid #cbd5d1; border-radius: 6px; background: #fff;
   padding: .45rem .65rem; font: inherit; cursor: pointer; }
 .mailbox-view--active { border-color: #155447; background: #e6f1ed; font-weight: 700; }
+
+
+/* Assignment and action sections are not attachment rows. Keep each status,
+   departmental response, and authorized action visually distinct in RTL/LTR. */
+.mailbox-section-heading { display: flex; align-items: baseline; gap: .65rem; margin-block-end: 1rem; }
+.mailbox-assignment-list { list-style: none; display: grid; gap: .85rem; padding: 0; margin: 0; }
+.mailbox-assignment-card {
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+.mailbox-assignment-card__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: .8rem 1.2rem;
+}
+.mailbox-assignment-card__department { display: grid; gap: .3rem; min-width: 0; }
+.mailbox-assignment-card__department strong { font-size: .95rem; line-height: 1.5; overflow-wrap: anywhere; }
+.mailbox-assignment-card__department small,
+.mailbox-assignment-card__completed { color: var(--color-text-secondary); font-size: .78rem; }
+.mailbox-assignment-card__badges { display: flex; flex-wrap: wrap; gap: .4rem; }
+.mailbox-assignment-chip {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 100px;
+  padding: .28rem .65rem;
+  font-size: .78rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  background: var(--color-primary-050);
+  color: var(--color-text-primary);
+}
+.mailbox-assignment-chip--pending { background: #fff7e6; color: #77510f; border-color: #e9cd89; }
+.mailbox-assignment-chip--complete { background: #eaf5ec; color: #246139; border-color: #add6b8; }
+.mailbox-assignment-card__response { margin-block-start: .9rem; padding: .85rem 1rem; border-radius: var(--radius-sm); background: var(--color-primary-050); }
+.mailbox-assignment-card__response > span { font-size: .75rem; color: var(--color-text-secondary); }
+.mailbox-assignment-card__response p { margin: .5rem 0 0; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
+.mailbox-assignment-card__completed { margin: .7rem 0 0; }
+.mailbox-document-detail { display: grid !important; gap: .28rem; min-width: 0; }
+.mailbox-document-filename { overflow-wrap: anywhere; }
+.mailbox-assignment-form, .mailbox-closure { display: grid; gap: .75rem; }
+.mailbox-assignment-form { margin-block-start: 1.1rem; border-block-start: 1px solid var(--color-border); padding-block-start: 1rem; }
+.mailbox-assignment-form label, .mailbox-closure label { font-weight: 600; font-size: .85rem; }
+.mailbox-assignment-form textarea, .mailbox-closure textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 6rem;
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: .75rem;
+  font: inherit;
+  line-height: 1.6;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  text-align: start;
+}
+.mailbox-assignment-form textarea:focus-visible, .mailbox-closure textarea:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.mailbox-assignment-form .mailbox-action, .mailbox-closure .mailbox-action { justify-self: start; }
+.mailbox-closure { padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.mailbox-closure p { color: var(--color-text-secondary); font-size: .86rem; line-height: 1.6; margin: 0; }
+@media (max-width: 640px) {
+  .mailbox-assignment-card { padding: .85rem; }
+  .mailbox-assignment-card__heading { flex-direction: column; }
+}
+
+/* Explicit Office decision: continue the same correspondence or archive it. */
+.mailbox-cycle-options { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1rem; }
+.mailbox-cycle-option { display: flex; flex-direction: column; align-items: flex-start; gap: .7rem;
+  min-width: 0; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.mailbox-cycle-option h4 { margin: 0; font-size: .92rem; }
+.mailbox-cycle-option p { margin: 0; }
+.mailbox-cycle-option textarea { min-height: 5rem; }
+.mailbox-cycle-option .mailbox-action { margin-block-start: auto; }
+@media (max-width: 760px) { .mailbox-cycle-options { grid-template-columns: 1fr; } }

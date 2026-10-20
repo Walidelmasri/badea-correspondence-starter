@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Continue BADEA correspondence to another workflow round</shortname>
+    <description>Office preserves completed round and opens a new active review cycle</description>
+    <url>/badea/office-continue/{technicalId}</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>

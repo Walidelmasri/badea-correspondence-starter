@@ -27,12 +27,24 @@ public final class AlfrescoDepartmentAssignmentReader {
     }
 
     public List<DepartmentAssignment> read(NodeRef parent) {
+        return readInternal(parent, false);
+    }
+
+    /** Current assignments drive actions; read() still provides complete history. */
+    public List<DepartmentAssignment> readCurrent(NodeRef parent) {
+        return readInternal(parent, true);
+    }
+
+    private List<DepartmentAssignment> readInternal(NodeRef parent, boolean currentOnly) {
         String technicalId = str(parent, "technicalId", true);
+        AlfrescoCorrespondenceCycleReader cycles =
+                currentOnly ? new AlfrescoCorrespondenceCycleReader(nodes) : null;
         List<DepartmentAssignment> result = new ArrayList<>();
         for (ChildAssociationRef child : nodes.getChildAssocs(parent)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(child.getTypeQName())) continue;
             NodeRef node = child.getChildRef();
             if (!TYPE.equals(nodes.getType(node))) continue;
+            if (currentOnly && !cycles.isCurrent(parent, node)) continue;
             try {
                 String id = str(node, "assignmentId", true);
                 String dept = str(node, "assignmentDepartmentCode", true);

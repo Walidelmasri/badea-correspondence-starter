@@ -230,6 +230,8 @@ public final class AlfrescoCorrespondenceRepository
                 PROP_LAST_ACTION_SEQUENCE,
                 0L);
 
+        properties.put(AlfrescoCorrespondenceCycleReader.CURRENT, 1L);
+
         QName associationQName =
                 qname(
                         "correspondence-" + technicalId);
@@ -288,7 +290,7 @@ public final class AlfrescoCorrespondenceRepository
                 assignedRole,
                 assignedDepartmentCode,
                 new AlfrescoCorrespondenceParticipationReader(nodeService).read(correspondence),
-                new AlfrescoDepartmentAssignmentReader(nodeService).read(correspondence));
+                new AlfrescoDepartmentAssignmentReader(nodeService).readCurrent(correspondence));
     }
 
     @Override
@@ -326,6 +328,23 @@ public final class AlfrescoCorrespondenceRepository
                             + " but found "
                             + persistedState
                             + ".");
+        }
+
+        // Re-read persisted assignments inside the same REQUIRED transaction.
+        // A browser's earlier view is not authority to archive pending work.
+        if (command.action() == CorrespondenceAction.ADMINISTRATIVE_CLOSE
+                && fromState == CorrespondenceState.WITH_DIRECTOR) {
+            var currentAssignments = new AlfrescoDepartmentAssignmentReader(nodeService)
+                    .read(correspondence);
+            if (command.actorRole() != CorrespondenceActorRole.PRESIDENT_OFFICE
+                    || toState != CorrespondenceState.ARCHIVED
+                    || currentAssignments.isEmpty()
+                    || currentAssignments.stream().anyMatch(item ->
+                            item.recipientType() == org.badea.correspondence.application.DepartmentRecipientType.TO
+                            && item.status() != org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED)) {
+                throw new InvalidCorrespondenceTransitionException(
+                        fromState, command.actorRole(), command.action());
+            }
         }
 
         long currentSequence =
@@ -410,10 +429,18 @@ public final class AlfrescoCorrespondenceRepository
             Serializable sequence = nodeService.getProperty(action, PROP_ACTION_SEQUENCE);
             return sequence instanceof Number number
                     && number.longValue() == lastSequence
-                    && CorrespondenceAction.SEND_TO_OFFICE.name().equals(
+                    && ((CorrespondenceAction.SEND_TO_OFFICE.name().equals(
                         nodeService.getProperty(action, PROP_ACTION_TYPE))
-                    && CorrespondenceActorRole.DIRECTOR.name().equals(
-                        nodeService.getProperty(action, PROP_ACTOR_ROLE))
+                            && CorrespondenceActorRole.DIRECTOR.name().equals(
+                                nodeService.getProperty(action, PROP_ACTOR_ROLE)))
+                        || (CorrespondenceAction.CONTINUE_CORRESPONDENCE.name().equals(
+                            nodeService.getProperty(action, PROP_ACTION_TYPE))
+                            && CorrespondenceActorRole.PRESIDENT_OFFICE.name().equals(
+                                nodeService.getProperty(action, PROP_ACTOR_ROLE)))
+                        || (CorrespondenceAction.DIRECTOR_CONTINUE_CORRESPONDENCE.name().equals(
+                            nodeService.getProperty(action, PROP_ACTION_TYPE))
+                            && CorrespondenceActorRole.DIRECTOR.name().equals(
+                                nodeService.getProperty(action, PROP_ACTOR_ROLE))))
                     && CorrespondenceState.WITH_PRESIDENT_OFFICE.name().equals(
                         nodeService.getProperty(action, PROP_TO_STATE));
         }

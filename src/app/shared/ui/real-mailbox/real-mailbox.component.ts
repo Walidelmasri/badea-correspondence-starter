@@ -12,6 +12,8 @@ import { firstValueFrom } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { CorrespondenceService } from '../../../core/correspondence/correspondence.service';
+import { CorrespondenceDepartment } from '../../../core/correspondence/correspondence.model';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import {
   CorrespondenceApiService,
@@ -44,6 +46,7 @@ const PAGE_SIZE = 25;
 export class RealMailboxComponent implements OnInit {
   readonly box = input.required<CorrespondenceMailboxBox>();
   private readonly api = inject(CorrespondenceApiService);
+  private readonly correspondence = inject(CorrespondenceService);
   private readonly router = inject(Router);
   readonly session = inject(AuthSessionStore);
   readonly translation = inject(TranslationService);
@@ -65,9 +68,22 @@ export class RealMailboxComponent implements OnInit {
   readonly detailsError = signal(false);
   readonly history = signal<readonly CorrespondenceHistoryEntry[] | null>(null);
   readonly assignments = signal<readonly DepartmentAssignment[]>([]);
+  readonly departments = signal<readonly CorrespondenceDepartment[]>([]);
   readonly assignmentResponse = signal('');
   readonly completingAssignment = signal(false);
   readonly assignmentNotice = signal<'failed' | 'uncertain' | null>(null);
+  readonly continuingCycle = signal(false);
+  readonly continueUncertain = signal(false);
+  readonly continueNotice = signal<'continued' | 'failed' | 'uncertain' | null>(null);
+  readonly followUpReason = signal('');
+  readonly followUpFiles = signal<readonly File[]>([]);
+  readonly sendingFollowUp = signal(false);
+  readonly followUpUncertain = signal(false);
+  readonly followUpNotice = signal<'failed' | 'uncertain' | 'invalid' | null>(null);
+  readonly archiveReason = signal('');
+  readonly archiving = signal(false);
+  readonly archiveUncertain = signal(false);
+  readonly archiveNotice = signal<'failed' | 'uncertain' | null>(null);
   readonly historyLoading = signal(false);
   readonly historyError = signal(false);
   readonly forwarding = signal(false);
@@ -111,7 +127,26 @@ export class RealMailboxComponent implements OnInit {
     && this.session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT');
 
   ngOnInit(): void {
+    // The directory is display-only; a temporary directory failure must not
+    // block authenticated mailbox access or document preview.
+    void this.loadDepartments();
     void this.loadPage(0);
+  }
+
+  private async loadDepartments(): Promise<void> {
+    try {
+      this.departments.set(await firstValueFrom(this.correspondence.getDepartments()));
+    } catch {
+      // Preserve the exact department code as a safe, recognizable fallback.
+      this.departments.set([]);
+    }
+  }
+
+  departmentName(code: string): string {
+    const match = this.departments().find(dept => dept.code === code);
+    if (!match) return code;
+    return this.translation.language() === 'ar'
+      ? (match.nameArabic || match.nameEnglish) : match.nameEnglish;
   }
 
   setInboxView(view: CorrespondenceInboxView): void {
@@ -136,6 +171,7 @@ export class RealMailboxComponent implements OnInit {
     this.history.set(null);
     this.historyError.set(false);
     this.forwardUncertain.set(false);
+    this.continueUncertain.set(false);
     try {
       const page = await firstValueFrom(this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
       if (version !== this.pageVersion) return;
@@ -158,6 +194,7 @@ export class RealMailboxComponent implements OnInit {
   select(id: string): void {
     if (id === this.selectedId()) return;
     this.closePreview();
+    this.continueNotice.set(null);
     this.selectedId.set(id);
     void this.loadDetails(id);
   }
@@ -175,6 +212,14 @@ export class RealMailboxComponent implements OnInit {
     this.assignments.set([]);
     this.assignmentNotice.set(null);
     this.assignmentResponse.set('');
+    this.archiveReason.set('');
+    this.followUpReason.set('');
+    this.followUpFiles.set([]);
+    this.followUpUncertain.set(false);
+    this.followUpNotice.set(null);
+    this.continueUncertain.set(false);
+    this.archiveNotice.set(null);
+    this.archiveUncertain.set(false);
     this.historyError.set(false);
     this.historyLoading.set(true);
     this.detailsLoading.set(true);
@@ -272,6 +317,57 @@ export class RealMailboxComponent implements OnInit {
       && item.recipientType === 'TO' && item.status === 'PENDING') ?? null;
   });
 
+  readonly canDirectorFollowUp = computed(() => {
+    if (this.box() !== 'inbox' || this.details()?.state !== 'WITH_DIRECTOR'
+        || this.session.currentUser()?.employeeProfile?.correspondenceRole !== 'DIRECTOR') return false;
+    const department = this.session.currentUser()?.employeeProfile?.department?.code;
+    const required = this.assignments().filter(item => item.recipientType === 'TO');
+    return required.length > 0
+      && required.every(item => item.status === 'COMPLETED')
+      && required.some(item => item.departmentCode === department);
+  });
+
+  updateFollowUpReason(event: Event): void {
+    this.followUpReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  chooseFollowUpFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (files.length > 5 || files.some(file => !file.name.toLowerCase().endsWith('.pdf')
+        || file.size < 5 || file.size > 25 * 1024 * 1024)) {
+      this.followUpFiles.set([]);
+      this.followUpNotice.set('invalid');
+      return;
+    }
+    this.followUpNotice.set(null);
+    this.followUpFiles.set(files);
+  }
+
+  async directorFollowUp(): Promise<void> {
+    const id = this.selectedId();
+    const reason = this.followUpReason().trim();
+    if (!id || !this.canDirectorFollowUp() || this.sendingFollowUp()
+        || this.followUpUncertain() || !reason || reason.length > 2000) return;
+    if (!window.confirm(this.labels().directorFollowUpConfirm)) return;
+    this.sendingFollowUp.set(true);
+    this.followUpNotice.set(null);
+    try {
+      // Upload first so Office does not receive a new cycle with missing evidence.
+      // Never retry a binary upload automatically following a lost response.
+      for (const file of this.followUpFiles()) {
+        await firstValueFrom(this.api.uploadDocument(id, file));
+      }
+      await firstValueFrom(this.api.continueDirectorCycle(id, reason));
+      await this.loadPage(0);
+    } catch (error: unknown) {
+      const uncertain = error instanceof HttpErrorResponse
+        && (error.status === 0 || error.status >= 500);
+      this.followUpUncertain.set(uncertain);
+      this.followUpNotice.set(uncertain ? 'uncertain' : 'failed');
+    } finally { this.sendingFollowUp.set(false); }
+  }
+
   updateAssignmentResponse(event: Event): void {
     this.assignmentResponse.set((event.target as HTMLTextAreaElement).value);
   }
@@ -293,6 +389,68 @@ export class RealMailboxComponent implements OnInit {
     } finally { this.completingAssignment.set(false); }
   }
 
+  /** UI eligibility; the server rechecks active-cycle assignments and authorization. */
+  readonly officeDistributionReady = computed(() =>
+    this.box() === 'inbox'
+    && this.session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT_OFFICE'
+    && this.details()?.state === 'WITH_DIRECTOR'
+    && this.assignments().length > 0
+    && this.assignments().every(item => item.recipientType !== 'TO' || item.status === 'COMPLETED'),
+  );
+  readonly canArchiveDistribution = computed(() => this.officeDistributionReady()
+    && !this.archiving() && !this.archiveUncertain() && !this.continuingCycle() && !this.continueUncertain());
+  readonly canContinueDistribution = computed(() => this.officeDistributionReady()
+    && !this.continuingCycle() && !this.continueUncertain() && !this.archiving() && !this.archiveUncertain());
+
+  async continueCorrespondence(): Promise<void> {
+    const id = this.selectedId();
+    if (!id || !this.canContinueDistribution()) return;
+    if (!window.confirm(this.labels().confirmContinueCorrespondence)) return;
+    this.continuingCycle.set(true);
+    this.continueNotice.set(null);
+    try {
+      await firstValueFrom(this.api.continueOfficeCycle(id));
+      // Refresh both the workflow history and the active assignment projection.
+      // The old completed assignments remain stored in Alfresco for audit.
+      await this.loadPage(0);
+      this.continueNotice.set('continued');
+    } catch (error: unknown) {
+      // The server may have committed even if the response was lost. Do not auto-retry.
+      const uncertain = error instanceof HttpErrorResponse
+        && (error.status === 0 || error.status >= 500);
+      this.continueUncertain.set(uncertain);
+      this.continueNotice.set(uncertain ? 'uncertain' : 'failed');
+    } finally {
+      this.continuingCycle.set(false);
+    }
+  }
+
+  updateArchiveReason(event: Event): void {
+    this.archiveReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  async archiveDistribution(): Promise<void> {
+    const id = this.selectedId();
+    const reason = this.archiveReason().trim();
+    if (!id || !this.canArchiveDistribution() || !reason) return;
+    if (!window.confirm(this.labels().confirmAdministrativeClosure)) return;
+    this.archiving.set(true);
+    this.archiveNotice.set(null);
+    try {
+      await firstValueFrom(this.api.transitionCorrespondence(id, {
+        action: 'ADMINISTRATIVE_CLOSE', closureReason: reason,
+      }));
+      await this.loadPage(0);
+    } catch (error: unknown) {
+      const uncertain = error instanceof HttpErrorResponse
+        && (error.status === 0 || error.status >= 500);
+      this.archiveUncertain.set(uncertain);
+      this.archiveNotice.set(uncertain ? 'uncertain' : 'failed');
+    } finally {
+      this.archiving.set(false);
+    }
+  }
+
   actionLabel(actionType: string): string {
     switch (actionType) {
       case 'SEND_TO_OFFICE': return this.labels().historyActions.sentToOffice;
@@ -302,6 +460,8 @@ export class RealMailboxComponent implements OnInit {
       case 'COMPLETE_DEPARTMENT_ASSIGNMENT': return this.labels().historyActions.assignmentCompleted;
       case 'MARK_DONE': return this.labels().historyActions.completed;
       case 'ADMINISTRATIVE_CLOSE': return this.labels().historyActions.archived;
+      case 'CONTINUE_CORRESPONDENCE': return this.labels().historyActions.continued;
+      case 'DIRECTOR_CONTINUE_CORRESPONDENCE': return this.labels().historyActions.directorContinued;
       default: return actionType;
     }
   }

@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Director-initiated BADEA follow-up round</shortname>
+    <description>Complete TO Director starts new review cycle, preserving correspondence identity and prior history</description>
+    <url>/badea/director-continue/{technicalId}</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>

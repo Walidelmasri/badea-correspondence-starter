@@ -27,6 +27,9 @@ public final class AlfrescoPresidentReviewStateRepository
             qname(
                     "presidentReviewState");
 
+    private static final QName PROP_PRESIDENT_REVIEW_CYCLE =
+            qname("presidentReviewCycle");
+
     private static final QName PROP_PRESIDENT_REVIEW_REVISION =
             qname(
                     "presidentReviewRevision");
@@ -170,6 +173,8 @@ public final class AlfrescoPresidentReviewStateRepository
                 correspondence,
                 PROP_PRESIDENT_REVIEW_REVISION,
                 nextRevision);
+        nodeService.setProperty(correspondence, PROP_PRESIDENT_REVIEW_CYCLE,
+                new AlfrescoCorrespondenceCycleReader(nodeService).current(correspondence));
 
         nodeService.setProperty(
                 correspondence,

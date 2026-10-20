@@ -1,0 +1,145 @@
+<section class="dashboard" [attr.dir]="translation.language() === 'ar' ? 'rtl' : 'ltr'">
+  <div class="dashboard__intro">
+    <div>
+      <p class="dashboard__eyebrow">{{ labels().eyebrow }}</p>
+      <h1>{{ labels().title }}</h1>
+      <p class="dashboard__subtitle">{{ labels().subtitle }}</p>
+      <div class="dashboard__scope">
+        <span class="dashboard__scope-dot"></span>
+        {{ labels().scoped }}
+        @if (roleLabel()) { <span class="dashboard__role">{{ roleLabel() }}</span> }
+      </div>
+    </div>
+    <button type="button" class="dashboard__refresh" [disabled]="loading()" (click)="refresh()">
+      <span aria-hidden="true">↻</span>
+      {{ loading() ? labels().refreshing : labels().refresh }}
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="dashboard__loading" role="status" aria-live="polite">
+      <div class="dashboard__loading-bar"></div>
+      {{ labels().refreshing }}
+    </div>
+  } @else if (failed()) {
+    <div class="dashboard__error" role="alert">
+      <p>{{ labels().loadFailed }}</p>
+      <button type="button" (click)="refresh()">{{ labels().retry }}</button>
+    </div>
+  } @else if (stats(); as s) {
+    <div class="dashboard__stats">
+      <a routerLink="/inbox" class="stat stat--received">
+        <span class="stat__label">{{ labels().stats.received }}</span>
+        <strong class="stat__number">{{ s.received }}</strong>
+        <span class="stat__meta">{{ labels().openInbox }} <span aria-hidden="true">↗</span></span>
+      </a>
+      <a routerLink="/inbox" class="stat stat--action">
+        <span class="stat__label">{{ labels().stats.needsAction }}</span>
+        <strong class="stat__number">{{ s.needsAction }}</strong>
+        <span class="stat__meta">{{ labels().focusHint }}</span>
+      </a>
+      <a routerLink="/inbox" class="stat">
+        <span class="stat__label">{{ labels().stats.handled }}</span>
+        <strong class="stat__number">{{ s.handled }}</strong>
+        <span class="stat__meta">{{ labels().handledStatus }}</span>
+      </a>
+      <a routerLink="/inbox" class="stat">
+        <span class="stat__label">{{ labels().stats.archived }}</span>
+        <strong class="stat__number">{{ s.archived }}</strong>
+        <span class="stat__meta">{{ labels().archivedStatus }}</span>
+      </a>
+      <a routerLink="/sent" class="stat">
+        <span class="stat__label">{{ labels().stats.sent }}</span>
+        <strong class="stat__number">{{ s.sent }}</strong>
+        <span class="stat__meta">{{ labels().openSent }} <span aria-hidden="true">↗</span></span>
+      </a>
+      <a routerLink="/drafts" class="stat">
+        <span class="stat__label">{{ labels().stats.drafts }}</span>
+        <strong class="stat__number">{{ s.drafts }}</strong>
+        <span class="stat__meta">{{ labels().openDrafts }} <span aria-hidden="true">↗</span></span>
+      </a>
+    </div>
+
+    <div class="dashboard__insights">
+      <section class="panel panel--focus">
+        <div class="panel__heading">
+          <div>
+            <h2>{{ labels().focusTitle }}</h2>
+            <p>{{ labels().focusHint }}</p>
+          </div>
+          <span class="panel__count">{{ s.needsAction }}</span>
+        </div>
+        @if (s.urgent.length) {
+          <div class="focus-list">
+            @for (item of s.urgent; track item.technicalId) {
+              <div class="focus-item">
+                <span class="focus-item__mark" aria-hidden="true"></span>
+                <div class="focus-item__body">
+                  <strong>{{ item.subject }}</strong>
+                  <span>{{ item.documentNumber || labels().noNumber }}</span>
+                </div>
+                <time>{{ formattedDate(item.modifiedAt) }}</time>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="dashboard__empty">{{ labels().empty }}</div>
+        }
+        <a routerLink="/inbox" class="panel__link">{{ labels().openInbox }} <span aria-hidden="true">↗</span></a>
+      </section>
+
+      <section class="panel panel--distribution">
+        <div class="panel__heading">
+          <div>
+            <h2>{{ labels().workloadTitle }}</h2>
+            <p>{{ labels().workloadHint }}</p>
+          </div>
+        </div>
+        <div class="workload-bar" role="img" [attr.aria-label]="labels().workloadTitle">
+          @for (segment of s.segments; track segment.key) {
+            <span [class]="'workload-bar__segment workload-bar__segment--' + segment.key"
+              [style.width.%]="segment.percentage"></span>
+          }
+        </div>
+        <div class="workload-legend">
+          @for (segment of s.segments; track segment.key) {
+            <div class="workload-legend__item">
+              <span [class]="'workload-legend__dot workload-legend__dot--' + segment.key"></span>
+              <span class="workload-legend__label">{{ segment.key === 'needs_action' ? labels().stats.needsAction : segment.key === 'handled' ? labels().stats.handled : labels().stats.archived }}</span>
+              <strong>{{ segment.total }}</strong>
+            </div>
+          }
+        </div>
+        <p class="panel__footnote">{{ labels().countsNote }}</p>
+      </section>
+    </div>
+
+    <section class="panel panel--recent">
+      <div class="panel__heading">
+        <div>
+          <h2>{{ labels().recentTitle }}</h2>
+          <p>{{ labels().recentHint }}</p>
+        </div>
+        <a class="panel__link" routerLink="/inbox">{{ labels().openInbox }} <span aria-hidden="true">↗</span></a>
+      </div>
+      @if (s.recent.length) {
+        <div class="recent-list">
+          @for (item of s.recent; track item.technicalId) {
+            <div class="recent-item">
+              <div class="recent-item__subject">
+                <strong>{{ item.subject }}</strong>
+                <span>{{ item.documentNumber || labels().noNumber }} · {{ item.senderName }}</span>
+              </div>
+              <span [class]="'recent-item__status ' + (item.state === 'ARCHIVED' ? 'recent-item__status--archived' : item.needsAction ? 'recent-item__status--action' : 'recent-item__status--handled')">
+                {{ correspondenceStatus(item) }}
+              </span>
+              <time>{{ formattedDate(item.modifiedAt) }}</time>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="dashboard__empty">{{ labels().empty }}</div>
+      }
+    </section>
+  }
+</section>

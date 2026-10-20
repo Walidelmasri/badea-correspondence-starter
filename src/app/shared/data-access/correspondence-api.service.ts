@@ -183,6 +183,22 @@ export class CorrespondenceApiService {
     );
   }
 
+  /** Office-only, transactional transition to a new workflow cycle. */
+  continueOfficeCycle(technicalId: string): Observable<{
+    readonly technicalId: string;
+    readonly state: 'WITH_PRESIDENT_OFFICE';
+    readonly currentWorkflowCycle: number;
+  }> {
+    return this.http.post<{
+      readonly technicalId: string;
+      readonly state: 'WITH_PRESIDENT_OFFICE';
+      readonly currentWorkflowCycle: number;
+    }>(
+      `/alfresco/service/badea/office-continue/${encodeURIComponent(technicalId)}`,
+      {},
+    );
+  }
+
   getDepartmentAssignments(technicalId: string): Observable<DepartmentAssignmentPage> {
     return this.http.get<DepartmentAssignmentPage>(
       `/alfresco/service/badea/department-assignments/${encodeURIComponent(technicalId)}`,
@@ -281,6 +297,17 @@ export class CorrespondenceApiService {
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}` +
       `/documents/${encodeURIComponent(documentNodeId)}/content`,
       { responseType: 'blob' },
+    );
+  }
+
+  /** Audited cycle advancement; role and department come from the server session. */
+  continueDirectorCycle(
+    technicalId: string,
+    reason: string,
+  ): Observable<{ technicalId: string; state: 'WITH_PRESIDENT_OFFICE'; currentWorkflowCycle: number }> {
+    return this.http.post<{ technicalId: string; state: 'WITH_PRESIDENT_OFFICE'; currentWorkflowCycle: number }>(
+      `/alfresco/service/badea/director-continue/${encodeURIComponent(technicalId)}`,
+      { reason },
     );
   }
 

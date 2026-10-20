@@ -207,6 +207,7 @@ class AlfrescoCorrespondenceRepositoryTest {
                 0L,
                 properties.get(
                         qname("lastActionSequence")));
+        assertEquals(1L, properties.get(qname("currentWorkflowCycle")));
     }
 
     @Test
@@ -667,6 +668,36 @@ class AlfrescoCorrespondenceRepositoryTest {
                 CorrespondenceActorRole.PRESIDENT));
         verify(nodeService, never()).setProperty(
             correspondence, qname("state"), "WITH_PRESIDENT");
+    }
+
+    @Test
+    void refusesArchivingWhenPersistedDepartmentIsStillPending() {
+        NodeRef parent = nodeRef("00000000-0000-0000-0000-000000000900");
+        NodeRef pending = nodeRef("00000000-0000-0000-0000-000000000904");
+        ChildAssociationRef association = mock(ChildAssociationRef.class);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(parent);
+        when(nodeService.getProperty(parent, qname("state"))).thenReturn("WITH_DIRECTOR");
+        when(nodeService.getProperty(parent, qname("technicalId"))).thenReturn(TECHNICAL_ID);
+        when(nodeService.getChildAssocs(parent)).thenReturn(java.util.List.of(association));
+        when(association.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(association.getChildRef()).thenReturn(pending);
+        when(nodeService.getType(pending)).thenReturn(qname("departmentAssignment"));
+        when(nodeService.getProperty(pending, qname("assignmentId"))).thenReturn("assignment-117");
+        when(nodeService.getProperty(pending, qname("assignmentDepartmentCode"))).thenReturn("117");
+        when(nodeService.getProperty(pending, qname("assignmentRecipientType"))).thenReturn("TO");
+        when(nodeService.getProperty(pending, qname("assignmentStatus"))).thenReturn("PENDING");
+        when(nodeService.getProperty(pending, qname("assignmentByEmployeeId"))).thenReturn("18280");
+        when(nodeService.getProperty(pending, qname("assignmentAt"))).thenReturn(Date.from(FIXED_INSTANT));
+        TransitionCorrespondenceCommand close = transitionCommand(
+                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.ADMINISTRATIVE_CLOSE, new DepartmentCode("101"), null,
+                "Premature close");
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+                () -> repository.applyTransition(close, CorrespondenceState.WITH_DIRECTOR,
+                        CorrespondenceState.ARCHIVED, null));
+        verify(nodeService, never()).createNode(eq(parent), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(qname("workflowAction")), any());
+        verify(nodeService, never()).setProperty(parent, qname("state"), "ARCHIVED");
     }
 
     private static TransitionCorrespondenceCommand transitionCommand(

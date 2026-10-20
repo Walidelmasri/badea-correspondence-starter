@@ -213,6 +213,19 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
                         correspondence,
                         PROP_STATE);
 
+        // Supplementary PDFs are appended to the same correspondence while a
+        // Director is completing a current TO assignment. Neither the historical
+        // documents nor completed assignments are overwritten.
+        if (CorrespondenceState.WITH_DIRECTOR.name().equals(state)) {
+            boolean assigned = new AlfrescoDepartmentAssignmentReader(nodeService)
+                    .readCurrent(correspondence).stream().anyMatch(item ->
+                            item.recipientType() == org.badea.correspondence.application.DepartmentRecipientType.TO
+                            && item.status() == org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED
+                            && item.departmentCode().equals(actorDepartmentCode));
+            if (!assigned || permissionService.hasPermission(correspondence,
+                    PermissionService.WRITE) != AccessStatus.ALLOWED) throw forbidden();
+            return;
+        }
         if (!CorrespondenceState.DRAFT.name().equals(state)) {
             throw forbidden();
         }

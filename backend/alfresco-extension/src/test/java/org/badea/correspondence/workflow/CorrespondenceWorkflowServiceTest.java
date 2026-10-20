@@ -89,6 +89,18 @@ class CorrespondenceWorkflowServiceTest {
     }
 
     @Test
+    void presidentOfficeCanCloseDistributedCorrespondenceAtWorkflowLevel() {
+        assertEquals(CorrespondenceState.ARCHIVED, workflow.nextState(
+                CorrespondenceState.WITH_DIRECTOR,
+                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.ADMINISTRATIVE_CLOSE));
+        assertThrows(InvalidCorrespondenceTransitionException.class, () -> workflow.nextState(
+                CorrespondenceState.WITH_DIRECTOR,
+                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.MARK_DONE));
+    }
+
+    @Test
     void presidentCanReturnToOffice() {
 
         assertEquals(
@@ -239,5 +251,20 @@ class CorrespondenceWorkflowServiceTest {
                         null
                 )
         );
+    }
+    @Test
+    void officeCanContinueDistributedCorrespondenceButNotArchivedCorrespondence() {
+        assertEquals(CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                workflow.nextState(CorrespondenceState.WITH_DIRECTOR,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        CorrespondenceAction.CONTINUE_CORRESPONDENCE));
+        assertThrows(InvalidCorrespondenceTransitionException.class,
+                () -> workflow.nextState(CorrespondenceState.ARCHIVED,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        CorrespondenceAction.CONTINUE_CORRESPONDENCE));
+        assertThrows(InvalidCorrespondenceTransitionException.class,
+                () -> workflow.nextState(CorrespondenceState.WITH_DIRECTOR,
+                        CorrespondenceActorRole.DIRECTOR,
+                        CorrespondenceAction.CONTINUE_CORRESPONDENCE));
     }
 }

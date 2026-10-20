@@ -40,6 +40,23 @@ class AlfrescoCorrespondenceHistoryReaderTest {
     }
 
     @Test
+    void exposesClosureReasonInReadOnlyHistory() {
+        NodeService nodes = mock(NodeService.class);
+        CorrespondenceNodeLocator locator = mock(CorrespondenceNodeLocator.class);
+        NodeRef parent = node("11111111-1111-1111-1111-111111111111");
+        NodeRef action = node("22222222-2222-2222-2222-222222222222");
+        when(locator.locate("closed-id")).thenReturn(parent);
+        ChildAssociationRef association = assoc(action);
+        when(nodes.getChildAssocs(parent)).thenReturn(List.of(association));
+        when(nodes.getType(action)).thenReturn(q("workflowAction"));
+        setup(nodes, action, 4L, "ADMINISTRATIVE_CLOSE", "PRESIDENT_OFFICE");
+        when(nodes.getProperty(action, q("closureReason")))
+                .thenReturn("All required departments completed");
+        var history = new AlfrescoCorrespondenceHistoryReader(nodes, locator).list("closed-id");
+        assertEquals("All required departments completed", history.get(0).explanation());
+    }
+
+    @Test
     void rejectsMalformedHistoryRatherThanMisclassifyingStage() {
         NodeService nodes=mock(NodeService.class);
         CorrespondenceNodeLocator locator=mock(CorrespondenceNodeLocator.class);

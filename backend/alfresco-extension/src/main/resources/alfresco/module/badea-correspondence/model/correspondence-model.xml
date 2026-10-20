@@ -180,6 +180,13 @@
                 </property>
 
 
+                <!-- One correspondence; each continuation starts a new active round. -->
+                <property name="bc:currentWorkflowCycle">
+                    <title>Active Workflow Cycle</title>
+                    <type>d:long</type>
+                    <mandatory>false</mandatory>
+                </property>
+
                 <!--
                     Monotonic correspondence-local history sequence.
                 -->
@@ -189,6 +196,10 @@
                     <mandatory>true</mandatory>
                     <default>0</default>
                 </property>
+<property name="bc:presidentReviewCycle">
+    <title>President Review Workflow Cycle</title>
+    <type>d:long</type>
+</property>
 <property name="bc:presidentReviewState">
     <title>President Review State</title>
     <type>d:content</type>
@@ -359,6 +370,7 @@
             <parent>cm:content</parent>
             <properties>
                 <property name="bc:assignmentId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:assignmentCycle"><type>d:long</type></property>
                 <property name="bc:assignmentDispatchId"><type>d:text</type><mandatory>true</mandatory></property>
                 <property name="bc:assignmentDepartmentCode"><type>d:text</type><mandatory>true</mandatory></property>
                 <property name="bc:assignmentRecipientType"><type>d:text</type><mandatory>true</mandatory></property>
@@ -379,6 +391,7 @@
             <title>Office Completion Audit Revision</title>
             <parent>cm:content</parent>
             <properties>
+                <property name="bc:officeSnapshotCycle"><type>d:long</type></property>
                 <property name="bc:officeSnapshotRevision">
                     <type>d:long</type>
                     <mandatory>true</mandatory>
@@ -410,6 +423,17 @@
                     <type>d:text</type>
                     <mandatory>true</mandatory>
                 </property>
+            </properties>
+        </type>
+        <type name="bc:presidentReviewCycleSnapshot">
+            <title>Immutable Previous President Review Cycle</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:presidentCycleSnapshotNumber"><type>d:long</type><mandatory>true</mandatory></property>
+                <property name="bc:presidentCycleSnapshotRevision"><type>d:long</type><mandatory>true</mandatory></property>
+                <property name="bc:presidentCycleSnapshotUpdatedBy"><type>d:text</type></property>
+                <property name="bc:presidentCycleSnapshotUpdatedAt"><type>d:datetime</type></property>
+                <property name="bc:presidentCycleSnapshotSha256"><type>d:text</type><mandatory>true</mandatory></property>
             </properties>
         </type>
     </types>

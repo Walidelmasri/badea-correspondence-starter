@@ -71,7 +71,9 @@ public final class PdfBoxPresidentPdfRenderer implements PresidentPdfRenderer {
         return output.toByteArray();
     }
 
-    private static void draw(PDPageContentStream canvas, PDRectangle crop,
+    // Package-visible so BADEA's official action sheet can reuse precisely the same
+    // normalized vector-ink renderer as the standalone President explanation PDF.
+    static void draw(PDPageContentStream canvas, PDRectangle crop,
             List<PresidentInkReview.Stroke> strokes) throws IOException {
         float width = crop.getWidth();
         float height = crop.getHeight();

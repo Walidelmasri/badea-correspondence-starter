@@ -353,6 +353,59 @@ class CorrespondenceTransitionServiceTest {
     }
 
     @Test
+    void officeArchivesOnlyAfterEveryRequiredDepartmentFinishes() {
+        var complete = assignment("117", DepartmentRecipientType.TO, DepartmentAssignmentStatus.COMPLETED);
+        var copy = assignment("118", DepartmentRecipientType.COPY, DepartmentAssignmentStatus.PENDING);
+        TransitionCorrespondenceCommand close = command(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.ADMINISTRATIVE_CLOSE, new DepartmentCode("101"), null,
+                "All required replies reviewed");
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(distributed(complete, copy));
+        assertEquals(CorrespondenceState.ARCHIVED, service.transition(close));
+        verify(repository).applyTransition(close, CorrespondenceState.WITH_DIRECTOR,
+                CorrespondenceState.ARCHIVED, null);
+    }
+
+    @Test
+    void officeCannotCloseWhenAnyToDepartmentIsPending() {
+        var complete = assignment("117", DepartmentRecipientType.TO, DepartmentAssignmentStatus.COMPLETED);
+        var pending = assignment("119", DepartmentRecipientType.TO, DepartmentAssignmentStatus.PENDING);
+        TransitionCorrespondenceCommand close = command(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.ADMINISTRATIVE_CLOSE, new DepartmentCode("101"), null, "Not yet ready");
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(distributed(complete, pending));
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+                () -> service.transition(close));
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void directorCannotArchiveEntireDistributedCorrespondence() {
+        var complete = assignment("117", DepartmentRecipientType.TO, DepartmentAssignmentStatus.COMPLETED);
+        TransitionCorrespondenceCommand close = command(CorrespondenceActorRole.DIRECTOR,
+                CorrespondenceAction.MARK_DONE, new DepartmentCode("117"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(distributed(complete));
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+                () -> service.transition(close));
+    }
+
+    private static CorrespondenceAccessContext distributed(DepartmentAssignment... items) {
+        return new CorrespondenceAccessContext(CorrespondenceState.WITH_DIRECTOR,
+                new DepartmentCode("117"), CorrespondenceActorRole.DIRECTOR, null,
+                java.util.List.of(), java.util.List.of(items));
+    }
+
+    private static DepartmentAssignment assignment(String code, DepartmentRecipientType type,
+            DepartmentAssignmentStatus status) {
+        return new DepartmentAssignment("assignment-" + code, TECHNICAL_ID, new DepartmentCode(code),
+                type, status, "18280", java.time.Instant.parse("2026-10-20T11:41:03Z"),
+                status == DepartmentAssignmentStatus.COMPLETED ? "18280" : null,
+                status == DepartmentAssignmentStatus.COMPLETED
+                        ? java.time.Instant.parse("2026-10-20T11:49:27Z") : null,
+                status == DepartmentAssignmentStatus.COMPLETED ? "Completed" : null);
+    }
+
+    @Test
     void directorMarksAssignedCorrespondenceDone() {
 
         TransitionCorrespondenceCommand command =

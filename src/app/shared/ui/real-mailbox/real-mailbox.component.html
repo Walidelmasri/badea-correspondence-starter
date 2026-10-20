@@ -59,6 +59,13 @@
   </div>
 
   <div workspace-detail>
+    @if (continueNotice(); as status) {
+      <p class="mailbox-transition-notice" role="status">
+        @if (status === 'continued') { {{ labels().continueSucceeded }} }
+        @else if (status === 'uncertain') { {{ labels().continueUncertain }} }
+        @else { {{ labels().continueFailed }} }
+      </p>
+    }
     @if (forwardNotice(); as status) {
       <p class="mailbox-transition-notice" role="status">
         @if (status === 'sent') { {{ labels().forwardSucceeded }} }
@@ -117,8 +124,8 @@
             }
           </section>
           @if (full.generatedDocuments?.length) {
-            <section class="mailbox-detail__section">
-              <h3>{{ labels().presidentDocuments }}
+            <section class="mailbox-detail__section" aria-labelledby="mailbox-approved-documents">
+              <h3 id="mailbox-approved-documents">{{ labels().presidentDocuments }}
                 <span class="mailbox-count">{{ full.generatedDocuments?.length }}</span>
               </h3>
               <ul class="mailbox-files">
@@ -127,8 +134,11 @@
                     <button type="button" class="mailbox-file-button"
                       [attr.aria-label]="labels().openDocument + ': ' + document.filename"
                       (click)="openDocument(document)">
-                      <span><strong>{{ document.filename }}</strong>
-                        <small>{{ formatSize(document.sizeBytes) }}</small></span>
+                      <span class="mailbox-document-detail">
+                        <strong>{{ labels().documentKinds[document.artifactType] }}</strong>
+                        <small class="mailbox-document-filename" dir="auto">{{ document.filename }}</small>
+                        <small>{{ formatSize(document.sizeBytes) }}</small>
+                      </span>
                       <span class="mailbox-file-open">{{ labels().openDocument }}</span>
                     </button>
                   </li>
@@ -137,33 +147,121 @@
             </section>
           }
           @if (assignments().length > 0) {
-            <section class="mailbox-detail__section">
-              <h3>{{ labels().departmentAssignments }}</h3>
-              <ul class="mailbox-files">
+            <section class="mailbox-detail__section mailbox-assignments" aria-labelledby="mailbox-assignments-title">
+              <div class="mailbox-section-heading">
+                <h3 id="mailbox-assignments-title">{{ labels().departmentAssignments }}</h3>
+                <span class="mailbox-count">{{ assignments().length }}</span>
+              </div>
+              <ul class="mailbox-assignment-list">
                 @for (assignment of assignments(); track assignment.assignmentId) {
-                  <li>
-                    <strong>{{ assignment.departmentCode }}</strong>
-                    <span>{{ assignment.recipientType === 'TO' ? labels().assignmentTo : labels().assignmentCopy }}</span>
-                    <span>{{ assignment.recipientType === 'COPY' ? labels().assignmentCopy : (assignment.status === 'COMPLETED' ? labels().assignmentCompleted : labels().assignmentPending) }}</span>
-                    @if (assignment.responseText) { <p>{{ assignment.responseText }}</p> }
+                  <li class="mailbox-assignment-card">
+                    <div class="mailbox-assignment-card__heading">
+                      <div class="mailbox-assignment-card__department">
+                        <strong>{{ departmentName(assignment.departmentCode) }}</strong>
+                        <small>{{ labels().departmentCode }}: <bdi>{{ assignment.departmentCode }}</bdi></small>
+                      </div>
+                      <div class="mailbox-assignment-card__badges">
+                        <span class="mailbox-assignment-chip">{{ assignment.recipientType === 'TO' ? labels().assignmentTo : labels().assignmentCopy }}</span>
+                        <span class="mailbox-assignment-chip"
+                          [class.mailbox-assignment-chip--pending]="assignment.recipientType === 'TO' && assignment.status === 'PENDING'"
+                          [class.mailbox-assignment-chip--complete]="assignment.status === 'COMPLETED'">
+                          {{ assignment.recipientType === 'COPY' ? labels().assignmentCopyStatus :
+                            (assignment.status === 'COMPLETED' ? labels().assignmentCompleted : labels().assignmentPending) }}
+                        </span>
+                      </div>
+                    </div>
+                    @if (assignment.responseText) {
+                      <div class="mailbox-assignment-card__response">
+                        <span>{{ labels().assignmentResponse }}</span>
+                        <p dir="auto">{{ assignment.responseText }}</p>
+                      </div>
+                    }
+                    @if (assignment.completedAt) {
+                      <p class="mailbox-assignment-card__completed">
+                        {{ labels().assignmentCompletedAt }}: {{ formatDate(assignment.completedAt) }}
+                      </p>
+                    }
                   </li>
                 }
               </ul>
               @if (myActionableAssignment()) {
-                <label>{{ labels().assignmentResponse }}
-                  <textarea rows="3" maxlength="10000" [value]="assignmentResponse()"
-                    [disabled]="completingAssignment()"
+                <div class="mailbox-assignment-form">
+                  <label for="mailbox-assignment-response">{{ labels().assignmentResponse }}</label>
+                  <textarea id="mailbox-assignment-response" rows="4" maxlength="10000"
+                    [value]="assignmentResponse()" [disabled]="completingAssignment()"
                     (input)="updateAssignmentResponse($event)"></textarea>
-                </label>
-                <button type="button" class="mailbox-action"
-                  [disabled]="completingAssignment() || !assignmentResponse().trim()"
-                  (click)="completeDepartmentAssignment()">
-                  {{ completingAssignment() ? labels().assignmentSending : labels().assignmentCompleteAction }}
-                </button>
-                @if (assignmentNotice() === 'failed') { <p role="alert">{{ labels().assignmentFailed }}</p> }
-                @if (assignmentNotice() === 'uncertain') { <p role="alert">{{ labels().assignmentUncertain }}</p> }
+                  <button type="button" class="mailbox-action"
+                    [disabled]="completingAssignment() || !assignmentResponse().trim()"
+                    (click)="completeDepartmentAssignment()">
+                    {{ completingAssignment() ? labels().assignmentSending : labels().assignmentCompleteAction }}
+                  </button>
+                  @if (assignmentNotice() === 'failed') { <p role="alert">{{ labels().assignmentFailed }}</p> }
+                  @if (assignmentNotice() === 'uncertain') { <p role="alert">{{ labels().assignmentUncertain }}</p> }
+                </div>
               }
             </section>
+          }
+          @if (canDirectorFollowUp()) {
+            <section class="mailbox-detail__section mailbox-assignment-form" aria-labelledby="director-follow-up-title">
+              <h3 id="director-follow-up-title">{{ labels().directorFollowUpTitle }}</h3>
+              <p>{{ labels().directorFollowUpHint }}</p>
+              <label for="director-follow-up-reason">{{ labels().directorFollowUpReason }}</label>
+              <textarea id="director-follow-up-reason" rows="3" maxlength="2000"
+                [value]="followUpReason()" [disabled]="sendingFollowUp() || followUpUncertain()"
+                (input)="updateFollowUpReason($event)"></textarea>
+              <label for="director-follow-up-files">{{ labels().directorFollowUpFiles }}</label>
+              <input id="director-follow-up-files" type="file" accept="application/pdf,.pdf" multiple
+                [disabled]="sendingFollowUp() || followUpUncertain()"
+                (change)="chooseFollowUpFiles($event)" />
+              <small>{{ labels().directorFollowUpFileHint }}</small>
+              @for (file of followUpFiles(); track file.name) {
+                <p dir="auto">{{ file.name }} ({{ formatSize(file.size) }})</p>
+              }
+              <button type="button" class="mailbox-action"
+                [disabled]="sendingFollowUp() || followUpUncertain() || !followUpReason().trim()"
+                (click)="directorFollowUp()">
+                {{ sendingFollowUp() ? labels().directorFollowUpSending : labels().directorFollowUpSubmit }}
+              </button>
+              @if (followUpNotice() === 'failed') { <p role="alert">{{ labels().directorFollowUpFailed }}</p> }
+              @if (followUpNotice() === 'uncertain') { <p role="alert">{{ labels().directorFollowUpUncertain }}</p> }
+              @if (followUpNotice() === 'invalid') { <p role="alert">{{ labels().directorFollowUpInvalidFile }}</p> }
+            </section>
+          }
+          @if (officeDistributionReady()) {
+            <section class="mailbox-detail__section mailbox-closure" aria-labelledby="office-cycle-decision-title">
+              <h3 id="office-cycle-decision-title">{{ labels().officeDecisionTitle }}</h3>
+              <p>{{ labels().officeDecisionHint }}</p>
+              <div class="mailbox-cycle-options">
+                <div class="mailbox-cycle-option">
+                  <h4>{{ labels().continueTitle }}</h4>
+                  <p>{{ labels().continueHint }}</p>
+                  <button class="mailbox-action" type="button"
+                    [disabled]="!canContinueDistribution()"
+                    (click)="continueCorrespondence()">
+                    {{ continuingCycle() ? labels().continuing : labels().continueCorrespondence }}
+                  </button>
+                </div>
+                <div class="mailbox-cycle-option">
+                  <h4>{{ labels().administrativeClosureTitle }}</h4>
+                  <p>{{ labels().administrativeClosureHint }}</p>
+                  <label for="mailbox-closure-reason">{{ labels().administrativeClosureReason }}</label>
+                  <textarea id="mailbox-closure-reason" rows="3" maxlength="2000"
+                    [value]="archiveReason()" [disabled]="!canArchiveDistribution()"
+                    (input)="updateArchiveReason($event)"></textarea>
+                  <button class="mailbox-action" type="button"
+                    [disabled]="!canArchiveDistribution() || !archiveReason().trim()"
+                    (click)="archiveDistribution()">
+                    {{ archiving() ? labels().administrativeClosing : labels().administrativeClose }}
+                  </button>
+                </div>
+              </div>
+            </section>
+          }
+          @if (archiveNotice() === 'failed') {
+            <p role="alert">{{ labels().administrativeCloseFailed }}</p>
+          }
+          @if (archiveNotice() === 'uncertain') {
+            <p role="alert">{{ labels().administrativeCloseUncertain }}</p>
           }
           <section class="mailbox-detail__section">
             <h3>{{ labels().historyTitle }}</h3>

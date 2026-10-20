@@ -42,7 +42,8 @@ public final class OfficeDistributionPlanner {
             return new OfficeDistributionPlan(
                     president.revision(), office.revision(), recipients, new ArrayList<>(actions),
                     p.optString("typedExplanation", ""), o.getString("typedExplanation"),
-                    o.getString("officeNotes"),o.getString("otherRecipient"),o.getString("otherAction"));
+                    o.getString("officeNotes"),o.getString("otherRecipient"),o.getString("otherAction"),
+                    new PresidentInkReviewParser().parse(president.json()).explanationPages());
         } catch (JSONException invalid) {
             throw new IllegalArgumentException("Invalid Office/President distribution snapshots", invalid);
         }

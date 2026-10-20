@@ -30,7 +30,8 @@ public final class GetOfficeCompletionWebScript extends AbstractWebScript {
             JSONObject result=new JSONObject();
             result.put("technicalId",id);
             result.put("presidentReviewRevision",presidentRevision);
-            result.put("revision",current.map(OfficeCompletionState::revision).orElse(0L));
+            result.put("revision",current.map(OfficeCompletionState::revision)
+                    .orElseGet(() -> service.headRevision(id,role)));
             if (current.isPresent()) {
                 OfficeCompletionState snapshot=current.orElseThrow();
                 result.put("state",new JSONObject(snapshot.json()));

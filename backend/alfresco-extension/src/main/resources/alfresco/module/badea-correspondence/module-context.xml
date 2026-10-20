@@ -749,4 +749,31 @@
     <constructor-arg ref="badeaDepartmentAssignmentService" />
     <constructor-arg value="true" />
 </bean>
+<!-- Office continuation is separate from legacy single-recipient transitions. -->
+<bean id="badeaOfficeCycleContinuationRepository"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoOfficeCycleContinuationRepository"
+    lazy-init="true">
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="contentService" />
+    <constructor-arg ref="permissionService" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+    <constructor-arg ref="badeaCorrespondenceRepository" />
+    <constructor-arg ref="badeaCorrespondenceClock" />
+</bean>
+<bean id="badeaOfficeCycleContinuationService"
+    class="org.badea.correspondence.application.OfficeCycleContinuationService" lazy-init="true">
+    <constructor-arg ref="badeaOfficeCycleContinuationRepository" />
+</bean>
+<bean id="webscript.org.badea.correspondence.office-continue.post"
+    class="org.badea.correspondence.webscript.OfficeContinueWebScript" parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaOfficeCycleContinuationService" />
+</bean>
+<bean id="webscript.org.badea.correspondence.director-continue.post"
+    class="org.badea.correspondence.webscript.DirectorContinueWebScript" parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaOfficeCycleContinuationService" />
+</bean>
 </beans>

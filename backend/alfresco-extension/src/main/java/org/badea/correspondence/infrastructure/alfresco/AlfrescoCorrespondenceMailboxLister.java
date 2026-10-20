@@ -110,7 +110,9 @@ public final class AlfrescoCorrespondenceMailboxLister {
             var distributed = departmentAssignments.read(node);
             boolean directorReceived = role == CorrespondenceActorRole.DIRECTOR && department != null
                     && distributed.stream().anyMatch(a -> a.isVisibleTo(department));
-            boolean directorNeedsAction = directorReceived && distributed.stream().anyMatch(a -> a.isActionableFor(department));
+            var activeAssignments = departmentAssignments.readCurrent(node);
+            boolean directorNeedsAction = directorReceived
+                    && activeAssignments.stream().anyMatch(a -> a.isActionableFor(department));
             boolean active = isAssigned(node, state, role, department) || directorNeedsAction;
             // Never expose an unsubmitted Director draft to other institutional roles.
             if (state == CorrespondenceState.DRAFT && role != CorrespondenceActorRole.DIRECTOR)

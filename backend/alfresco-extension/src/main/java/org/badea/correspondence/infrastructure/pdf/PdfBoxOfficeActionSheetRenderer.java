@@ -23,6 +23,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.badea.correspondence.application.CorrespondenceDetails;
 import org.badea.correspondence.application.OfficeActionSheetRenderer;
 import org.badea.correspondence.application.OfficeDistributionPlan;
+import org.badea.correspondence.application.PresidentInkReview;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 
 /**
@@ -49,13 +50,13 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         entry("مكتب تقييم فعالية التنمية",34,359), entry("مكتب الامتثال والنزاهة",132,359),
         entry("إدارة التدقيق الداخلي",354,358), entry("أمانة مجلسي المحافظين والإدارة واللجان",458,358));
     private static final Map<String,float[]> ACTIONS = Map.ofEntries(
-        entry("required-action",343,395), entry("review-and-advise",343,412),
-        entry("direct-response",343,429), entry("information-and-action",343,448),
-        entry("information-and-file",343,467), entry("prepare-response",343,484),
-        entry("return-later",343,503), entry("study-and-opinion",51,395),
-        entry("discuss-directly",51,413), entry("prepare-summary",51,430),
-        entry("follow-up",51,448), entry("act-per-phone-call",51,465),
-        entry("apology",51,484));
+        entry("required-action",335,395), entry("review-and-advise",335,412),
+        entry("direct-response",335,429), entry("information-and-action",335,448),
+        entry("information-and-file",335,467), entry("prepare-response",335,484),
+        entry("return-later",335,503), entry("study-and-opinion",45,395),
+        entry("discuss-directly",45,413), entry("prepare-summary",45,430),
+        entry("follow-up",45,448), entry("act-per-phone-call",45,465),
+        entry("apology",45,484));
     private static final Map<String,String> ACTION_NAMES = Map.ofEntries(
         Map.entry("required-action","لإجراء اللازم وفق النظام"),
         Map.entry("review-and-advise","للمراجعة والإفادة"),
@@ -108,17 +109,75 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                         float[] box = ACTIONS.get(code);
                         if (box != null) mark(canvas,box,h);
                     }
-                    outline(canvas,"التفاصيل الكاملة في الملحق",490,530,9,h,true);
+                    // Write directions and the President's actual vector handwriting
+                    // within the original form's الشرح area. Long text and full-size
+                    // handwriting remain available on the annex pages.
+                    fillExplanation(canvas,h,plan);
                 }
                 // Explicit attachment/annex with all fields to prevent silent truncation and
                 // preserve recipient names that differ from the printed grid labels.
                 appendAnnex(document,source,plan,to,copy);
+                appendHandwrittenExplanation(document,plan.explanationInkPages());
                 ByteArrayOutputStream output = new ByteArrayOutputStream();
                 document.save(output);
                 return output.toByteArray();
             }
         } catch (IOException failure) {
             throw new IllegalStateException("Official action sheet PDF could not be generated",failure);
+        }
+    }
+
+    /**
+     * Place the President's signed-off directions in the actual شرح field. A full-size,
+     * unscaled vector handwriting page follows the text annex for accurate reading.
+     */
+    private static void fillExplanation(PDPageContentStream canvas, float pageHeight,
+            OfficeDistributionPlan plan) throws IOException {
+        List<List<PresidentInkReview.Stroke>> handwritten = plan.explanationInkPages();
+        boolean hasInk = handwritten.stream().anyMatch(page -> !page.isEmpty());
+        String typed = plan.presidentDirections();
+        if (!hasInk && (typed == null || typed.isBlank())) return;
+
+        // Preserve the printed شرح label at the right of the form and avoid its
+        // signature/date and attachment fields below. This area is 433 x 66 pt.
+        erase(canvas,pageHeight,58,516,489,66);
+        outline(canvas,"الشرح:",542,527,11,pageHeight,true);
+        if (hasInk) {
+            // The Apple Pencil canvas is 3:1. Never stretch its strokes into
+            // the much wider/narrower free area in the supplied Word template.
+            List<PresidentInkReview.Stroke> first = handwritten.stream()
+                    .filter(page -> !page.isEmpty()).findFirst().orElse(List.of());
+            float height = 54f;
+            float width = height * 3f;
+            float x = 250f - width / 2f;
+            float y = pageHeight - 524f - height;
+            PdfBoxPresidentPdfRenderer.draw(canvas, new PDRectangle(x,y,width,height),first);
+            // Exact full-size pages follow the annex, including additional ink pages.
+            if (typed != null && !typed.isBlank()) {
+                outline(canvas,"شرح إضافي مكتوب في الملحق",484,579,8,pageHeight,true);
+            }
+        } else {
+            // Respect the limited first-page field; the annex contains every
+            // character of the typed text, with no silent truncation.
+            List<String> lines = wrap(typed,56);
+            for (int i = 0; i < Math.min(3,lines.size()); i++) {
+                outline(canvas,lines.get(i),483,533+19*i,10,pageHeight,true);
+            }
+            if (lines.size()>3) outline(canvas,"التتمة في الملحق",480,583,8,pageHeight,true);
+        }
+    }
+
+    private static void appendHandwrittenExplanation(PDDocument document,
+            List<List<PresidentInkReview.Stroke>> pages) throws IOException {
+        for (List<PresidentInkReview.Stroke> strokes : pages) {
+            if (strokes.isEmpty()) continue;
+            // Append every handwritten page as original 3:1 vector ink, so
+            // the thumbnail in the Word form never becomes the only copy.
+            PDPage page = new PDPage(new PDRectangle(900f,300f));
+            document.addPage(page);
+            try (PDPageContentStream canvas = new PDPageContentStream(document,page)) {
+                PdfBoxPresidentPdfRenderer.draw(canvas,page.getCropBox(),strokes);
+            }
         }
     }
 
@@ -206,8 +265,9 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     private static void mark(PDPageContentStream canvas,float[] p,float pageHeight) throws IOException {
         float x=p[0],y=pageHeight-p[1];
         canvas.setLineWidth(1.5f);
-        canvas.moveTo(x+2,y-2);canvas.lineTo(x+8,y-8);
-        canvas.moveTo(x+8,y-8);canvas.lineTo(x+16,y+1);
+        // All three vertices sit within the printed checkbox boundaries.
+        canvas.moveTo(x+3,y);canvas.lineTo(x+8,y-5);
+        canvas.moveTo(x+8,y-5);canvas.lineTo(x+15,y+4);
         canvas.stroke();
     }
     private static void erase(PDPageContentStream canvas,float h,float x,float y,float w,float height) throws IOException {

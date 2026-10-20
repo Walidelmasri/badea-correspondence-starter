@@ -62,7 +62,7 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
                 || !"WITH_PRESIDENT_OFFICE".equals(nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("state")))) {
             throw new IllegalStateException("Correspondence state changed during Office dispatch");
         }
-        if (!assignments.read(parent).isEmpty())
+        if (!assignments.readCurrent(parent).isEmpty())
             throw new IllegalStateException("An earlier active distribution must be completed or closed");
         documents.save(command.technicalId(), plan.presidentRevision(), "OFFICIAL_ACTION_SHEET", null,
                 "official-arabic-action-sheet.pdf", sheet, command.actorEmployeeId());
@@ -106,7 +106,9 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
         for (DepartmentAssignment item : assignments.read(parent)) {
             if (item.assignmentId().equals(assignmentId)) current = item;
         }
-        if (current == null || !current.departmentCode().equals(department)
+        if (current == null || !new AlfrescoCorrespondenceCycleReader(nodes)
+                    .isCurrent(parent, assignmentNode)
+                || !current.departmentCode().equals(department)
                 || current.recipientType() != org.badea.correspondence.application.DepartmentRecipientType.TO)
             throw new org.badea.correspondence.security.CorrespondenceAuthorizationException("Not an actionable assignment");
         if (current.status() == org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED) {
@@ -136,6 +138,8 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
         props.put(ContentModel.PROP_NAME, "assignment-" + assignment.assignmentId());
         props.put(AlfrescoDepartmentAssignmentReader.q("assignmentId"), assignment.assignmentId());
         props.put(DISPATCH, dispatchId);
+        props.put(AlfrescoCorrespondenceCycleReader.ASSIGNMENT,
+                new AlfrescoCorrespondenceCycleReader(nodes).current(parent));
         props.put(AlfrescoDepartmentAssignmentReader.q("assignmentDepartmentCode"), assignment.departmentCode().value());
         props.put(AlfrescoDepartmentAssignmentReader.q("assignmentRecipientType"), assignment.recipientType().name());
         props.put(AlfrescoDepartmentAssignmentReader.q("assignmentStatus"), assignment.status().name());
