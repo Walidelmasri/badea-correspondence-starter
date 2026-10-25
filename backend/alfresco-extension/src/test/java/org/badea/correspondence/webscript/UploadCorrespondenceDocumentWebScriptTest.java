@@ -228,22 +228,37 @@ class UploadCorrespondenceDocumentWebScriptTest {
     }
 
     @Test
-    void rejectsPresidentUsingDirectorUploadWorkflow()
-            throws IOException {
-
+    void acceptsAuthenticatedPresidentPdfUpload() throws IOException {
         when(actorRoleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT);
+        when(uploader.uploadPdf(eq(TECHNICAL_ID),
+                eq(CorrespondenceActorRole.PRESIDENT), eq(DEPARTMENT),
+                eq(EMPLOYEE_ID), eq("main-letter.pdf"), any(byte[].class)))
+                .thenReturn(new CorrespondenceDocument(DOCUMENT_ID,
+                        "main-letter.pdf", "application/pdf", PDF_BYTES.length));
 
         JSONObject result = execute();
 
-        verify(response)
-                .setStatus(Status.STATUS_FORBIDDEN);
+        verify(response).setStatus(Status.STATUS_CREATED);
+        assertEquals(DOCUMENT_ID, result.getString("nodeId"));
+        verify(uploader).uploadPdf(eq(TECHNICAL_ID),
+                eq(CorrespondenceActorRole.PRESIDENT), eq(DEPARTMENT),
+                eq(EMPLOYEE_ID), eq("main-letter.pdf"), any(byte[].class));
+    }
 
-        assertEquals(
-                "CORRESPONDENCE_FORBIDDEN",
-                result.getString("code"));
+    @Test
+    void rejectsUnauthorizedExecutiveUploader() throws IOException {
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(uploader.uploadPdf(eq(TECHNICAL_ID),
+                eq(CorrespondenceActorRole.PRESIDENT_OFFICE), eq(DEPARTMENT),
+                eq(EMPLOYEE_ID), eq("main-letter.pdf"), any(byte[].class)))
+                .thenThrow(new CorrespondenceAuthorizationException("Not creator"));
 
-        verifyNoUpload();
+        JSONObject result = execute();
+
+        verify(response).setStatus(Status.STATUS_FORBIDDEN);
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
     }
 
     @Test

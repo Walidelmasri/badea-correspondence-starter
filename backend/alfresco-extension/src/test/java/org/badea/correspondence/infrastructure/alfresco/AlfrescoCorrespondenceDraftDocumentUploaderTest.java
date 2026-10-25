@@ -205,7 +205,105 @@ class AlfrescoCorrespondenceDraftDocumentUploaderTest {
         }
 
         @Test
-        void rejectsPresidentUploadingThroughDirectorDraftWorkflow() {
+        void uploadsPdfForExecutiveCreator() {
+                when(nodeService.getProperty(correspondence,
+                                qname("createdByCorrespondenceRole")))
+                                .thenReturn("PRESIDENT_OFFICE");
+                ChildAssociationRef association = mock(ChildAssociationRef.class);
+                when(association.getChildRef()).thenReturn(document);
+                when(nodeService.createNode(eq(correspondence),
+                                eq(ContentModel.ASSOC_CONTAINS), any(QName.class),
+                                eq(ContentModel.TYPE_CONTENT), anyMap()))
+                                .thenReturn(association);
+                when(contentService.getWriter(document,
+                                ContentModel.PROP_CONTENT, true)).thenReturn(writer);
+
+                CorrespondenceDocument result = uploader.uploadPdf(
+                                TECHNICAL_ID, CorrespondenceActorRole.PRESIDENT_OFFICE,
+                                DEPARTMENT, CREATOR, "executive.pdf", PDF_BYTES);
+
+                assertEquals(document.getId(), result.nodeId());
+                verify(writer).setMimetype("application/pdf");
+        }
+
+        @Test
+        void allowsPresidentCreatorToUploadPdf() {
+                when(nodeService.getProperty(correspondence,
+                                qname("createdByCorrespondenceRole")))
+                                .thenReturn("PRESIDENT");
+                ChildAssociationRef association = mock(ChildAssociationRef.class);
+                when(association.getChildRef()).thenReturn(document);
+                when(nodeService.createNode(eq(correspondence),
+                                eq(ContentModel.ASSOC_CONTAINS), any(QName.class),
+                                eq(ContentModel.TYPE_CONTENT), anyMap()))
+                                .thenReturn(association);
+                when(contentService.getWriter(document,
+                                ContentModel.PROP_CONTENT, true)).thenReturn(writer);
+
+                CorrespondenceDocument result = uploader.uploadPdf(
+                                TECHNICAL_ID, CorrespondenceActorRole.PRESIDENT,
+                                DEPARTMENT, CREATOR, "president.pdf", PDF_BYTES);
+                assertEquals("president.pdf", result.filename());
+        }
+
+        @Test
+        void rejectsAnotherEmployeeUploadingExecutiveDraft() {
+                when(nodeService.getProperty(correspondence,
+                                qname("createdByCorrespondenceRole")))
+                                .thenReturn("PRESIDENT_OFFICE");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                                () -> uploader.uploadPdf(TECHNICAL_ID,
+                                                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                                                DEPARTMENT, new EmployeeId("10002"),
+                                                "executive.pdf", PDF_BYTES));
+                verifyNoDocumentCreated();
+        }
+
+        @Test
+        void rejectsCrossRoleExecutiveDraftUpload() {
+                when(nodeService.getProperty(correspondence,
+                                qname("createdByCorrespondenceRole")))
+                                .thenReturn("PRESIDENT_OFFICE");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                                () -> uploader.uploadPdf(TECHNICAL_ID,
+                                                CorrespondenceActorRole.PRESIDENT,
+                                                DEPARTMENT, CREATOR,
+                                                "executive.pdf", PDF_BYTES));
+                verifyNoDocumentCreated();
+        }
+
+        @Test
+        void rejectsSubmittedExecutiveDraftUpload() {
+                when(nodeService.getProperty(correspondence,
+                                qname("createdByCorrespondenceRole")))
+                                .thenReturn("PRESIDENT");
+                when(nodeService.getProperty(correspondence,
+                                qname("state"))).thenReturn("WITH_PRESIDENT_OFFICE");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                                () -> uploader.uploadPdf(TECHNICAL_ID,
+                                                CorrespondenceActorRole.PRESIDENT,
+                                                DEPARTMENT, CREATOR,
+                                                "executive.pdf", PDF_BYTES));
+                verifyNoDocumentCreated();
+        }
+
+        @Test
+        void rejectsExecutiveDraftWithoutAlfrescoWritePermission() {
+                when(nodeService.getProperty(correspondence,
+                                qname("createdByCorrespondenceRole")))
+                                .thenReturn("PRESIDENT");
+                when(permissionService.hasPermission(correspondence,
+                                PermissionService.WRITE)).thenReturn(AccessStatus.DENIED);
+                assertThrows(CorrespondenceAuthorizationException.class,
+                                () -> uploader.uploadPdf(TECHNICAL_ID,
+                                                CorrespondenceActorRole.PRESIDENT,
+                                                DEPARTMENT, CREATOR,
+                                                "executive.pdf", PDF_BYTES));
+                verifyNoDocumentCreated();
+        }
+
+        @Test
+        void rejectsPresidentUploadingIntoDirectorDraft() {
 
                 assertThrows(
                                 CorrespondenceAuthorizationException.class,

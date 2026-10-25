@@ -13,18 +13,30 @@ public record CorrespondenceAccessContext(
         CorrespondenceActorRole assignedRole,
         DepartmentCode assignedDepartmentCode,
         List<CorrespondenceParticipation> participation,
-        List<DepartmentAssignment> assignments) {
+        List<DepartmentAssignment> assignments,
+        CorrespondenceActorRole createdByRole,
+        String createdByEmployeeId) {
 
     public CorrespondenceAccessContext(CorrespondenceState state,
             DepartmentCode originDepartmentCode,
             CorrespondenceActorRole assignedRole, DepartmentCode assignedDepartmentCode) {
-        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode, List.of(), List.of());
+        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode,
+                List.of(), List.of(), null, null);
     }
 
     public CorrespondenceAccessContext(CorrespondenceState state,
             DepartmentCode originDepartmentCode, CorrespondenceActorRole assignedRole,
             DepartmentCode assignedDepartmentCode, List<CorrespondenceParticipation> participation) {
-        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode, participation, List.of());
+        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode,
+                participation, List.of(), null, null);
+    }
+
+    public CorrespondenceAccessContext(CorrespondenceState state,
+            DepartmentCode originDepartmentCode, CorrespondenceActorRole assignedRole,
+            DepartmentCode assignedDepartmentCode, List<CorrespondenceParticipation> participation,
+            List<DepartmentAssignment> assignments) {
+        this(state, originDepartmentCode, assignedRole, assignedDepartmentCode,
+                participation, assignments, null, null);
     }
 
     public CorrespondenceAccessContext {

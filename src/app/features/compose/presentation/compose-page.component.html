@@ -18,7 +18,16 @@
   <form
     class="compose-form"
     [formGroup]="form"
+    (ngSubmit)="saveDraft()"
   >
+    @if (loading()) {
+      <p class="compose-notice" role="status">{{ translation.text().compose.feedback.loading }}</p>
+    }
+    @if (notice(); as status) {
+      <p class="compose-notice" [class.compose-notice--error]="status.kind === 'error'"
+        [class.compose-notice--warning]="status.kind === 'warning'" role="status">{{ status.message }}</p>
+    }
+
     <section class="compose-section">
       <div class="compose-section__header">
         <h2>
@@ -70,6 +79,7 @@
         <input
           type="text"
           formControlName="subject"
+          maxlength="250"
           [placeholder]="translation.text().compose.placeholders.subject"
           autocomplete="off"
         />
@@ -179,25 +189,55 @@
         </h2>
       </div>
 
-      <div class="attachment-dropzone">
-        <div class="attachment-dropzone__icon">
-          +
-        </div>
+      <label class="attachment-dropzone compose-upload">
+        <span class="attachment-dropzone__icon" aria-hidden="true">+</span>
+        <strong>{{ translation.text().compose.actions.addAttachment }}</strong>
+        <span>{{ translation.text().compose.feedback.pdfOnly }}</span>
+        <input type="file" accept=".pdf,application/pdf" multiple
+          [disabled]="busy() || readOnly() || creationUncertain() || updateUncertain() || deletionUncertain()"
+          (change)="onFilesSelected($event)" />
+      </label>
 
-        <strong>
-          {{ translation.text().compose.actions.addAttachment }}
-        </strong>
-
-        <span>
-          PDF, Word, Excel
-        </span>
-      </div>
+      @if (savedPdfs().length) {
+        <ul class="compose-documents">
+          @for (document of savedPdfs(); track document.nodeId) {
+            <li>
+              <span>{{ document.filename }} — {{ translation.text().compose.feedback.savedFile }}</span>
+              <button type="button" (click)="removeSavedPdf(document)"
+                [disabled]="busy() || readOnly() || deletionUncertain() || creationUncertain() || updateUncertain() || deletingDocumentId() !== null">
+                {{ translation.text().compose.feedback.removeFile }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      @if (queuedPdfs().length) {
+        <ul class="compose-documents">
+          @for (item of queuedPdfs(); track item.id) {
+            <li>
+              <span>{{ item.file.name }} — {{ item.status }}</span>
+              @if (item.status === 'queued' || item.status === 'failed') {
+                <button type="button" (click)="removeQueuedPdf(item.id)" [disabled]="busy() || readOnly()">
+                  {{ translation.text().compose.feedback.removeFile }}
+                </button>
+              }
+              @if (item.status === 'failed') {
+                <button type="button" (click)="retryFailedPdf(item.id)" [disabled]="busy() || readOnly()">
+                  {{ translation.text().compose.feedback.retryUpload }}
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
     </section>
 
     <footer class="compose-actions">
       <button
         class="compose-actions__secondary"
         type="button"
+        [disabled]="busy()"
+        (click)="cancel()"
       >
         {{ translation.text().compose.actions.cancel }}
       </button>
@@ -205,7 +245,8 @@
       <div class="compose-actions__primary-group">
         <button
           class="compose-actions__draft"
-          type="button"
+          type="submit"
+          [disabled]="busy() || readOnly() || creationUncertain() || updateUncertain() || deletionUncertain() || deletingDocumentId() !== null"
         >
           {{ translation.text().compose.actions.saveDraft }}
         </button>
@@ -213,6 +254,8 @@
         <button
           class="compose-actions__send"
           type="button"
+          (click)="send()"
+          [disabled]="busy() || readOnly() || creationUncertain() || updateUncertain() || deletionUncertain() || sendingUncertain() || deletingDocumentId() !== null"
         >
           {{ translation.text().compose.actions.send }}
         </button>

@@ -20,6 +20,18 @@ public final class CorrespondenceAccessAuthorizer {
         Objects.requireNonNull(correspondence, "correspondence must not be null");
         Objects.requireNonNull(actorRole, "actorRole must not be null");
 
+        // Unsubmitted executive drafts belong to their creator, not to every
+        // employee sharing the originating department or executive role.
+        if (correspondence.state() == CorrespondenceState.DRAFT
+                && correspondence.createdByRole() != null) {
+            if (correspondence.createdByRole() == actorRole
+                    && authenticatedEmployeeId != null
+                    && authenticatedEmployeeId.equals(correspondence.createdByEmployeeId())) {
+                return;
+            }
+            throw forbidden();
+        }
+
         // Preserve the established origin-department permission, including its drafts.
         if (actorRole == CorrespondenceActorRole.DIRECTOR
                 && actorDepartmentCode != null
@@ -44,6 +56,24 @@ public final class CorrespondenceAccessAuthorizer {
         throw forbidden();
     }
 
+    /** Only the original authenticated executive creator can submit a draft.
+     *  This is deliberately separate from Director department authorization. */
+    public void authorizeExecutiveDraftSubmission(
+            CorrespondenceAccessContext correspondence,
+            CorrespondenceActorRole actorRole,
+            String authenticatedEmployeeId) {
+        Objects.requireNonNull(correspondence, "correspondence must not be null");
+        Objects.requireNonNull(actorRole, "actorRole must not be null");
+        if (correspondence.state() != CorrespondenceState.DRAFT
+                || correspondence.createdByRole() == null
+                || actorRole == CorrespondenceActorRole.DIRECTOR
+                || correspondence.createdByRole() != actorRole
+                || authenticatedEmployeeId == null
+                || !authenticatedEmployeeId.equals(correspondence.createdByEmployeeId())) {
+            throw forbidden();
+        }
+    }
+
     public void authorizeTransition(
             CorrespondenceAccessContext correspondence,
             CorrespondenceActorRole actorRole,
@@ -56,6 +86,13 @@ public final class CorrespondenceAccessAuthorizer {
         Objects.requireNonNull(
                 actorRole,
                 "actorRole must not be null");
+
+        // A Director in the same department must never submit an executive
+        // draft; executive submission will use its own authenticated flow.
+        if (correspondence.state() == CorrespondenceState.DRAFT
+                && correspondence.createdByRole() != null) {
+            throw forbidden();
+        }
 
         switch (actorRole) {
             case PRESIDENT ->

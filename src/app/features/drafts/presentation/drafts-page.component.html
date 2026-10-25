@@ -5,7 +5,7 @@
   [searchLabel]="labels().search.label"
   [searchPlaceholder]="labels().search.placeholder"
   [primaryActionLabel]="labels().newCorrespondence"
-  [showPrimaryAction]="currentRole() === 'DIRECTOR'"
+  [showPrimaryAction]="currentRole() !== null"
   [showSearch]="false"
   (primaryAction)="openCompose()"
 >
@@ -178,6 +178,7 @@
             <p class="drafts-detail__body">
               {{
                 correspondence.bodyText ||
+                correspondence.executiveCompose?.explanation ||
                 labels().detail.noDescription
               }}
             </p>
@@ -234,7 +235,7 @@
           </section>
         }
 
-        @if (currentRole() === 'PRESIDENT_OFFICE' && details()) {
+        @if (currentRole() === 'PRESIDENT_OFFICE' && details()?.state === 'WITH_PRESIDENT_OFFICE') {
           <app-office-completion-editor [technicalId]="draft.technicalId" />
         } @else {
         <button
@@ -247,7 +248,7 @@
           "
           (click)="openDraft(draft.technicalId)"
         >
-          {{ currentRole() === 'PRESIDENT'
+          {{ currentRole() === 'PRESIDENT' && details()?.state === 'WITH_PRESIDENT'
              ? labels().detail.resumeReview : labels().detail.editDraft }}
         </button>
         }

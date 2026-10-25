@@ -81,7 +81,9 @@ public final class CorrespondenceWorkflowService {
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action) {
 
-        if (actorRole == CorrespondenceActorRole.DIRECTOR
+        if ((actorRole == CorrespondenceActorRole.DIRECTOR
+                || actorRole == CorrespondenceActorRole.PRESIDENT
+                || actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE)
                 && action == CorrespondenceAction.SEND_TO_OFFICE) {
 
             return CorrespondenceState.WITH_PRESIDENT_OFFICE;

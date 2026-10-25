@@ -295,13 +295,20 @@ public final class AlfrescoCorrespondenceRepository
                         PROP_ASSIGNED_DEPARTMENT_CODE,
                         "assignedDepartmentCode");
 
+        CorrespondenceActorRole creatorRole = readOptionalActorRole(
+                correspondence, PROP_CREATION_ROLE, "createdByCorrespondenceRole");
+        String creatorId = creatorRole == null ? null :
+                readOptionalCreatorEmployeeId(correspondence);
+
         return new CorrespondenceAccessContext(
                 state,
                 originDepartmentCode,
                 assignedRole,
                 assignedDepartmentCode,
                 new AlfrescoCorrespondenceParticipationReader(nodeService).read(correspondence),
-                new AlfrescoDepartmentAssignmentReader(nodeService).readCurrent(correspondence));
+                new AlfrescoDepartmentAssignmentReader(nodeService).readCurrent(correspondence),
+                creatorRole,
+                creatorId);
     }
 
     @Override
@@ -369,7 +376,7 @@ public final class AlfrescoCorrespondenceRepository
          * an actual Director -> Office handoff.
          */
         if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
-                && !lastActionWasDirectorHandoff(correspondence, currentSequence)) {
+                && !lastActionWasForwardableOfficeArrival(correspondence, currentSequence)) {
             throw new InvalidCorrespondenceTransitionException(
                     fromState, command.actorRole(), command.action());
         }
@@ -415,7 +422,7 @@ public final class AlfrescoCorrespondenceRepository
         nodeService.setProperty(parent, PROP_LAST_ACTION_SEQUENCE, sequence);
     }
 
-    private boolean lastActionWasDirectorHandoff(
+    private boolean lastActionWasForwardableOfficeArrival(
             NodeRef correspondence, long lastSequence) {
 
         if (lastSequence < 1L) {
@@ -451,7 +458,19 @@ public final class AlfrescoCorrespondenceRepository
                         || (CorrespondenceAction.DIRECTOR_CONTINUE_CORRESPONDENCE.name().equals(
                             nodeService.getProperty(action, PROP_ACTION_TYPE))
                             && CorrespondenceActorRole.DIRECTOR.name().equals(
-                                nodeService.getProperty(action, PROP_ACTOR_ROLE))))
+                                nodeService.getProperty(action, PROP_ACTOR_ROLE)))
+                        // Newly originated executive correspondence is an eligible
+                        // first arrival at Office, unlike a returned President review.
+                        || (CorrespondenceAction.SEND_TO_OFFICE.name().equals(
+                            nodeService.getProperty(action, PROP_ACTION_TYPE))
+                            && CorrespondenceState.DRAFT.name().equals(
+                                nodeService.getProperty(action, PROP_FROM_STATE))
+                            && (CorrespondenceActorRole.PRESIDENT.name().equals(
+                                nodeService.getProperty(action, PROP_ACTOR_ROLE))
+                                || CorrespondenceActorRole.PRESIDENT_OFFICE.name().equals(
+                                    nodeService.getProperty(action, PROP_ACTOR_ROLE)))
+                            && Objects.equals(nodeService.getProperty(correspondence, PROP_CREATION_ROLE),
+                                    nodeService.getProperty(action, PROP_ACTOR_ROLE))))
                     && CorrespondenceState.WITH_PRESIDENT_OFFICE.name().equals(
                         nodeService.getProperty(action, PROP_TO_STATE));
         }
@@ -526,6 +545,15 @@ public final class AlfrescoCorrespondenceRepository
                             + text,
                     exception);
         }
+    }
+
+    private String readOptionalCreatorEmployeeId(NodeRef correspondence) {
+        Serializable raw = nodeService.getProperty(correspondence, PROP_CREATED_BY_EMPLOYEE_ID);
+        if (raw == null) return null;
+        if (!(raw instanceof String text) || text.isBlank()) {
+            throw new CorrespondenceRepositoryException("Invalid correspondence creator employee ID");
+        }
+        return text;
     }
 
     private CorrespondenceActorRole readOptionalActorRole(

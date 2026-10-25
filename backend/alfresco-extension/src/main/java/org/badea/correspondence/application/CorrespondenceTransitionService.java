@@ -78,6 +78,16 @@ public final class CorrespondenceTransitionService {
                 throw new org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException(
                         accessContext.state(), command.actorRole(), command.action());
             }
+        } else if (accessContext.state() == CorrespondenceState.DRAFT
+                && accessContext.createdByRole() != null) {
+            // The executive draft path is creator-bound; never borrow Director's
+            // department-scoped draft permission or any assigned-role permission.
+            accessAuthorizer.authorizeExecutiveDraftSubmission(
+                    accessContext, command.actorRole(), command.actorEmployeeId().value());
+            if (command.action() != CorrespondenceAction.SEND_TO_OFFICE) {
+                throw new org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException(
+                        accessContext.state(), command.actorRole(), command.action());
+            }
         } else {
             accessAuthorizer.authorizeTransition(
                     accessContext, command.actorRole(), command.actorDepartmentCode());
@@ -101,7 +111,8 @@ public final class CorrespondenceTransitionService {
         // commit partially written content. Force *any* President handoff
         // failure to escape the Web Script so Alfresco rolls back its REQUIRED
         // transaction (including binary content, history and assignment).
-        if (command.actorRole() == CorrespondenceActorRole.PRESIDENT
+        if (accessContext.state() == CorrespondenceState.WITH_PRESIDENT
+                && command.actorRole() == CorrespondenceActorRole.PRESIDENT
                 && command.action() == CorrespondenceAction.SEND_TO_OFFICE) {
             try {
                 presidentDocumentFinalizer.finalizeSubmission(command);
@@ -109,6 +120,15 @@ public final class CorrespondenceTransitionService {
             } catch (RuntimeException failure) {
                 throw new IllegalStateException(
                         "President submission could not be committed", failure);
+            }
+        } else if (accessContext.state() == CorrespondenceState.DRAFT
+                && accessContext.createdByRole() != null) {
+            // Keep executive draft handoff atomic: a caught repository error must
+            // not leave a workflow action committed without its state change.
+            try {
+                repository.applyTransition(command, accessContext.state(), nextState, targetRole);
+            } catch (RuntimeException failure) {
+                throw new IllegalStateException("Executive draft submission was not committed", failure);
             }
         } else if (distributedClosure) {
             // A Web Script can catch domain failures; force storage failures to

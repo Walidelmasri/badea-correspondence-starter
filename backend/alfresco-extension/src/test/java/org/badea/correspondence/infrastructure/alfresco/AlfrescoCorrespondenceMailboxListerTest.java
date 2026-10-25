@@ -102,6 +102,25 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
+    void executiveDraftsOnlyAppearInTheirCreatorsDraftsList() {
+        prop("state", "DRAFT");
+        prop("createdByCorrespondenceRole", "PRESIDENT_OFFICE");
+        prop("createdByEmployeeId", "10001");
+        assertEquals(1, lister.list("drafts", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("drafts", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "10002", "all", 0, 25).total());
+        assertEquals(0, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,
+                DEPARTMENT, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("drafts", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "10001", "all", 0, 25).total());
+    }
+
+    @Test
     void presidentInboxShowsOnlyPresidentAssignment() {
         prop("state", "WITH_PRESIDENT");
         prop("assignedRole", "PRESIDENT");

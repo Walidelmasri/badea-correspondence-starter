@@ -285,6 +285,28 @@ class CorrespondenceAccessAuthorizerTest {
                         null));
     }
     @Test
+    void executiveDraftCanBeReadOnlyByAuthenticatedCreatorInOriginalRole() {
+        CorrespondenceAccessContext draft = new CorrespondenceAccessContext(
+                CorrespondenceState.DRAFT, new DepartmentCode("117"), null, null,
+                java.util.List.of(), java.util.List.of(),
+                CorrespondenceActorRole.PRESIDENT_OFFICE, "10001");
+        assertDoesNotThrow(() -> authorizer.authorizeRead(draft,
+                CorrespondenceActorRole.PRESIDENT_OFFICE, new DepartmentCode("117"), "10001"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(draft, CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        new DepartmentCode("117"), "10002"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(draft, CorrespondenceActorRole.PRESIDENT,
+                        new DepartmentCode("117"), "10001"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeRead(draft, CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117"), "10001"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> authorizer.authorizeTransition(draft, CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117")));
+    }
+
+    @Test
     void historicalOfficeReaderCannotModifyCorrespondence() {
         CorrespondenceParticipation priorReceipt = new CorrespondenceParticipation(
                 "10001", CorrespondenceActorRole.DIRECTOR,

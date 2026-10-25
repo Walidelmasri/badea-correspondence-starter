@@ -5,7 +5,7 @@
   [searchLabel]="headings().search.label"
   [searchPlaceholder]="headings().search.placeholder"
   [primaryActionLabel]="headings().newCorrespondence"
-  [showPrimaryAction]="session.currentUser()?.employeeProfile?.correspondenceRole === 'DIRECTOR'"
+  [showPrimaryAction]="session.currentUser()?.employeeProfile?.correspondenceRole != null"
   [showSearch]="false"
   (primaryAction)="openCompose()"
 >

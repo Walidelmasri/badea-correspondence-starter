@@ -18,7 +18,8 @@ public record CorrespondenceDetails(
         String createdByNameEnglish,
         String createdByNameArabic,
         List<CorrespondenceDocument> documents,
-        List<CorrespondenceGeneratedDocument> generatedDocuments) {
+        List<CorrespondenceGeneratedDocument> generatedDocuments,
+        String executiveComposeJson) {
 
     public CorrespondenceDetails {
 
@@ -52,6 +53,18 @@ public record CorrespondenceDetails(
         generatedDocuments = List.copyOf(
                 Objects.requireNonNull(generatedDocuments));
     }
+    // Preserve the existing constructor contract for callers that do not
+    // consume the executive form's structured, persisted metadata.
+    public CorrespondenceDetails(String technicalId, CorrespondenceState state,
+            String subject, String bodyText, String documentNumber, LocalDate documentDate,
+            String sourceText, String originDepartmentCode, String createdByNameEnglish,
+            String createdByNameArabic, List<CorrespondenceDocument> documents,
+            List<CorrespondenceGeneratedDocument> generatedDocuments) {
+        this(technicalId, state, subject, bodyText, documentNumber, documentDate,
+                sourceText, originDepartmentCode, createdByNameEnglish,
+                createdByNameArabic, documents, generatedDocuments, null);
+    }
+
     // Existing callers that deal only with source attachments remain compatible.
     public CorrespondenceDetails(
             String technicalId, CorrespondenceState state, String subject,
@@ -61,6 +74,6 @@ public record CorrespondenceDetails(
             List<CorrespondenceDocument> documents) {
         this(technicalId, state, subject, bodyText, documentNumber,
                 documentDate, sourceText, originDepartmentCode,
-                createdByNameEnglish, createdByNameArabic, documents, List.of());
+                createdByNameEnglish, createdByNameArabic, documents, List.of(), null);
     }
 }

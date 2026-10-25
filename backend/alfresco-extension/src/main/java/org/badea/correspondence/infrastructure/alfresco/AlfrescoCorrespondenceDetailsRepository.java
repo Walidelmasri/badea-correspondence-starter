@@ -58,6 +58,9 @@ public final class AlfrescoCorrespondenceDetailsRepository
     private static final QName PROP_CREATED_BY_NAME_ARABIC =
             qname("createdByNameArabic");
 
+    private static final QName PROP_EXECUTIVE_COMPOSE =
+            qname("executiveComposeJson");
+
     private final NodeService nodeService;
     private final CorrespondenceNodeLocator nodeLocator;
 
@@ -128,7 +131,8 @@ public final class AlfrescoCorrespondenceDetailsRepository
                         PROP_CREATED_BY_NAME_ARABIC,
                         "createdByNameArabic"),
                 readSourceDocuments(correspondence),
-                readGeneratedDocuments(correspondence));
+                readGeneratedDocuments(correspondence),
+                optionalText(properties, PROP_EXECUTIVE_COMPOSE, "executiveComposeJson"));
     }
 
     /**

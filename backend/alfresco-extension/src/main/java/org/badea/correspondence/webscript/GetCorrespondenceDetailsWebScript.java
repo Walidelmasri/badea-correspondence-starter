@@ -201,6 +201,13 @@ public final class GetCorrespondenceDetailsWebScript
                 "documents",
                 documents);
 
+        // Existing Director and historical responses are unchanged. Expose
+        // structured executive metadata only when it was actually saved.
+        if (details.executiveComposeJson() != null) {
+            result.put("executiveCompose",
+                    new JSONObject(details.executiveComposeJson()));
+        }
+
         JSONArray generated = new JSONArray();
         for (var document : details.generatedDocuments()) {
             JSONObject item = new JSONObject();

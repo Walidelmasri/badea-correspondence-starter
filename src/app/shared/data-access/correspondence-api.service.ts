@@ -26,6 +26,19 @@ export interface CreateCorrespondenceDraft {
   readonly sourceText: string | null;
 }
 
+export interface ExecutiveComposeDraftFields {
+  readonly recipient: string;
+  readonly copyTo: string;
+  readonly entity: string;
+  readonly instruction: string;
+  readonly explanation: string;
+}
+
+/** Executive fields are persisted together. The Director API remains unchanged. */
+export interface ExecutiveCorrespondenceDraft extends CreateCorrespondenceDraft {
+  readonly executiveCompose: ExecutiveComposeDraftFields;
+}
+
 export interface CreatedCorrespondenceDraft {
   readonly technicalId: string;
   readonly state: 'DRAFT';
@@ -70,6 +83,7 @@ export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly createdByNameArabic: string | null;
   readonly documents: readonly CorrespondenceDocumentUpload[];
   readonly generatedDocuments?: readonly CorrespondenceGeneratedDocument[];
+  readonly executiveCompose?: ExecutiveComposeDraftFields;
 }
 export interface CorrespondenceDraftSummary {
   readonly state?: CorrespondenceDetails['state'];
@@ -168,7 +182,7 @@ export class CorrespondenceApiService {
     inject(HttpClient);
 
   createDraft(
-    request: CreateCorrespondenceDraft,
+    request: CreateCorrespondenceDraft | ExecutiveCorrespondenceDraft,
   ): Observable<CreatedCorrespondenceDraft> {
     return this.http.post<CreatedCorrespondenceDraft>(
       CORRESPONDENCE_URL,
@@ -270,7 +284,7 @@ export class CorrespondenceApiService {
   }
   updateDraft(
     technicalId: string,
-    request: CreateCorrespondenceDraft,
+    request: CreateCorrespondenceDraft | ExecutiveCorrespondenceDraft,
   ): Observable<CreatedCorrespondenceDraft> {
     return this.http.put<CreatedCorrespondenceDraft>(
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/draft`,

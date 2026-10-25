@@ -81,9 +81,11 @@ public final class UploadCorrespondenceDocumentWebScript
             CorrespondenceActorRole actorRole =
                     actorRoleResolver.resolveCurrentUserRole();
 
-            if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+            if (actorRole != CorrespondenceActorRole.DIRECTOR
+                    && actorRole != CorrespondenceActorRole.PRESIDENT
+                    && actorRole != CorrespondenceActorRole.PRESIDENT_OFFICE) {
                 throw new CorrespondenceAuthorizationException(
-                        "This upload workflow is restricted to Directors.");
+                        "A correspondence role is required to upload draft PDFs.");
             }
 
             EmployeeDirectoryEntry employee =

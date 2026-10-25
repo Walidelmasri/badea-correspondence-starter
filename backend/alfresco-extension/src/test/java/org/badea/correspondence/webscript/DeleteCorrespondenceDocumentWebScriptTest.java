@@ -125,39 +125,31 @@ class DeleteCorrespondenceDocumentWebScriptTest {
     }
 
     @Test
-    void rejectsPresident()
-            throws IOException {
-
+    void presidentDeletesOwnDraftAttachment() throws IOException {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT);
 
-        JSONObject result = executeError();
+        execute();
 
-        verify(response).setStatus(Status.STATUS_FORBIDDEN);
-
-        assertEquals(
-                "CORRESPONDENCE_FORBIDDEN",
-                result.getString("code"));
-
-        verifyNoInteractions(deleter);
+        verify(deleter).deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                CorrespondenceActorRole.PRESIDENT, DEPARTMENT, new EmployeeId("10001"));
+        verify(response).setStatus(204);
+        assertTrue(output.toString().isEmpty());
     }
 
     @Test
-    void rejectsPresidentOffice()
-            throws IOException {
-
+    void presidentOfficeDeletionIsCreatorScoped() throws IOException {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        doThrow(new CorrespondenceAuthorizationException("Not creator"))
+                .when(deleter).deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        DEPARTMENT, new EmployeeId("10001"));
 
         JSONObject result = executeError();
 
         verify(response).setStatus(Status.STATUS_FORBIDDEN);
-
-        assertEquals(
-                "CORRESPONDENCE_FORBIDDEN",
-                result.getString("code"));
-
-        verifyNoInteractions(deleter);
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
     }
 
     @Test

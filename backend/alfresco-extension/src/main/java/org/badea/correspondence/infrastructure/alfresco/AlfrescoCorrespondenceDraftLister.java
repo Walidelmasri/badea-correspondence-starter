@@ -42,6 +42,9 @@ public final class AlfrescoCorrespondenceDraftLister {
     private static final QName PROP_ORIGIN_DEPARTMENT =
             qname("originDepartmentCode");
 
+    private static final QName PROP_CREATION_ROLE =
+            qname("createdByCorrespondenceRole");
+
     private static final QName PROP_SUBJECT =
             qname("subject");
 
@@ -113,6 +116,12 @@ public final class AlfrescoCorrespondenceDraftLister {
 
             if (!CorrespondenceState.DRAFT.name()
                     .equals(state)) {
+                continue;
+            }
+
+            // Executive drafts are private to their creators and must never
+            // appear in the department-scoped Director Drafts list.
+            if (nodeService.getProperty(correspondence, PROP_CREATION_ROLE) != null) {
                 continue;
             }
 

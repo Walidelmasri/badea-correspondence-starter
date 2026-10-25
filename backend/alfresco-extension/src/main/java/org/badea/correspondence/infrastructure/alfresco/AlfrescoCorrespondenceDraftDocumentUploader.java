@@ -56,8 +56,11 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
     private static final QName PROP_ORIGIN_DEPARTMENT_CODE =
             qname("originDepartmentCode");
 
-//     private static final QName PROP_CREATED_BY_EMPLOYEE_ID =
-//             qname("createdByEmployeeId");
+    private static final QName PROP_CREATED_BY_EMPLOYEE_ID =
+            qname("createdByEmployeeId");
+
+    private static final QName PROP_CREATION_ROLE =
+            qname("createdByCorrespondenceRole");
 
     private final NodeService nodeService;
 
@@ -200,11 +203,19 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
             DepartmentCode actorDepartmentCode,
             EmployeeId actorEmployeeId) {
 
-        if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+        if (actorDepartmentCode == null) {
             throw forbidden();
         }
 
-        if (actorDepartmentCode == null) {
+        // Executive drafts are writable only by their recorded creator.
+        // Keep the existing Director department/assignment policy unchanged.
+        if (actorRole == CorrespondenceActorRole.PRESIDENT
+                || actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE) {
+            requireExecutiveDraftOwner(
+                    correspondence, actorRole, actorDepartmentCode, actorEmployeeId);
+            return;
+        }
+        if (actorRole != CorrespondenceActorRole.DIRECTOR) {
             throw forbidden();
         }
 
@@ -264,6 +275,34 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
                         PermissionService.WRITE);
 
         if (permission != AccessStatus.ALLOWED) {
+            throw forbidden();
+        }
+    }
+
+    private void requireExecutiveDraftOwner(
+            NodeRef correspondence,
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode,
+            EmployeeId actorEmployeeId) {
+
+        if (!CorrespondenceState.DRAFT.name().equals(
+                nodeService.getProperty(correspondence, PROP_STATE))) {
+            throw forbidden();
+        }
+        if (!actorDepartmentCode.value().equals(
+                nodeService.getProperty(correspondence, PROP_ORIGIN_DEPARTMENT_CODE))) {
+            throw forbidden();
+        }
+        if (!actorEmployeeId.value().equals(
+                nodeService.getProperty(correspondence, PROP_CREATED_BY_EMPLOYEE_ID))) {
+            throw forbidden();
+        }
+        if (!actorRole.name().equals(
+                nodeService.getProperty(correspondence, PROP_CREATION_ROLE))) {
+            throw forbidden();
+        }
+        if (permissionService.hasPermission(
+                correspondence, PermissionService.WRITE) != AccessStatus.ALLOWED) {
             throw forbidden();
         }
     }

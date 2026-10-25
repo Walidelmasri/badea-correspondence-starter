@@ -33,6 +33,7 @@ import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.workflow.CorrespondenceAction;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
+import org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -305,6 +306,25 @@ class AlfrescoCorrespondenceRepositoryTest {
         assertEquals(
                 new DepartmentCode("117"),
                 context.assignedDepartmentCode());
+    }
+
+    @Test
+    void loadsExecutiveDraftCreatorIdentityIntoReadAuthorizationContext() {
+        NodeRef correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+        when(nodeService.getProperty(correspondence, qname("technicalId")))
+                .thenReturn(TECHNICAL_ID);
+        when(nodeService.getProperty(correspondence, qname("state")))
+                .thenReturn(CorrespondenceState.DRAFT.name());
+        when(nodeService.getProperty(correspondence, qname("originDepartmentCode")))
+                .thenReturn("117");
+        when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                .thenReturn("PRESIDENT_OFFICE");
+        when(nodeService.getProperty(correspondence, qname("createdByEmployeeId")))
+                .thenReturn("10001");
+        CorrespondenceAccessContext context = repository.getAccessContext(TECHNICAL_ID);
+        assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE, context.createdByRole());
+        assertEquals("10001", context.createdByEmployeeId());
     }
 
     @Test
@@ -646,6 +666,80 @@ class AlfrescoCorrespondenceRepositoryTest {
 
         verify(nodeService).setProperty(correspondence, qname("state"), "WITH_PRESIDENT");
         verify(nodeService).setProperty(correspondence, qname("lastActionSequence"), 2L);
+    }
+
+    @Test
+    void officeMayForwardNewPresidentOriginDraft() {
+        assertOfficeMayForwardNewExecutiveDraft(CorrespondenceActorRole.PRESIDENT);
+    }
+
+    @Test
+    void officeMayForwardNewOfficeOriginDraft() {
+        assertOfficeMayForwardNewExecutiveDraft(CorrespondenceActorRole.PRESIDENT_OFFICE);
+    }
+
+    private void assertOfficeMayForwardNewExecutiveDraft(CorrespondenceActorRole role) {
+            var correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+            var previous = nodeRef("00000000-0000-0000-0000-000000000903");
+            var assoc = mock(ChildAssociationRef.class);
+            var newAssoc = mock(ChildAssociationRef.class);
+            when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+            when(nodeService.getProperty(correspondence, qname("state")))
+                    .thenReturn(CorrespondenceState.WITH_PRESIDENT_OFFICE.name());
+            when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                    .thenReturn(role.name());
+            when(nodeService.getProperty(correspondence, qname("lastActionSequence"))).thenReturn(1L);
+            when(assoc.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+            when(assoc.getQName()).thenReturn(qname("action-000001"));
+            when(assoc.getChildRef()).thenReturn(previous);
+            when(nodeService.getChildAssocs(correspondence)).thenReturn(java.util.List.of(assoc));
+            when(nodeService.getType(previous)).thenReturn(qname("workflowAction"));
+            when(nodeService.getProperty(previous, qname("actionSequence"))).thenReturn(1L);
+            when(nodeService.getProperty(previous, qname("actionType"))).thenReturn("SEND_TO_OFFICE");
+            when(nodeService.getProperty(previous, qname("actorRole"))).thenReturn(role.name());
+            when(nodeService.getProperty(previous, qname("fromState"))).thenReturn("DRAFT");
+            when(nodeService.getProperty(previous, qname("toState")))
+                    .thenReturn("WITH_PRESIDENT_OFFICE");
+            when(newAssoc.getChildRef()).thenReturn(nodeRef("00000000-0000-0000-0000-000000000902"));
+            when(nodeService.createNode(eq(correspondence), eq(ContentModel.ASSOC_CONTAINS),
+                    any(QName.class), eq(qname("workflowAction")), any()))
+                    .thenReturn(newAssoc);
+            repository.applyTransition(transitionCommand(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                    CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null),
+                    CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                    CorrespondenceState.WITH_PRESIDENT, CorrespondenceActorRole.PRESIDENT);
+            verify(nodeService).setProperty(correspondence, qname("state"), "WITH_PRESIDENT");
+    }
+
+    @Test
+    void officeRejectsExecutiveHandoffWithoutDraftProvenance() {
+        NodeRef correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+        NodeRef previous = nodeRef("00000000-0000-0000-0000-000000000903");
+        ChildAssociationRef assoc = mock(ChildAssociationRef.class);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+        when(nodeService.getProperty(correspondence, qname("state")))
+                .thenReturn(CorrespondenceState.WITH_PRESIDENT_OFFICE.name());
+        when(nodeService.getProperty(correspondence, qname("lastActionSequence"))).thenReturn(1L);
+        when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                .thenReturn("PRESIDENT");
+        when(assoc.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(assoc.getQName()).thenReturn(qname("action-000001"));
+        when(assoc.getChildRef()).thenReturn(previous);
+        when(nodeService.getChildAssocs(correspondence)).thenReturn(java.util.List.of(assoc));
+        when(nodeService.getType(previous)).thenReturn(qname("workflowAction"));
+        when(nodeService.getProperty(previous, qname("actionSequence"))).thenReturn(1L);
+        when(nodeService.getProperty(previous, qname("actionType"))).thenReturn("SEND_TO_OFFICE");
+        when(nodeService.getProperty(previous, qname("actorRole"))).thenReturn("PRESIDENT");
+        when(nodeService.getProperty(previous, qname("fromState")))
+                .thenReturn("WITH_PRESIDENT");
+        when(nodeService.getProperty(previous, qname("toState")))
+                .thenReturn("WITH_PRESIDENT_OFFICE");
+        assertThrows(InvalidCorrespondenceTransitionException.class,
+                () -> repository.applyTransition(transitionCommand(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null),
+                        CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                        CorrespondenceState.WITH_PRESIDENT, CorrespondenceActorRole.PRESIDENT));
+        verify(nodeService, never()).setProperty(correspondence, qname("state"), "WITH_PRESIDENT");
     }
 
     @Test

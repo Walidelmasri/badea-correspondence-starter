@@ -190,7 +190,10 @@ export class DraftsPageComponent implements OnInit {
       const expectedState = this.currentRole() === 'PRESIDENT'
         ? 'WITH_PRESIDENT' : this.currentRole() === 'PRESIDENT_OFFICE'
           ? 'WITH_PRESIDENT_OFFICE' : 'DRAFT';
-      if (result.state !== expectedState) {
+      const executiveDraft = result.state === 'DRAFT'
+        && !!result.executiveCompose
+        && (this.currentRole() === 'PRESIDENT' || this.currentRole() === 'PRESIDENT_OFFICE');
+      if (!executiveDraft && result.state !== expectedState) {
         this.detailsError.set(true);
         return;
       }
@@ -208,13 +211,19 @@ export class DraftsPageComponent implements OnInit {
   }
 
   openDraft(technicalId: string): void {
-    if (this.currentRole() === 'PRESIDENT') {
+    const details = this.details();
+    // Existing presidential reviews and Office completions keep their existing editors.
+    if (details?.technicalId === technicalId && details.state === 'DRAFT'
+        && details.executiveCompose
+        && (this.currentRole() === 'PRESIDENT' || this.currentRole() === 'PRESIDENT_OFFICE')) {
+      void this.router.navigate(['/compose'], { queryParams: { draft: technicalId } });
+    } else if (this.currentRole() === 'PRESIDENT') {
       void this.router.navigate(['/president-review', technicalId]);
     } else if (this.currentRole() === 'DIRECTOR') {
       void this.router.navigate(['/director/new'],
         { queryParams: { draft: technicalId } });
     }
-    // The Office editor is mounted directly in the selected Draft detail.
+    // Existing Office completion remains embedded in the selected detail.
   }
 
   openDocument(document: CorrespondenceDetails['documents'][number]): void {

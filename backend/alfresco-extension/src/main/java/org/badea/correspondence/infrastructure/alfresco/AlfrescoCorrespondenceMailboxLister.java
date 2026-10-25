@@ -38,6 +38,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private static final QName PROP_SUBJECT = q("subject");
     private static final QName PROP_DOCUMENT_NUMBER = q("documentNumber");
     private static final QName PROP_SENDER = q("createdByNameEnglish");
+    private static final QName PROP_CREATION_ROLE = q("createdByCorrespondenceRole");
+    private static final QName PROP_CREATED_BY_ID = q("createdByEmployeeId");
     private static final QName PROP_PRESIDENT_REVISION = q("presidentReviewRevision");
     private static final QName PROP_PRESIDENT_UPDATED = q("presidentReviewUpdatedAt");
     private static final QName PROP_OFFICE_REVISION = q("officeCompletionCurrentRevision");
@@ -114,9 +116,23 @@ public final class AlfrescoCorrespondenceMailboxLister {
             boolean directorNeedsAction = directorReceived
                     && activeAssignments.stream().anyMatch(a -> a.isActionableFor(department));
             boolean active = isAssigned(node, state, role, department) || directorNeedsAction;
-            // Never expose an unsubmitted Director draft to other institutional roles.
-            if (state == CorrespondenceState.DRAFT && role != CorrespondenceActorRole.DIRECTOR)
+            // Executive drafts are creator-private and belong only in their
+            // owner's Drafts box. Director draft listing remains unchanged.
+            if (state == CorrespondenceState.DRAFT) {
+                if (role == CorrespondenceActorRole.DIRECTOR
+                        || !role.name().equals(optional(node, PROP_CREATION_ROLE))
+                        || employeeId == null
+                        || !employeeId.equals(optional(node, PROP_CREATED_BY_ID))
+                        || !"drafts".equals(box)) {
+                    continue;
+                }
+                matches.add(new MailboxSummary(
+                        required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
+                        optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
+                        required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
+                        timestamp(node, ContentModel.PROP_MODIFIED), false));
                 continue;
+            }
             List<CorrespondenceParticipation> actions = participationReader.read(node);
             boolean received = directorReceived || actions.stream().anyMatch(a -> a.receivedBy(role, department));
             boolean sent = actions.stream().anyMatch(a -> a.sentBy(role, employeeId));

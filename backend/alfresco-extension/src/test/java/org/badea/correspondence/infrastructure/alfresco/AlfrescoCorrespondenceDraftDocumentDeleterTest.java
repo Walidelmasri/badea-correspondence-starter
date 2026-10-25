@@ -15,6 +15,7 @@ import org.alfresco.service.namespace.QName;
 
 import org.badea.correspondence.application.CorrespondenceDocumentNotFoundException;
 import org.badea.correspondence.directory.DepartmentCode;
+import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 
@@ -37,6 +38,8 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
 
     private static final DepartmentCode DEPARTMENT =
             new DepartmentCode("117");
+
+    private static final EmployeeId CREATOR = new EmployeeId("10001");
 
     private NodeService nodeService;
     private PermissionService permissionService;
@@ -149,6 +152,115 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
                         DEPARTMENT));
 
+        verifyNoDeletion();
+    }
+
+    @Test
+    void allowsExecutiveCreatorToDeleteOwnDraftSourceDocument() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT_OFFICE");
+
+        deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                CorrespondenceActorRole.PRESIDENT_OFFICE, DEPARTMENT, CREATOR);
+
+        verify(nodeService).deleteNode(document);
+    }
+
+    @Test
+    void allowsPresidentCreatorToDeleteOwnDraftSourceDocument() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT");
+
+        deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                CorrespondenceActorRole.PRESIDENT, DEPARTMENT, CREATOR);
+        verify(nodeService).deleteNode(document);
+    }
+
+    @Test
+    void rejectsAnotherEmployeeDeletingExecutiveDraftAttachment() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT");
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT, DEPARTMENT,
+                        new EmployeeId("10002")));
+        verifyNoDeletion();
+    }
+
+    @Test
+    void rejectsCrossRoleExecutiveDocumentDeletion() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT_OFFICE");
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT, DEPARTMENT, CREATOR));
+        verifyNoDeletion();
+    }
+
+    @Test
+    void rejectsSubmittedExecutiveAttachmentDeletion() {
+        when(nodeService.getProperty(correspondence,
+                qname("state"))).thenReturn("WITH_PRESIDENT_OFFICE");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT");
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT, DEPARTMENT, CREATOR));
+        verifyNoDeletion();
+    }
+
+    @Test
+    void rejectsExecutiveDeleteOfUnrelatedSourceDocument() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT");
+        assertThrows(CorrespondenceDocumentNotFoundException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, OTHER_DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT, DEPARTMENT, CREATOR));
+        verifyNoDeletion();
+    }
+
+    @Test
+    void rejectsExecutiveDeleteWithoutAlfrescoWritePermission() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT");
+        when(permissionService.hasPermission(correspondence,
+                PermissionService.WRITE)).thenReturn(AccessStatus.DENIED);
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT, DEPARTMENT, CREATOR));
+        verifyNoDeletion();
+    }
+
+    @Test
+    void rejectsExecutiveDeleteWithoutDocumentDeletePermission() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT");
+        when(permissionService.hasPermission(document,
+                PermissionService.DELETE)).thenReturn(AccessStatus.DENIED);
+
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.PRESIDENT, DEPARTMENT, CREATOR));
         verifyNoDeletion();
     }
 

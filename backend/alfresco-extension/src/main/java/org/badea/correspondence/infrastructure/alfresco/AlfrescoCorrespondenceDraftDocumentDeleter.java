@@ -14,12 +14,13 @@ import org.alfresco.service.namespace.QName;
 
 import org.badea.correspondence.application.CorrespondenceDocumentNotFoundException;
 import org.badea.correspondence.directory.DepartmentCode;
+import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
 /**
- * Deletes original PDF attachments from Director drafts.
+ * Deletes original PDF attachments from authorized correspondence drafts.
  *
  * This operation must execute inside an Alfresco write transaction.
  *
@@ -39,6 +40,12 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
 
     private static final QName PROP_ORIGIN_DEPARTMENT =
             qname("originDepartmentCode");
+
+    private static final QName PROP_CREATED_BY_EMPLOYEE =
+            qname("createdByEmployeeId");
+
+    private static final QName PROP_CREATION_ROLE =
+            qname("createdByCorrespondenceRole");
 
     private static final String SOURCE_DOCUMENT_PREFIX =
             "source-document-";
@@ -62,11 +69,27 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
                 Objects.requireNonNull(nodeLocator);
     }
 
+    // Original Director entry point stays intact for existing callers/tests.
     public void deleteDocument(
             String technicalId,
             String documentNodeId,
             CorrespondenceActorRole actorRole,
             DepartmentCode actorDepartmentCode) {
+
+        if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+            throw forbidden();
+        }
+        deleteDocument(technicalId, documentNodeId, actorRole,
+                actorDepartmentCode, null);
+    }
+
+    // Executive operations carry the authenticated employee identity.
+    public void deleteDocument(
+            String technicalId,
+            String documentNodeId,
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode,
+            EmployeeId actorEmployeeId) {
 
         Objects.requireNonNull(
                 technicalId,
@@ -79,9 +102,14 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
         String validatedDocumentId =
                 validateDocumentId(documentNodeId);
 
+        if (actorDepartmentCode == null
+                || (actorRole != CorrespondenceActorRole.DIRECTOR
+                    && actorRole != CorrespondenceActorRole.PRESIDENT
+                    && actorRole != CorrespondenceActorRole.PRESIDENT_OFFICE)) {
+            throw forbidden();
+        }
         if (actorRole != CorrespondenceActorRole.DIRECTOR
-                || actorDepartmentCode == null) {
-
+                && actorEmployeeId == null) {
             throw forbidden();
         }
 
@@ -96,8 +124,7 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
         }
 
         authorizeDraft(
-                correspondence,
-                actorDepartmentCode);
+                correspondence, actorRole, actorDepartmentCode, actorEmployeeId);
 
         NodeRef document =
                 locateSourceDocument(
@@ -127,7 +154,9 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
 
     private void authorizeDraft(
             NodeRef correspondence,
-            DepartmentCode actorDepartmentCode) {
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode,
+            EmployeeId actorEmployeeId) {
 
         Serializable state =
                 nodeService.getProperty(
@@ -145,6 +174,15 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
 
         if (!actorDepartmentCode.value().equals(originDepartment)) {
             throw forbidden();
+        }
+
+        if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+            if (!actorEmployeeId.value().equals(nodeService.getProperty(
+                    correspondence, PROP_CREATED_BY_EMPLOYEE))
+                    || !actorRole.name().equals(nodeService.getProperty(
+                            correspondence, PROP_CREATION_ROLE))) {
+                throw forbidden();
+            }
         }
 
         if (permissionService.hasPermission(
@@ -227,7 +265,7 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
 
     private static CorrespondenceAuthorizationException forbidden() {
         return new CorrespondenceAuthorizationException(
-                "The authenticated Director cannot delete this document.");
+                "The authenticated employee cannot delete this draft document.");
     }
 
     private static QName qname(String localName) {

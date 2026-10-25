@@ -105,6 +105,18 @@ class AlfrescoCorrespondenceDetailsRepositoryTest {
     }
 
     @Test
+    void readsSavedExecutiveComposePayloadForReopening() {
+        Map<QName, Serializable> props = correspondenceProperties();
+        String payload = "{\"recipient\":\"Legal\",\"copyTo\":\"\","
+                + "\"entity\":\"\",\"instruction\":\"Review\","
+                + "\"explanation\":\"Urgent\"}";
+        props.put(qname("executiveComposeJson"), payload);
+        when(nodeService.getProperties(correspondence)).thenReturn(props);
+        when(nodeService.getChildAssocs(correspondence)).thenReturn(List.of());
+        assertEquals(payload, repository.findByTechnicalId(TECHNICAL_ID).executiveComposeJson());
+    }
+
+    @Test
     void includesSourcePdfButExcludesWorkflowHistory() {
 
         NodeRef pdf = nodeRef(

@@ -51,6 +51,71 @@ class CorrespondenceTransitionServiceTest {
     }
 
     @Test
+    void executiveCreatorCanSubmitToOfficeWithoutFinalizingPresidentReview() {
+        for (var role : new CorrespondenceActorRole[] {
+                CorrespondenceActorRole.PRESIDENT, CorrespondenceActorRole.PRESIDENT_OFFICE }) {
+            TransitionCorrespondenceCommand submit = command(role,
+                    CorrespondenceAction.SEND_TO_OFFICE, new DepartmentCode("117"), null, null);
+            var draft = new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                    new DepartmentCode("117"), null, null, java.util.List.of(), java.util.List.of(),
+                    role, "18280");
+            when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(draft);
+            assertEquals(CorrespondenceState.WITH_PRESIDENT_OFFICE, service.transition(submit));
+            verify(repository).applyTransition(submit, CorrespondenceState.DRAFT,
+                    CorrespondenceState.WITH_PRESIDENT_OFFICE, CorrespondenceActorRole.PRESIDENT_OFFICE);
+        }
+        org.mockito.Mockito.verifyNoInteractions(finalizer);
+    }
+
+    @Test
+    void executiveSubmissionRejectsDifferentCreatorSameRole() {
+        var submit = command(CorrespondenceActorRole.PRESIDENT,
+                CorrespondenceAction.SEND_TO_OFFICE, new DepartmentCode("117"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                        new DepartmentCode("117"), null, null, java.util.List.of(),
+                        java.util.List.of(), CorrespondenceActorRole.PRESIDENT, "another-employee"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> service.transition(submit));
+        org.mockito.Mockito.verifyNoInteractions(finalizer);
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void executiveSubmissionRejectsRoleMismatchAndDirectorImpersonation() {
+        for (var attemptedRole : new CorrespondenceActorRole[] {
+                CorrespondenceActorRole.DIRECTOR, CorrespondenceActorRole.PRESIDENT_OFFICE }) {
+            var submit = command(attemptedRole, CorrespondenceAction.SEND_TO_OFFICE,
+                    new DepartmentCode("117"), null, null);
+            when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                    new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                            new DepartmentCode("117"), null, null, java.util.List.of(),
+                            java.util.List.of(), CorrespondenceActorRole.PRESIDENT, "18280"));
+            assertThrows(CorrespondenceAuthorizationException.class, () -> service.transition(submit));
+        }
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void executiveDraftCannotUseOtherTransitionActions() {
+        var illegal = command(CorrespondenceActorRole.PRESIDENT,
+                CorrespondenceAction.MARK_DONE, new DepartmentCode("117"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                        new DepartmentCode("117"), null, null, java.util.List.of(),
+                        java.util.List.of(), CorrespondenceActorRole.PRESIDENT, "18280"));
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+                () -> service.transition(illegal));
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void directorSendsOwnDepartmentDraftToPresidentOffice() {
 
         TransitionCorrespondenceCommand command =

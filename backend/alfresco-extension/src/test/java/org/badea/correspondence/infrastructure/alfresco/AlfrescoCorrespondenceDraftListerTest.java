@@ -92,6 +92,13 @@ class AlfrescoCorrespondenceDraftListerTest {
     }
 
     @Test
+    void excludesExecutivesDraftsEvenFromSameDepartment() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT_OFFICE");
+        assertEquals(0, lister.list(DEPARTMENT, 0, 25).total());
+    }
+
+    @Test
     void excludesSubmittedCorrespondence() {
 
         when(nodeService.getProperty(

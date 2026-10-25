@@ -57,9 +57,11 @@ public final class DeleteCorrespondenceDocumentWebScript
             CorrespondenceActorRole role =
                     actorRoleResolver.resolveCurrentUserRole();
 
-            if (role != CorrespondenceActorRole.DIRECTOR) {
+            if (role != CorrespondenceActorRole.DIRECTOR
+                    && role != CorrespondenceActorRole.PRESIDENT
+                    && role != CorrespondenceActorRole.PRESIDENT_OFFICE) {
                 throw new CorrespondenceAuthorizationException(
-                        "Director role required.");
+                        "Authorized correspondence role required.");
             }
 
             Map<String, String> parameters =
@@ -92,17 +94,19 @@ public final class DeleteCorrespondenceDocumentWebScript
             /*
              * The repository operation independently checks:
              *
-             * - Director role
+             * - authenticated role, with executive creator ownership
              * - DRAFT state
              * - Originating department
              * - Alfresco WRITE/DELETE permissions
              * - Direct source-document association
              */
-            deleter.deleteDocument(
-                    technicalId,
-                    nodeId,
-                    role,
-                    departmentCode);
+            if (role == CorrespondenceActorRole.DIRECTOR) {
+                // Preserve the existing Director deletion contract.
+                deleter.deleteDocument(technicalId, nodeId, role, departmentCode);
+            } else {
+                deleter.deleteDocument(technicalId, nodeId, role,
+                        departmentCode, employee.employeeId());
+            }
 
             response.setHeader(
                     "Cache-Control",
