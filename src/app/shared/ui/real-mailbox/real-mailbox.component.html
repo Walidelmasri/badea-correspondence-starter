@@ -396,18 +396,20 @@
           <p class="mailbox-share-hint">{{ shareText().archivedLink }}</p>
         }
         <p class="mailbox-share-warning">{{ shareText().public }}</p>
-        <div class="mailbox-share-link-tools">
-          <span>{{ shareText().linkOptions }}: <strong dir="auto">{{ sharedDoc.filename }}</strong></span>
-          <button type="button" (click)="copyShareLink()"
-            [disabled]="shareBusy() || shareLinkChecking() || (details()?.state === 'ARCHIVED' && !sharedLink())">
-            {{ shareText().copy }}
-          </button>
-          @if (sharedLink()) {
-            <button type="button" (click)="revokeShareLink()" [disabled]="shareBusy()">
-              {{ shareText().revoke }}
+        @if (shareSelectedNodeIds().length === 1 && shareSelectedNodeIds()[0] === sharedDoc.nodeId) {
+          <div class="mailbox-share-link-tools">
+            <span>{{ shareText().linkOptions }}: <strong dir="auto">{{ sharedDoc.filename }}</strong></span>
+            <button type="button" (click)="copyShareLink()"
+              [disabled]="shareBusy() || shareLinkChecking() || (details()?.state === 'ARCHIVED' && !sharedLink())">
+              {{ shareText().copy }}
             </button>
-          }
-        </div>
+            @if (sharedLink()) {
+              <button type="button" (click)="revokeShareLink()" [disabled]="shareBusy()">
+                {{ shareText().revoke }}
+              </button>
+            }
+          </div>
+        }
         @if (shareNotice() === 'email-submitted') { <p class="mailbox-share-success" role="status">{{ shareText().submitted }}</p> }
         @if (shareNotice() === 'email-uncertain') { <p role="alert">{{ shareText().uncertain }}</p> }
         @if (shareNotice() === 'email-error' || shareNotice() === 'link-error'
