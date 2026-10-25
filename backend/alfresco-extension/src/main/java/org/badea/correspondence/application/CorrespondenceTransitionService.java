@@ -121,14 +121,15 @@ public final class CorrespondenceTransitionService {
                 throw new IllegalStateException(
                         "President submission could not be committed", failure);
             }
-        } else if (accessContext.state() == CorrespondenceState.DRAFT
-                && accessContext.createdByRole() != null) {
-            // Keep executive draft handoff atomic: a caught repository error must
-            // not leave a workflow action committed without its state change.
+        } else if (accessContext.state() == CorrespondenceState.DRAFT) {
+            // The new reference reservation, document number, history, and state
+            // are one REQUIRED transaction for Director AND executive senders.
+            // The Web Script handles domain exceptions, so storage exceptions must
+            // escape it to force a rollback of the entire submission.
             try {
                 repository.applyTransition(command, accessContext.state(), nextState, targetRole);
             } catch (RuntimeException failure) {
-                throw new IllegalStateException("Executive draft submission was not committed", failure);
+                throw new IllegalStateException("Correspondence submission was not committed", failure);
             }
         } else if (distributedClosure) {
             // A Web Script can catch domain failures; force storage failures to

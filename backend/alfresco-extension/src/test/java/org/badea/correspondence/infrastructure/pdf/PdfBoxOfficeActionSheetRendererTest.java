@@ -24,11 +24,9 @@ class PdfBoxOfficeActionSheetRendererTest {
                 List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
                         "Digital Transformation","إدارة التحول الرقمي")),List.of());
         try (var pdf=Loader.loadPDF(output)) {
-            assertEquals(3,pdf.getNumberOfPages(),"Form, text annex, full-size handwriting");
-            assertEquals(900f,pdf.getPage(2).getMediaBox().getWidth(),0.1f);
-            assertEquals(300f,pdf.getPage(2).getMediaBox().getHeight(),0.1f);
-            assertTrue(pdf.getPage(2).getContents().readAllBytes().length>50,
-                    "Handwriting must be embedded as vector PDF content");
+            assertEquals(2,pdf.getNumberOfPages(),"Form plus annex only for additional typed directions");
+            assertTrue(pdf.getPage(0).getContents().readAllBytes().length>50,
+                    "Handwriting must be embedded on the official cover as vector PDF content");
         }
     }
 
@@ -46,4 +44,21 @@ class PdfBoxOfficeActionSheetRendererTest {
             assertEquals(595.3,pdf.getPage(0).getMediaBox().getWidth(),1.5);
         }
     }
+    @Test void simpleHandwrittenExplanationNeedsNoGenericAnnex() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261025/1", LocalDate.of(2026,10,25),
+                "Digital Transformation", "117", "Author", null, List.of());
+        var recipients = new DistributionRecipients(List.of(new DepartmentCode("117")), List.of());
+        var strokes = List.of(new PresidentInkReview.Stroke(1,"pen",List.of(
+                new PresidentInkReview.Point(0.1f,0.3f), new PresidentInkReview.Point(0.6f,0.5f))));
+        var plan = new OfficeDistributionPlan(1,1,recipients,List.of("study-and-opinion"),
+                "", "", "", "", "", List.of(strokes));
+        byte[] bytes = new PdfBoxOfficeActionSheetRenderer().render(source,plan,
+                List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                        "Digital Transformation","إدارة التحول الرقمي")), List.of());
+        try (var pdf = Loader.loadPDF(bytes)) {
+            assertEquals(1, pdf.getNumberOfPages(), "No unnecessary second page");
+        }
+    }
+
 }

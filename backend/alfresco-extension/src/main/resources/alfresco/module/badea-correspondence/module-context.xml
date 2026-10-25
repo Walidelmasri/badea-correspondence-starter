@@ -700,6 +700,7 @@
     class="org.badea.correspondence.infrastructure.alfresco.AlfrescoOfficeDistributionRepository"
     lazy-init="true">
     <constructor-arg ref="nodeService" />
+    <constructor-arg ref="contentService" />
     <constructor-arg ref="badeaCorrespondenceNodeLocator" />
     <constructor-arg ref="badeaCorrespondenceRepository" />
     <constructor-arg ref="badeaPresidentGeneratedDocumentStore" />

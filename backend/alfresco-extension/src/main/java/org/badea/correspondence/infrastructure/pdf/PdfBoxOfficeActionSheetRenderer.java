@@ -109,15 +109,28 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                         float[] box = ACTIONS.get(code);
                         if (box != null) mark(canvas,box,h);
                     }
+                    // The Word form already provides three "Copy with regards"
+                    // lines. Use them before producing any continuation page.
+                    for (int i = 0; i < Math.min(3, copy.size()); i++) {
+                        outline(canvas, recipientName(copy.get(i)), 520, 687 + 17*i, 9, h, true);
+                    }
                     // Write directions and the President's actual vector handwriting
-                    // within the original form's الشرح area. Long text and full-size
-                    // handwriting remain available on the annex pages.
+                    // within the original form's الشرح area. Only genuine overflow
+                    // is handled by additional official-document pages.
                     fillExplanation(canvas,h,plan);
                 }
-                // Explicit attachment/annex with all fields to prevent silent truncation and
-                // preserve recipient names that differ from the printed grid labels.
-                appendAnnex(document,source,plan,to,copy);
-                appendHandwrittenExplanation(document,plan.explanationInkPages());
+                // The official form is a single cover page when its actual fields fit.
+                // Additional pages are produced only for real overflow or material
+                // that is not represented on the printed cover, never unconditionally.
+                if (requiresContinuation(plan, to, copy)) {
+                    appendAnnex(document,source,plan,to,copy);
+                }
+                // The first ink page is already included in الشرح on the cover.
+                // Preserve any genuinely additional handwritten pages inside the
+                // same signed-off action-sheet PDF, not as a separate user document.
+                var additionalInk = plan.explanationInkPages().stream()
+                        .filter(page -> !page.isEmpty()).skip(1).toList();
+                appendHandwrittenExplanation(document,additionalInk);
                 ByteArrayOutputStream output = new ByteArrayOutputStream();
                 document.save(output);
                 return output.toByteArray();
@@ -128,8 +141,8 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     }
 
     /**
-     * Place the President's signed-off directions in the actual شرح field. A full-size,
-     * unscaled vector handwriting page follows the text annex for accurate reading.
+     * Place the President's signed-off directions in the actual شرح field.
+     * Standalone handwriting remains stored in Alfresco as independent audit evidence.
      */
     private static void fillExplanation(PDPageContentStream canvas, float pageHeight,
             OfficeDistributionPlan plan) throws IOException {
@@ -152,7 +165,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
             float x = 250f - width / 2f;
             float y = pageHeight - 524f - height;
             PdfBoxPresidentPdfRenderer.draw(canvas, new PDRectangle(x,y,width,height),first);
-            // Exact full-size pages follow the annex, including additional ink pages.
+            // Extra ink pages, if present, follow within the same action-sheet PDF.
             if (typed != null && !typed.isBlank()) {
                 outline(canvas,"شرح إضافي مكتوب في الملحق",484,579,8,pageHeight,true);
             }
@@ -165,6 +178,22 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
             }
             if (lines.size()>3) outline(canvas,"التتمة في الملحق",480,583,8,pageHeight,true);
         }
+    }
+
+    private static boolean requiresContinuation(OfficeDistributionPlan plan,
+            List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy) {
+        if (copy.size() > 3 || copy.stream().anyMatch(entry -> recipientName(entry).length() > 60)
+                || !plan.officeDirections().isBlank()
+                || !plan.administrativeNotes().isBlank()
+                || !plan.otherRecipient().isBlank() || !plan.otherAction().isBlank()) return true;
+        // The old annex preserved names not represented in the printed checkboxes.
+        for (DepartmentDirectoryEntry recipient : to) {
+            if (!DEPARTMENTS.keySet().stream().anyMatch(name ->
+                    normalize(name).equals(normalize(recipient.nameArabic())))) return true;
+        }
+        boolean ink = plan.explanationInkPages().stream().anyMatch(page -> !page.isEmpty());
+        String typed = plan.presidentDirections();
+        return ink ? !typed.isBlank() : wrap(typed,56).size() > 3;
     }
 
     private static void appendHandwrittenExplanation(PDDocument document,

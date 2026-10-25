@@ -66,7 +66,7 @@ export interface CorrespondenceDocumentUpload {
   readonly sizeBytes: number;
 }
 export interface CorrespondenceGeneratedDocument extends CorrespondenceDocumentUpload {
-  readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION' | 'OFFICIAL_ACTION_SHEET';
+  readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION' | 'OFFICIAL_ACTION_SHEET' | 'CORRESPONDENCE_PACKET';
   readonly sourceDocumentNodeId: string | null;
   readonly reviewRevision: number;
 }

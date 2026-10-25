@@ -358,6 +358,20 @@ class AlfrescoCorrespondenceRepositoryTest {
                 .thenReturn(
                         0L);
 
+        // First submission atomically reserves the department sequence.
+        NodeRef departmentFolder = nodeRef("00000000-0000-0000-0000-000000000117");
+        ChildAssociationRef reservation = mock(ChildAssociationRef.class);
+        NodeRef reserved = nodeRef("00000000-0000-0000-0000-000000000118");
+        when(nodeService.getProperty(correspondence, qname("originDepartmentCode")))
+                .thenReturn("117");
+        when(folderLocator.locateDepartmentFolder(new DepartmentCode("117")))
+                .thenReturn(departmentFolder);
+        when(nodeService.getChildAssocs(departmentFolder)).thenReturn(java.util.List.of());
+        when(reservation.getChildRef()).thenReturn(reserved);
+        when(nodeService.createNode(eq(departmentFolder), eq(ContentModel.ASSOC_CONTAINS),
+                eq(qname("ref-sequence-1")), eq(ContentModel.TYPE_FOLDER), any()))
+                .thenReturn(reservation);
+
         when(actionAssociation.getChildRef())
                 .thenReturn(
                         actionNode);
@@ -461,6 +475,9 @@ class AlfrescoCorrespondenceRepositoryTest {
                         FIXED_INSTANT),
                 properties.get(
                         qname("actedAt")));
+
+        verify(nodeService).setProperty(
+                correspondence, qname("documentNumber"), "117/20261011/1");
 
         verify(nodeService).setProperty(
                 correspondence,

@@ -1,6 +1,14 @@
 package org.badea.correspondence.infrastructure.alfresco;
 
 import java.io.Serializable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Set;
+import org.alfresco.service.cmr.repository.ContentReader;
+import org.alfresco.service.cmr.repository.ContentService;
+import org.badea.correspondence.infrastructure.pdf.PdfBoxCorrespondencePacketBuilder;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
@@ -27,14 +35,17 @@ import org.badea.correspondence.workflow.CorrespondenceState;
 public final class AlfrescoOfficeDistributionRepository implements OfficeDistributionRepository {
     private static final QName DISPATCH = AlfrescoDepartmentAssignmentReader.q("assignmentDispatchId");
     private final NodeService nodes;
+    private final ContentService content;
     private final CorrespondenceNodeLocator locator;
     private final AlfrescoCorrespondenceRepository transitions;
     private final AlfrescoPresidentGeneratedDocumentStore documents;
     private final AlfrescoDepartmentAssignmentReader assignments;
 
-    public AlfrescoOfficeDistributionRepository(NodeService nodes, CorrespondenceNodeLocator locator,
+    public AlfrescoOfficeDistributionRepository(NodeService nodes, ContentService content,
+            CorrespondenceNodeLocator locator,
             AlfrescoCorrespondenceRepository transitions, AlfrescoPresidentGeneratedDocumentStore documents) {
         this.nodes = Objects.requireNonNull(nodes);
+        this.content = Objects.requireNonNull(content);
         this.locator = Objects.requireNonNull(locator);
         this.transitions = Objects.requireNonNull(transitions);
         this.documents = Objects.requireNonNull(documents);
@@ -64,12 +75,33 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
         }
         if (!assignments.readCurrent(parent).isEmpty())
             throw new IllegalStateException("An earlier active distribution must be completed or closed");
+
+        Object officialNumber = nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("documentNumber"));
+        // Older test correspondence may carry legacy manual numbers. Never silently
+        // assign a new number at distribution time or alter archived history.
+        String reference = officialNumber instanceof String value ? value : null;
+        if (reference == null || !reference.matches("[0-9]+/[0-9]{8}/[1-9][0-9]*")) {
+            // Until older correspondence is formally migrated, retain its original
+            // action sheet without creating a misleading newly stamped packet.
+            reference = null;
+        }
+        byte[] packet = reference == null ? null : new PdfBoxCorrespondencePacketBuilder()
+                .build(reference, sheet, distributionDocuments(parent, plan.presidentRevision()));
         documents.save(command.technicalId(), plan.presidentRevision(), "OFFICIAL_ACTION_SHEET", null,
                 "official-arabic-action-sheet.pdf", sheet, command.actorEmployeeId());
         var saved = documents.find(command.technicalId(), plan.presidentRevision(), "OFFICIAL_ACTION_SHEET", null)
                 .orElseThrow(() -> new IllegalStateException("Official action sheet not persisted"));
         nodes.setProperty(new NodeRef("workspace://SpacesStore/" + saved.nodeId()),
                 AlfrescoDepartmentAssignmentReader.q("generatedOfficeRevision"), plan.officeRevision());
+        if (packet != null) {
+            documents.save(command.technicalId(), plan.presidentRevision(), "CORRESPONDENCE_PACKET", null,
+                    "correspondence-packet.pdf", packet, command.actorEmployeeId());
+            var savedPacket = documents.find(command.technicalId(), plan.presidentRevision(),
+                    "CORRESPONDENCE_PACKET", null)
+                    .orElseThrow(() -> new IllegalStateException("Correspondence PDF packet not persisted"));
+            nodes.setProperty(new NodeRef("workspace://SpacesStore/" + savedPacket.nodeId()),
+                    AlfrescoDepartmentAssignmentReader.q("generatedOfficeRevision"), plan.officeRevision());
+        }
         for (DepartmentAssignment assignment : recipients) createAssignment(parent, id, plan, assignment);
         TransitionCorrespondenceCommand transition = new TransitionCorrespondenceCommand(
                 command.technicalId(), CorrespondenceActorRole.PRESIDENT_OFFICE,
@@ -130,6 +162,49 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
         return new DepartmentAssignment(current.assignmentId(),technicalId,department,
                 current.recipientType(), org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED,
                 current.assignedByEmployeeId(),current.assignedAt(),employeeId.value(),now,responseText);
+    }
+
+    /** Prefer the latest finalized annotations through this presidential revision, once per source PDF. */
+    List<byte[]> distributionDocuments(NodeRef correspondence, long reviewRevision) {
+        var sources = new ArrayList<NodeRef>();
+        var approved = new HashMap<String, NodeRef>();
+        var bestRevision = new HashMap<String, Long>();
+        for (ChildAssociationRef association : nodes.getChildAssocs(correspondence)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
+            NodeRef child = association.getChildRef();
+            if (ContentModel.TYPE_CONTENT.equals(nodes.getType(child))) {
+                sources.add(child);
+            } else if (AlfrescoPresidentGeneratedDocumentStore.TYPE.equals(nodes.getType(child))
+                    && "ANNOTATED_PDF".equals(nodes.getProperty(child, AlfrescoPresidentGeneratedDocumentStore.KIND))
+                    && nodes.getProperty(child, AlfrescoPresidentGeneratedDocumentStore.REVISION) instanceof Number rev
+                    && rev.longValue() <= reviewRevision && rev.longValue() > 0
+                    && nodes.getProperty(child, AlfrescoPresidentGeneratedDocumentStore.SOURCE) instanceof String sourceId) {
+                // An earlier cycle's finalized annotations remain authoritative
+                // until a newer finalized rendition of that source is available.
+                Long previous = bestRevision.get(sourceId);
+                if (previous != null && previous == rev.longValue())
+                    throw new CorrespondenceRepositoryException("Duplicate annotated PDF revision");
+                if (previous == null || previous < rev.longValue()) {
+                    bestRevision.put(sourceId, rev.longValue());
+                    approved.put(sourceId, child);
+                }
+            }
+        }
+        sources.sort(Comparator.comparing(child -> String.valueOf(nodes.getProperty(child, ContentModel.PROP_NAME))));
+        var result = new ArrayList<byte[]>();
+        for (NodeRef source : sources) {
+            NodeRef selected = approved.getOrDefault(source.getId(), source);
+            ContentReader reader = content.getReader(selected, ContentModel.PROP_CONTENT);
+            if (reader == null || !reader.exists())
+                throw new CorrespondenceRepositoryException("Missing source or annotated PDF for packet");
+            try (InputStream stream = reader.getContentInputStream()) {
+                if (stream == null) throw new CorrespondenceRepositoryException("Missing PDF content stream");
+                result.add(stream.readAllBytes());
+            } catch (IOException failure) {
+                throw new CorrespondenceRepositoryException("Could not read distribution PDF content", failure);
+            }
+        }
+        return List.copyOf(result);
     }
 
     private void createAssignment(NodeRef parent, String dispatchId,

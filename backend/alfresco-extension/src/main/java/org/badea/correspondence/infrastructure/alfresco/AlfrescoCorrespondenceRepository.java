@@ -381,6 +381,18 @@ public final class AlfrescoCorrespondenceRepository
                     fromState, command.actorRole(), command.action());
         }
 
+        // Allocate exactly once, at first official submission. Existing correspondence,
+        // revisions, and historical document numbers are not changed.
+        if (fromState == CorrespondenceState.DRAFT
+                && toState == CorrespondenceState.WITH_PRESIDENT_OFFICE
+                && command.action() == CorrespondenceAction.SEND_TO_OFFICE) {
+            DepartmentCode originatingDepartment = readRequiredDepartmentCode(
+                    correspondence, PROP_ORIGIN_DEPARTMENT_CODE, "originDepartmentCode");
+            String reference = new AlfrescoCorrespondenceReferenceAllocator(
+                    nodeService, folderLocator, clock).reserve(originatingDepartment);
+            nodeService.setProperty(correspondence, PROP_DOCUMENT_NUMBER, reference);
+        }
+
         long nextSequence =
                 currentSequence + 1L;
 

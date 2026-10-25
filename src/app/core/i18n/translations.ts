@@ -91,12 +91,12 @@ const AR_TRANSLATIONS = {
     loadFailed: 'تعذر تحميل المراسلات.',
     retry: 'إعادة المحاولة',
     showing: 'عرض', of: 'من', previous: 'السابق', next: 'التالي',
-    sender: 'المرسل', documentNumber: 'رقم المستند',
+    sender: 'المرسل', documentNumber: 'الرقم المرجعي للمراسلة',
     noDocumentNumber: 'لا يوجد رقم مستند', updated: 'آخر تعديل',
     description: 'وصف المراسلة', noDescription: 'لا يوجد وصف.',
     attachments: 'المستندات المرفقة', noAttachments: 'لا توجد مرفقات.',
     presidentDocuments: 'المستندات الرسمية المعتمدة',
-    documentKinds: { ANNOTATED_PDF: 'مستند الرئيس المعلق عليه', HANDWRITTEN_EXPLANATION: 'الشرح بخط اليد', OFFICIAL_ACTION_SHEET: 'ورقة الإجراء الرسمية' },
+    documentKinds: { ANNOTATED_PDF: 'مستند الرئيس المعلق عليه', HANDWRITTEN_EXPLANATION: 'الشرح بخط اليد', OFFICIAL_ACTION_SHEET: 'ورقة الإجراء الرسمية', CORRESPONDENCE_PACKET: 'ملف المراسلة الكامل' },
     departmentAssignments: 'توزيع الإدارات',
     departmentCode: 'رمز الإدارة', assignmentCopyStatus: 'للعلم فقط', assignmentCompletedAt: 'تاريخ الإنجاز', assignmentTo: 'للإجراء', assignmentCopy: 'نسخة للعلم',
     assignmentPending: 'قيد الإجراء', assignmentCompleted: 'تم الإنجاز',
@@ -255,7 +255,7 @@ drafts: {
   },
 
   detail: {
-    documentNumber: 'رقم المستند',
+    documentNumber: 'الرقم المرجعي للمراسلة',
     noDocumentNumber: 'لا يوجد رقم مستند',
     createdAt: 'تاريخ الإنشاء',
     modifiedAt: 'آخر تعديل',
@@ -282,7 +282,7 @@ drafts: {
     fields: {
       recipient: 'إلى السيد / الجهة',
       subject: 'الموضوع',
-      documentNumber: 'رقم الوثيقة',
+      documentNumber: 'الرقم المرجعي للمراسلة',
       documentDate: 'تاريخ الوثيقة',
       entity: 'الدولة / الجهة / الإدارة',
       instruction: 'الإجراء المطلوب',
@@ -294,7 +294,7 @@ drafts: {
     placeholders: {
       recipient: 'اختر المستلم',
       subject: 'أدخل موضوع المراسلة',
-      documentNumber: 'أدخل رقم الوثيقة',
+      documentNumber: 'يُنشأ تلقائياً عند الإرسال',
       entity: 'اختر أو أدخل الدولة / الجهة / الإدارة',
       explanation: 'أدخل الشرح أو التوجيهات',
       copyTo: 'إضافة مستلم نسخة',
@@ -422,7 +422,7 @@ drafts: {
 
   details: 'بيانات المراسلة',
   subject: 'الموضوع',
-  documentNumber: 'رقم المستند',
+  documentNumber: 'الرقم المرجعي للمراسلة',
   documentDate: 'تاريخ المستند',
   source: 'المصدر',
   body: 'وصف المراسلة',
@@ -616,12 +616,12 @@ const EN_TRANSLATIONS = {
     loadFailed: 'Could not load correspondence.',
     retry: 'Retry',
     showing: 'Showing', of: 'of', previous: 'Previous', next: 'Next',
-    sender: 'Sender', documentNumber: 'Document Number',
+    sender: 'Sender', documentNumber: 'Correspondence Reference',
     noDocumentNumber: 'No document number', updated: 'Last updated',
     description: 'Description', noDescription: 'No description provided.',
     attachments: 'Attached Documents', noAttachments: 'No attachments.',
     presidentDocuments: 'Finalized official documents',
-    documentKinds: { ANNOTATED_PDF: 'President-annotated PDF', HANDWRITTEN_EXPLANATION: 'Handwritten explanation', OFFICIAL_ACTION_SHEET: 'Official action sheet' },
+    documentKinds: { ANNOTATED_PDF: 'President-annotated PDF', HANDWRITTEN_EXPLANATION: 'Handwritten explanation', OFFICIAL_ACTION_SHEET: 'Official action sheet', CORRESPONDENCE_PACKET: 'Complete correspondence PDF' },
     departmentAssignments: 'Department assignments',
     departmentCode: 'Department code', assignmentCopyStatus: 'For information only', assignmentCompletedAt: 'Completed on', assignmentTo: 'Action required', assignmentCopy: 'Information copy',
     assignmentPending: 'Pending', assignmentCompleted: 'Completed',
@@ -781,7 +781,7 @@ drafts: {
   },
 
   detail: {
-    documentNumber: 'Document Number',
+    documentNumber: 'Correspondence Reference',
     noDocumentNumber: 'No document number',
     createdAt: 'Created',
     modifiedAt: 'Last Modified',
@@ -808,7 +808,7 @@ drafts: {
     fields: {
       recipient: 'To / Recipient',
       subject: 'Subject',
-      documentNumber: 'Document Number',
+      documentNumber: 'Correspondence Reference',
       documentDate: 'Document Date',
       entity: 'Country / Entity / Department',
       instruction: 'Required Action',
@@ -820,7 +820,7 @@ drafts: {
     placeholders: {
       recipient: 'Select recipient',
       subject: 'Enter correspondence subject',
-      documentNumber: 'Enter document number',
+      documentNumber: 'Assigned automatically when sent',
       entity: 'Select or enter country / entity / department',
       explanation: 'Enter explanation or instructions',
       copyTo: 'Add copy recipient',
@@ -917,7 +917,7 @@ drafts: {
 
   details: 'Correspondence Details',
   subject: 'Subject',
-  documentNumber: 'Document Number',
+  documentNumber: 'Correspondence Reference',
   documentDate: 'Document Date',
   source: 'Source',
   body: 'Description',
