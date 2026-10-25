@@ -87,20 +87,11 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
         }
         byte[] packet = reference == null ? null : new PdfBoxCorrespondencePacketBuilder()
                 .build(reference, sheet, distributionDocuments(parent, plan.presidentRevision()));
-        documents.save(command.technicalId(), plan.presidentRevision(), "OFFICIAL_ACTION_SHEET", null,
-                "official-arabic-action-sheet.pdf", sheet, command.actorEmployeeId());
-        var saved = documents.find(command.technicalId(), plan.presidentRevision(), "OFFICIAL_ACTION_SHEET", null)
-                .orElseThrow(() -> new IllegalStateException("Official action sheet not persisted"));
-        nodes.setProperty(new NodeRef("workspace://SpacesStore/" + saved.nodeId()),
-                AlfrescoDepartmentAssignmentReader.q("generatedOfficeRevision"), plan.officeRevision());
+        documents.saveOffice(command.technicalId(), plan.presidentRevision(), plan.officeRevision(),
+                "OFFICIAL_ACTION_SHEET", "official-arabic-action-sheet.pdf", sheet, command.actorEmployeeId());
         if (packet != null) {
-            documents.save(command.technicalId(), plan.presidentRevision(), "CORRESPONDENCE_PACKET", null,
-                    "correspondence-packet.pdf", packet, command.actorEmployeeId());
-            var savedPacket = documents.find(command.technicalId(), plan.presidentRevision(),
-                    "CORRESPONDENCE_PACKET", null)
-                    .orElseThrow(() -> new IllegalStateException("Correspondence PDF packet not persisted"));
-            nodes.setProperty(new NodeRef("workspace://SpacesStore/" + savedPacket.nodeId()),
-                    AlfrescoDepartmentAssignmentReader.q("generatedOfficeRevision"), plan.officeRevision());
+            documents.saveOffice(command.technicalId(), plan.presidentRevision(), plan.officeRevision(),
+                    "CORRESPONDENCE_PACKET", "correspondence-packet.pdf", packet, command.actorEmployeeId());
         }
         for (DepartmentAssignment assignment : recipients) createAssignment(parent, id, plan, assignment);
         TransitionCorrespondenceCommand transition = new TransitionCorrespondenceCommand(

@@ -219,6 +219,8 @@ public final class GetCorrespondenceDetailsWebScript
             item.put("sourceDocumentNodeId", document.sourceDocumentNodeId() == null
                     ? JSONObject.NULL : document.sourceDocumentNodeId());
             item.put("reviewRevision", document.reviewRevision());
+            item.put("officeRevision", document.officeRevision() == null
+                    ? JSONObject.NULL : document.officeRevision());
             generated.put(item);
         }
         result.put("generatedDocuments", generated);

@@ -142,3 +142,35 @@ p {
     width: 99% !important;
   }
 }
+
+/* Scoped to the mailbox host; kept outside the component CSS budget. */
+app-real-mailbox {
+  /* Compact document library: one prominent packet, originals and previous versions
+     available without overwhelming the iPad correspondence workspace. */
+  .mailbox-document-library .mailbox-section-heading { margin-block-end: .8rem; }
+  .mailbox-featured-packet {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .9rem;
+    padding: 1rem 1.1rem; border: 1px solid #acd0bf; border-radius: 12px;
+    background: var(--color-primary-050);
+  }
+  .mailbox-featured-packet__summary { flex: 1 1 14rem; min-width: 0; display: grid; gap: .3rem; }
+  .mailbox-featured-packet__summary strong { font-size: .98rem; color: var(--color-primary-700); }
+  .mailbox-featured-packet__summary small { font-size: .78rem; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+  .mailbox-featured-packet__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+  .mailbox-featured-packet__actions button { min-height: 2.65rem; }
+  .mailbox-featured-packet__actions .mailbox-share-button { margin-inline-end: 0; }
+  .mailbox-document-disclosure { margin-block-start: .85rem; border: 1px solid var(--color-border);
+    border-radius: 10px; padding: 0 .9rem; background: var(--color-surface); }
+  .mailbox-document-disclosure > summary { cursor: pointer; min-height: 2.9rem; display: flex;
+    align-items: center; flex-wrap: wrap; gap: .6rem; font-size: .87rem; font-weight: 650; }
+  .mailbox-document-disclosure > summary:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+  .mailbox-document-disclosure > summary .mailbox-count { margin-inline-start: auto; }
+  .mailbox-document-disclosure > h4 { font-size: .84rem; margin: .9rem 0 .5rem; color: var(--color-text-secondary); }
+  .mailbox-document-disclosure .mailbox-files { margin: .5rem 0 1rem; gap: .45rem; }
+  .mailbox-document-disclosure .mailbox-files li { min-width: 0; }
+  @media (max-width: 640px) {
+    .mailbox-featured-packet { padding: .85rem; }
+    .mailbox-featured-packet__actions { width: 100%; }
+    .mailbox-featured-packet__actions button { flex: 1; }
+  }
+}

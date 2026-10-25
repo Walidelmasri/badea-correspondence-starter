@@ -26,6 +26,8 @@ import {
   ShareEmployeeResult,
 } from '../../data-access/correspondence-api.service';
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
+import { chooseFeaturedPacket } from './featured-packet';
+import { queueFollowUpFiles } from './follow-up-file-queue';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
@@ -65,9 +67,23 @@ export class RealMailboxComponent implements OnInit {
   readonly listError = signal(false);
   readonly selectedId = signal<string | null>(null);
   readonly details = signal<CorrespondenceDetails | null>(null);
+  // Presentation only: never change the API's document collection or Alfresco metadata.
+  readonly featuredPacket = computed(() => chooseFeaturedPacket(this.details()?.generatedDocuments));
+  readonly secondaryGeneratedDocuments = computed(() => {
+    const packet = this.featuredPacket();
+    return (this.details()?.generatedDocuments ?? []).filter(
+      document => document.nodeId !== packet?.nodeId,
+    );
+  });
   readonly detailsLoading = signal(false);
   readonly detailsError = signal(false);
   readonly history = signal<readonly CorrespondenceHistoryEntry[] | null>(null);
+  // The API order is oldest-first for authorization decisions. Display-only
+  // projections must not mutate that order or affect canCompleteOfficeReview().
+  readonly newestHistory = computed(() => [...(this.history() ?? [])].reverse());
+  readonly latestDirectorFollowUp = computed(() => this.newestHistory().find(
+    action => action.actionType === 'DIRECTOR_CONTINUE_CORRESPONDENCE',
+  ) ?? null);
   readonly assignments = signal<readonly DepartmentAssignment[]>([]);
   readonly departments = signal<readonly CorrespondenceDepartment[]>([]);
   readonly assignmentResponse = signal('');
@@ -607,15 +623,24 @@ export class RealMailboxComponent implements OnInit {
 
   chooseFollowUpFiles(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
-    if (files.length > 5 || files.some(file => !file.name.toLowerCase().endsWith('.pdf')
-        || file.size < 5 || file.size > 25 * 1024 * 1024)) {
-      this.followUpFiles.set([]);
+    const incoming = Array.from(input.files ?? []);
+    // Re-selecting the same file after removal must produce a change event.
+    input.value = '';
+    if (this.sendingFollowUp() || this.followUpUncertain() || incoming.length === 0) return;
+    const queued = queueFollowUpFiles(this.followUpFiles(), incoming);
+    if (queued === null) {
+      // Keep previously validated selections when an additional pick is invalid.
       this.followUpNotice.set('invalid');
       return;
     }
+    this.followUpFiles.set(queued);
     this.followUpNotice.set(null);
-    this.followUpFiles.set(files);
+  }
+
+  removeFollowUpFile(file: File): void {
+    if (this.sendingFollowUp() || this.followUpUncertain()) return;
+    this.followUpFiles.update(files => files.filter(entry => entry !== file));
+    this.followUpNotice.set(null);
   }
 
   async directorFollowUp(): Promise<void> {

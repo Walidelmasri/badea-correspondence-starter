@@ -2,6 +2,8 @@ package org.badea.correspondence.application;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -22,6 +24,7 @@ public final class OfficeDistributionService {
     private final CorrespondenceDetailsRepository details;
     private final CorrespondenceDepartmentService departments;
     private final OfficeDistributionPlanner planner;
+    private final DirectorRecipientDirectory directors;
     private final OfficeActionSheetRenderer renderer;
     private final OfficeDistributionRepository persistence;
     private final Clock clock;
@@ -30,7 +33,7 @@ public final class OfficeDistributionService {
             PresidentReturnEvidence history, PresidentReviewStateRepository president,
             OfficeCompletionRepository office, CorrespondenceDetailsRepository details,
             CorrespondenceDepartmentService departments, OfficeDistributionPlanner planner,
-            OfficeActionSheetRenderer renderer, OfficeDistributionRepository persistence, Clock clock) {
+            DirectorRecipientDirectory directors, OfficeActionSheetRenderer renderer, OfficeDistributionRepository persistence, Clock clock) {
         this.correspondence = Objects.requireNonNull(correspondence);
         this.history = Objects.requireNonNull(history);
         this.president = Objects.requireNonNull(president);
@@ -38,6 +41,7 @@ public final class OfficeDistributionService {
         this.details = Objects.requireNonNull(details);
         this.departments = Objects.requireNonNull(departments);
         this.planner = Objects.requireNonNull(planner);
+        this.directors = Objects.requireNonNull(directors);
         this.renderer = Objects.requireNonNull(renderer);
         this.persistence = Objects.requireNonNull(persistence);
         this.clock = Objects.requireNonNull(clock);
@@ -68,12 +72,16 @@ public final class OfficeDistributionService {
         for (DepartmentCode code : plan.recipients().to()) to.add(departments.requireDepartment(code));
         for (DepartmentCode code : plan.recipients().copy()) copy.add(departments.requireDepartment(code));
         CorrespondenceDetails source = details.findByTechnicalId(command.technicalId());
-        byte[] pdf = renderer.render(source, plan, to, copy);
+        // One timestamp for the PDF generation date and persisted assignment history.
+        Instant now = clock.instant();
+        var names = directors.requireDirectorNames(plan.recipients().to());
+        var printContext = new OfficeActionSheetPrintContext(
+                LocalDate.ofInstant(now, ZoneId.of("Asia/Riyadh")), names);
+        byte[] pdf = renderer.render(source, plan, to, copy, printContext);
         if (pdf == null || pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P'
                 || pdf[2] != 'D' || pdf[3] != 'F' || pdf[4] != '-') {
             throw new IllegalStateException("Official action sheet renderer produced invalid PDF");
         }
-        Instant now = clock.instant();
         var assignments = new ArrayList<DepartmentAssignment>();
         for (var entry : to) assignments.add(newAssignment(command, entry.code(), DepartmentRecipientType.TO, now));
         for (var entry : copy) assignments.add(newAssignment(command, entry.code(), DepartmentRecipientType.COPY, now));

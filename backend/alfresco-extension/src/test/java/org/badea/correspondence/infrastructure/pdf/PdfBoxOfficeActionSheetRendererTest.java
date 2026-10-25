@@ -11,6 +11,51 @@ import org.badea.correspondence.workflow.CorrespondenceState;
 import org.junit.jupiter.api.Test;
 
 class PdfBoxOfficeActionSheetRendererTest {
+    private static OfficeActionSheetPrintContext printContext() {
+        return new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),
+                java.util.Map.of(new DepartmentCode("117"), "أحمد محمد"));
+    }
+    @Test void fallsBackToRecipientRoleNotUnverifiedPersonalName() {
+        var dept = new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation", "إدارة التحول الرقمي");
+        var context = new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26), java.util.Map.of());
+        assertEquals("مدير إدارة التحول الرقمي",
+                PdfBoxOfficeActionSheetRenderer.recipientHeader(List.of(dept), context));
+    }
+
+    @Test void recipientHeaderUsesVerifiedPersonalNameNotDepartmentName() {
+        var recipients=List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation","إدارة التحول الرقمي"));
+        assertEquals("أحمد محمد", PdfBoxOfficeActionSheetRenderer.recipientHeader(recipients,printContext()));
+    }
+
+    @Test void multipleDirectorNamesUseArabicCommasInRecipientOrder() {
+        var recipients=List.of(
+                new DepartmentDirectoryEntry(new DepartmentCode("117"),"IT","إدارة التحول الرقمي"),
+                new DepartmentDirectoryEntry(new DepartmentCode("118"),"HR","إدارة الموارد البشرية"));
+        var context=new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),
+                java.util.Map.of(new DepartmentCode("117"),"أحمد محمد",
+                        new DepartmentCode("118"),"خالد عبدالله"));
+        assertEquals("أحمد محمد، خالد عبدالله",
+                PdfBoxOfficeActionSheetRenderer.recipientHeader(recipients,context));
+    }
+
+    @Test void generationDateIsIndependentOfOriginalDocumentDate() throws Exception {
+        var source=new CorrespondenceDetails("id",CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject",null,"117/20261025/1",LocalDate.of(2026,10,20),
+                "Digital Transformation","117","Author",null,List.of());
+        var plan=new OfficeDistributionPlan(1,1,
+                new DistributionRecipients(List.of(new DepartmentCode("117")),List.of()),
+                List.of(),"","","","","");
+        var to=List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),"IT","إدارة التحول الرقمي"));
+        byte[] original = new PdfBoxOfficeActionSheetRenderer().render(source,plan,to,List.of(),
+                new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),printContext().directorNames()));
+        byte[] next = new PdfBoxOfficeActionSheetRenderer().render(source,plan,to,List.of(),
+                new OfficeActionSheetPrintContext(LocalDate.of(2026,10,27),printContext().directorNames()));
+        assertFalse(java.util.Arrays.equals(original,next),
+                "Generation date must be stamped rather than reusing the source document date");
+    }
+
     @Test void handwritingIsEmbeddedInExplanationAndPreservedFullSize() throws Exception {
         var source=new CorrespondenceDetails("id",CorrespondenceState.WITH_PRESIDENT_OFFICE,
                 "Official correspondence",null,"B-12",LocalDate.of(2026,10,20),"IT", "117","Author",null,List.of());
@@ -22,7 +67,7 @@ class PdfBoxOfficeActionSheetRendererTest {
                 "توجيهات الرئيس", "", "", "", "", List.of(strokes));
         byte[] output=new PdfBoxOfficeActionSheetRenderer().render(source,plan,
                 List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
-                        "Digital Transformation","إدارة التحول الرقمي")),List.of());
+                        "Digital Transformation","إدارة التحول الرقمي")),List.of(),printContext());
         try (var pdf=Loader.loadPDF(output)) {
             assertEquals(2,pdf.getNumberOfPages(),"Form plus annex only for additional typed directions");
             assertTrue(pdf.getPage(0).getContents().readAllBytes().length>50,
@@ -37,7 +82,7 @@ class PdfBoxOfficeActionSheetRendererTest {
         var plan=new OfficeDistributionPlan(5,2,recipients,List.of("study-and-opinion"),
                 "توجيهات الرئيس", "استكمال مكتب الرئيس", "ملاحظات إدارية", "", "");
         byte[] bytes=new PdfBoxOfficeActionSheetRenderer().render(source,plan,
-                List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),"Digital Transformation","إدارة التحول الرقمي")),List.of());
+                List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),"Digital Transformation","إدارة التحول الرقمي")),List.of(),printContext());
         assertTrue(bytes.length>1000);
         try (var pdf=Loader.loadPDF(bytes)) {
             assertTrue(pdf.getNumberOfPages()>=2);
@@ -55,7 +100,7 @@ class PdfBoxOfficeActionSheetRendererTest {
                 "", "", "", "", "", List.of(strokes));
         byte[] bytes = new PdfBoxOfficeActionSheetRenderer().render(source,plan,
                 List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
-                        "Digital Transformation","إدارة التحول الرقمي")), List.of());
+                        "Digital Transformation","إدارة التحول الرقمي")), List.of(),printContext());
         try (var pdf = Loader.loadPDF(bytes)) {
             assertEquals(1, pdf.getNumberOfPages(), "No unnecessary second page");
         }

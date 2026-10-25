@@ -693,6 +693,13 @@
     lazy-init="true">
     <constructor-arg ref="badeaCorrespondenceDepartmentService" />
 </bean>
+<!-- Verified Director identity for each recipient department. -->
+<bean id="badeaDirectorRecipientDirectory"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoDirectorRecipientDirectory"
+    lazy-init="true">
+    <constructor-arg ref="authorityService" />
+    <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+</bean>
 <bean id="badeaOfficeActionSheetRenderer"
     class="org.badea.correspondence.infrastructure.pdf.PdfBoxOfficeActionSheetRenderer"
     lazy-init="true" />
@@ -715,6 +722,7 @@
     <constructor-arg ref="badeaCorrespondenceDetailsRepository" />
     <constructor-arg ref="badeaCorrespondenceDepartmentService" />
     <constructor-arg ref="badeaOfficeDistributionPlanner" />
+    <constructor-arg ref="badeaDirectorRecipientDirectory" />
     <constructor-arg ref="badeaOfficeActionSheetRenderer" />
     <constructor-arg ref="badeaOfficeDistributionRepository" />
     <constructor-arg ref="badeaCorrespondenceClock" />

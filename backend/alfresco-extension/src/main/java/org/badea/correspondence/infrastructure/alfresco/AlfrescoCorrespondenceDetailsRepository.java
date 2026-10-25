@@ -226,6 +226,7 @@ public final class AlfrescoCorrespondenceDetailsRepository
             }
         }
         documents.sort(Comparator.comparing(CorrespondenceGeneratedDocument::reviewRevision)
+                .thenComparing(document -> document.officeRevision() == null ? 0L : document.officeRevision())
                 .thenComparing(CorrespondenceGeneratedDocument::artifactType)
                 .thenComparing(CorrespondenceGeneratedDocument::nodeId));
         return List.copyOf(documents);

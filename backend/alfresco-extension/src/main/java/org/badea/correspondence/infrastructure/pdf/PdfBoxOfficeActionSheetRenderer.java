@@ -22,6 +22,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.badea.correspondence.application.CorrespondenceDetails;
 import org.badea.correspondence.application.OfficeActionSheetRenderer;
+import org.badea.correspondence.application.OfficeActionSheetPrintContext;
 import org.badea.correspondence.application.OfficeDistributionPlan;
 import org.badea.correspondence.application.PresidentInkReview;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
@@ -77,8 +78,10 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     }
 
     @Override public byte[] render(CorrespondenceDetails source, OfficeDistributionPlan plan,
-            List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy) {
+            List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy,
+            OfficeActionSheetPrintContext printContext) {
         Objects.requireNonNull(source); Objects.requireNonNull(plan);
+        Objects.requireNonNull(printContext);
         if (to == null || to.isEmpty() || copy == null) throw new IllegalArgumentException("Invalid recipients");
         // Headless rendering requires a font with Arabic glyph support. Fail closed on missing glyphs.
         if (FONT.canDisplayUpTo("تعليمات الرئيس وإدارة التحول الرقمي") != -1)
@@ -95,10 +98,19 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     // changing the original source, then fill the correspondence's actual date.
                     erase(canvas,h,397,176,79,17);
                     String date = source.documentDate() == null ? "" : source.documentDate().format(DATE);
-                    outline(canvas,date,471,186,11,h,true);
-                    outline(canvas,source.subject(),485,158,10,h,true);
-                    outline(canvas,source.documentNumber(),471,173,9,h,true);
-                    outline(canvas,source.sourceText(),380,172,9,h,true);
+                    // Original document date stays in its printed field, clear of the table border.
+                    outline(canvas,date,470,184,9,h,true);
+                    // Keep the template's "إلى السيد/" label and print actual recipient people.
+                    // An overlong recipient list is detailed on the annex, not written over the table.
+                    String allNames = recipientHeader(to, printContext);
+                    String header = allNames;
+                    if (textWidth(header, 10) > 395) {
+                        header = "الأسماء كاملة في الملحق";
+                    }
+                    outline(canvas,header,475,131,10,h,true);
+                    outline(canvas,fitHeader(source.subject(),10,430),485,158,10,h,true);
+                    outline(canvas,fitHeader(source.documentNumber(),9,120),471,173,9,h,true);
+                    outline(canvas,fitHeader(source.sourceText(),9,280),380,172,9,h,true);
                     for (DepartmentDirectoryEntry recipient : to) {
                         String key = normalize(recipient.nameArabic());
                         for (var marker : DEPARTMENTS.entrySet()) {
@@ -118,12 +130,20 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     // within the original form's الشرح area. Only genuine overflow
                     // is handled by additional official-document pages.
                     fillExplanation(canvas,h,plan);
+                    // Distinct from the document's original date above; this is when
+                    // the Office generated the immutable action-sheet artifact.
+                    outline(canvas,"تاريخ إعداد ورقة الإجراء: " + printContext.generatedOn().format(DATE),
+                            530,786,9,h,true);
                 }
                 // The official form is a single cover page when its actual fields fit.
                 // Additional pages are produced only for real overflow or material
                 // that is not represented on the printed cover, never unconditionally.
-                if (requiresContinuation(plan, to, copy)) {
-                    appendAnnex(document,source,plan,to,copy);
+                if (requiresContinuation(plan, to, copy)
+                        || textWidth(recipientHeader(to, printContext), 10) > 395
+                        || textWidth(source.subject(), 10) > 430
+                        || textWidth(source.documentNumber(), 9) > 120
+                        || textWidth(source.sourceText(), 9) > 280) {
+                    appendAnnex(document,source,plan,to,copy,printContext);
                 }
                 // The first ink page is already included in الشرح on the cover.
                 // Preserve any genuinely additional handwritten pages inside the
@@ -212,14 +232,19 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
 
     private static void appendAnnex(PDDocument document, CorrespondenceDetails source,
             OfficeDistributionPlan plan, List<DepartmentDirectoryEntry> to,
-            List<DepartmentDirectoryEntry> copy) throws IOException {
+            List<DepartmentDirectoryEntry> copy, OfficeActionSheetPrintContext printContext) throws IOException {
         var lines = new java.util.ArrayList<String>();
         lines.add("المصرف العربي للتنمية الاقتصادية في أفريقيا - مكتب الرئيس");
         lines.add("ملحق ورقة الإجراء الرسمية");
         lines.add("الموضوع: " + source.subject());
+        lines.add("الجهة: " + Objects.toString(source.sourceText(), ""));
         lines.add("رقم الوثيقة: " + Objects.toString(source.documentNumber(),""));
+        lines.add("تاريخ إعداد ورقة الإجراء: " + printContext.generatedOn().format(DATE));
         lines.add("إلى:");
-        for (var recipient : to) lines.add("• " + recipientName(recipient));
+        for (var recipient : to) {
+            lines.add("• " + recipientDisplay(recipient, printContext)
+                    + " - " + recipientName(recipient));
+        }
         lines.add("صورة مع التحية:");
         for (var recipient : copy) lines.add("• " + recipientName(recipient));
         lines.add("جهة إضافية: " + plan.otherRecipient());
@@ -259,6 +284,31 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 }
             }
         } finally { if (canvas != null) canvas.close(); }
+    }
+
+    static String recipientHeader(List<DepartmentDirectoryEntry> to,
+            OfficeActionSheetPrintContext printContext) {
+        return to.stream().map(recipient -> recipientDisplay(recipient, printContext))
+                .collect(java.util.stream.Collectors.joining("، "));
+    }
+
+    private static String recipientDisplay(DepartmentDirectoryEntry recipient,
+            OfficeActionSheetPrintContext context) {
+        String name = context.directorNames().get(recipient.code());
+        // Honest fallback: a role/department title, explicitly not a personal name.
+        if (name != null && !name.isBlank()) return name;
+        String department = recipientName(recipient);
+        // Not every addressed unit is formally a department headed by a Director.
+        return department.startsWith("إدارة ") ? "مدير " + department : "المسؤول عن " + department;
+    }
+
+    private static String fitHeader(String text, float size, float maxWidth) {
+        return textWidth(text, size) > maxWidth ? "التفاصيل في الملحق" : text;
+    }
+
+    private static float textWidth(String text, float size) {
+        if (text == null || text.isBlank()) return 0f;
+        return new TextLayout(text, FONT.deriveFont(size), FRC).getAdvance();
     }
 
     private static String recipientName(DepartmentDirectoryEntry entry) {

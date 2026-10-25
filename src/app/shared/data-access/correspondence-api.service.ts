@@ -69,6 +69,8 @@ export interface CorrespondenceGeneratedDocument extends CorrespondenceDocumentU
   readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION' | 'OFFICIAL_ACTION_SHEET' | 'CORRESPONDENCE_PACKET';
   readonly sourceDocumentNodeId: string | null;
   readonly reviewRevision: number;
+  /** Null for President artifacts and older Office PDFs. */
+  readonly officeRevision?: number | null;
 }
 export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly technicalId: string;

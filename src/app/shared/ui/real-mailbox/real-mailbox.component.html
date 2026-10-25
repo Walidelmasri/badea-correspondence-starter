@@ -89,6 +89,18 @@
             <dd>{{ item.documentNumber || labels().noDocumentNumber }}</dd></div>
           <div><dt>{{ labels().updated }}</dt><dd>{{ formatDate(item.modifiedAt) }}</dd></div>
         </dl>
+        @if (latestDirectorFollowUp(); as followUp) {
+          <section class="mailbox-latest-follow-up" aria-labelledby="mailbox-latest-follow-up-title">
+            <div class="mailbox-latest-follow-up__heading">
+              <h3 id="mailbox-latest-follow-up-title">{{ labels().latestDirectorFollowUp }}</h3>
+              <time>{{ formatDate(followUp.actedAt) }}</time>
+            </div>
+            <small>{{ followUp.actorNameEnglish }}</small>
+            @if (followUp.explanation) {
+              <p dir="auto">{{ followUp.explanation }}</p>
+            }
+          </section>
+        }
         @if (detailsLoading()) {
           <p role="status">{{ labels().loadingDetails }}</p>
         } @else if (detailsError()) {
@@ -99,65 +111,81 @@
             <h3>{{ labels().description }}</h3>
             <p class="mailbox-detail__body">{{ full.bodyText || labels().noDescription }}</p>
           </section>
-          <section class="mailbox-detail__section">
-            <h3>{{ labels().attachments }} <span class="mailbox-count">{{ full.documents.length }}</span></h3>
-            @if (full.documents.length === 0) {
+          <section class="mailbox-detail__section mailbox-document-library" aria-labelledby="mailbox-document-library-title">
+            <div class="mailbox-section-heading">
+              <h3 id="mailbox-document-library-title">{{ labels().documentsLibrary }}</h3>
+              <span class="mailbox-count">{{ full.documents.length + (full.generatedDocuments?.length ?? 0) }}</span>
+            </div>
+            @if (featuredPacket(); as packet) {
+              <div class="mailbox-featured-packet">
+                <div class="mailbox-featured-packet__summary">
+                  <strong>{{ labels().documentKinds.CORRESPONDENCE_PACKET }}</strong>
+                  <small dir="auto">{{ packet.filename }}</small>
+                  <small>{{ formatSize(packet.sizeBytes) }}</small>
+                </div>
+                <div class="mailbox-featured-packet__actions">
+                  <button type="button" class="mailbox-action"
+                    (click)="openDocument(packet)">{{ labels().openDocument }}</button>
+                  <button type="button" class="mailbox-share-button"
+                    (click)="beginShare(packet)">{{ shareText().share }}</button>
+                </div>
+              </div>
+            }
+            @if (full.documents.length === 0 && (full.generatedDocuments?.length ?? 0) === 0) {
               <p>{{ labels().noAttachments }}</p>
-            } @else {
-              <ul class="mailbox-files">
-                @for (document of full.documents; track document.nodeId) {
-                  <li>
-                    <button
-                      type="button"
-                      class="mailbox-file-button"
-                      [disabled]="document.mimeType !== 'application/pdf'"
-                      [attr.aria-label]="labels().openDocument + ': ' + document.filename"
-                      (click)="openDocument(document)"
-                    >
-                      <svg width="19" height="19" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.83l8.49-8.48"/>
-                      </svg>
-                      <span><strong>{{ document.filename }}</strong><small>{{ formatSize(document.sizeBytes) }}</small></span>
-                      <span class="mailbox-file-open">{{ labels().openDocument }}</span>
-                    </button>
-
-                    <button type="button" class="mailbox-share-button"
-                      [disabled]="document.mimeType !== 'application/pdf'"
-                      (click)="beginShare(document)">{{ shareText().share }}</button>
-                  </li>
+            } @else if (full.documents.length > 0 || secondaryGeneratedDocuments().length > 0) {
+              <details class="mailbox-document-disclosure" [attr.open]="featuredPacket() ? null : ''">
+                <summary>
+                  <span>{{ featuredPacket() ? labels().otherDocuments : labels().browseDocuments }}</span>
+                  <span class="mailbox-count">{{ full.documents.length + secondaryGeneratedDocuments().length }}</span>
+                </summary>
+                @if (full.documents.length > 0) {
+                  <h4>{{ labels().sourceDocuments }}</h4>
+                  <ul class="mailbox-files">
+                    @for (document of full.documents; track document.nodeId) {
+                      <li>
+                        <button type="button" class="mailbox-file-button"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          [attr.aria-label]="labels().openDocument + ': ' + document.filename"
+                          (click)="openDocument(document)">
+                          <span class="mailbox-document-detail">
+                            <strong dir="auto">{{ document.filename }}</strong>
+                            <small>{{ formatSize(document.sizeBytes) }}</small>
+                          </span>
+                          <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                        </button>
+                        <button type="button" class="mailbox-share-button"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          (click)="beginShare(document)">{{ shareText().share }}</button>
+                      </li>
+                    }
+                  </ul>
                 }
-              </ul>
+                @if (secondaryGeneratedDocuments().length > 0) {
+                  <h4>{{ labels().otherOfficialDocuments }}</h4>
+                  <ul class="mailbox-files">
+                    @for (document of secondaryGeneratedDocuments(); track document.nodeId) {
+                      <li>
+                        <button type="button" class="mailbox-file-button"
+                          [attr.aria-label]="labels().openDocument + ': ' + document.filename"
+                          (click)="openDocument(document)">
+                          <span class="mailbox-document-detail">
+                            <strong>{{ labels().documentKinds[document.artifactType] }}</strong>
+                            <small class="mailbox-document-filename" dir="auto">{{ document.filename }}</small>
+                            <small>{{ formatSize(document.sizeBytes) }}</small>
+                          </span>
+                          <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                        </button>
+                        <button type="button" class="mailbox-share-button"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          (click)="beginShare(document)">{{ shareText().share }}</button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </details>
             }
           </section>
-          @if (full.generatedDocuments?.length) {
-            <section class="mailbox-detail__section" aria-labelledby="mailbox-approved-documents">
-              <h3 id="mailbox-approved-documents">{{ labels().presidentDocuments }}
-                <span class="mailbox-count">{{ full.generatedDocuments?.length }}</span>
-              </h3>
-              <ul class="mailbox-files">
-                @for (document of full.generatedDocuments ?? []; track document.nodeId) {
-                  <li>
-                    <button type="button" class="mailbox-file-button"
-                      [attr.aria-label]="labels().openDocument + ': ' + document.filename"
-                      (click)="openDocument(document)">
-                      <span class="mailbox-document-detail">
-                        <strong>{{ labels().documentKinds[document.artifactType] }}</strong>
-                        <small class="mailbox-document-filename" dir="auto">{{ document.filename }}</small>
-                        <small>{{ formatSize(document.sizeBytes) }}</small>
-                      </span>
-                      <span class="mailbox-file-open">{{ labels().openDocument }}</span>
-                    </button>
-
-                    <button type="button" class="mailbox-share-button"
-                      [disabled]="document.mimeType !== 'application/pdf'"
-                      (click)="beginShare(document)">{{ shareText().share }}</button>
-                  </li>
-                }
-              </ul>
-            </section>
-          }
 
           @if (assignments().length > 0) {
             <section class="mailbox-detail__section mailbox-assignments" aria-labelledby="mailbox-assignments-title">
@@ -223,12 +251,31 @@
                 [value]="followUpReason()" [disabled]="sendingFollowUp() || followUpUncertain()"
                 (input)="updateFollowUpReason($event)"></textarea>
               <label for="director-follow-up-files">{{ labels().directorFollowUpFiles }}</label>
-              <input id="director-follow-up-files" type="file" accept="application/pdf,.pdf" multiple
-                [disabled]="sendingFollowUp() || followUpUncertain()"
-                (change)="chooseFollowUpFiles($event)" />
-              <small>{{ labels().directorFollowUpFileHint }}</small>
-              @for (file of followUpFiles(); track file.name) {
-                <p dir="auto">{{ file.name }} ({{ formatSize(file.size) }})</p>
+              <div class="mailbox-follow-up-picker">
+                <input id="director-follow-up-files" type="file" accept="application/pdf,.pdf" multiple
+                  class="mailbox-follow-up-picker__input"
+                  [disabled]="sendingFollowUp() || followUpUncertain()"
+                  (change)="chooseFollowUpFiles($event)" />
+                <label for="director-follow-up-files" class="mailbox-follow-up-picker__button">
+                  <span aria-hidden="true">＋</span> {{ labels().directorFollowUpChooseFiles }}
+                </label>
+                <small>{{ labels().directorFollowUpFileHint }}</small>
+              </div>
+              @if (followUpFiles().length > 0) {
+                <ul class="mailbox-follow-up-files" [attr.aria-label]="labels().directorFollowUpFiles">
+                  @for (file of followUpFiles(); track file) {
+                    <li>
+                      <div class="mailbox-follow-up-files__name">
+                        <strong dir="auto">{{ file.name }}</strong>
+                        <small>{{ formatSize(file.size) }}</small>
+                      </div>
+                      <button type="button" class="mailbox-follow-up-files__remove"
+                        [disabled]="sendingFollowUp() || followUpUncertain()"
+                        [attr.aria-label]="labels().directorFollowUpRemoveFile + ': ' + file.name"
+                        (click)="removeFollowUpFile(file)">×</button>
+                    </li>
+                  }
+                </ul>
               }
               <button type="button" class="mailbox-action"
                 [disabled]="sendingFollowUp() || followUpUncertain() || !followUpReason().trim()"
@@ -284,7 +331,7 @@
               <p role="alert">{{ labels().historyFailed }}</p>
             } @else if (history(); as actions) {
               <ol class="mailbox-history">
-                @for (action of actions; track action.sequence) {
+                @for (action of newestHistory(); track action.sequence) {
                   <li>
                     <strong>{{ actionLabel(action.actionType) }}</strong>
                     <span>{{ action.actorNameEnglish }}</span>

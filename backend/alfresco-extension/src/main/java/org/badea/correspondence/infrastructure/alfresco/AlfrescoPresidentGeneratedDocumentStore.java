@@ -28,6 +28,7 @@ public final class AlfrescoPresidentGeneratedDocumentStore implements PresidentG
     private static final String NS = "http://www.badea.org/model/correspondence/1.0";
     static final QName TYPE = q("generatedDocument");
     static final QName REVISION = q("generatedReviewRevision");
+    static final QName OFFICE_REVISION = q("generatedOfficeRevision");
     static final QName KIND = q("generatedArtifactType");
     static final QName SOURCE = q("generatedSourceDocumentNodeId");
     static final QName CREATOR = q("generatedByEmployeeId");
@@ -75,12 +76,63 @@ public final class AlfrescoPresidentGeneratedDocumentStore implements PresidentG
         if (find(technicalId, revision, artifactType, sourceNodeId).isPresent()) {
             throw new CorrespondenceRepositoryException("Generated PDF already exists for this review revision");
         }
-        NodeRef correspondence = locator.locate(technicalId);
         String name = "president-" + artifactType.toLowerCase(java.util.Locale.ROOT) +
                 "-r" + revision + "-" + (sourceNodeId == null ? "explanation" : sourceNodeId);
+        persist(technicalId, revision, null, artifactType, sourceNodeId, filename, pdf, employee, name);
+    }
+
+    /** Official dispatch identity includes the Office revision, even if President review is unchanged. */
+    public Optional<CorrespondenceGeneratedDocument> findOffice(String technicalId,
+            long reviewRevision, long officeRevision, String artifactType) {
+        requireOfficeIdentity(reviewRevision, officeRevision, artifactType);
+        NodeRef parent = locator.locate(technicalId);
+        CorrespondenceGeneratedDocument found = null;
+        for (ChildAssociationRef association : nodes.getChildAssocs(parent)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
+            NodeRef child = association.getChildRef();
+            if (!TYPE.equals(nodes.getType(child))) continue;
+            if (!Objects.equals(reviewRevision, asRevision(nodes.getProperty(child, REVISION)))
+                    || !Objects.equals(officeRevision, asRevision(nodes.getProperty(child, OFFICE_REVISION)))
+                    || !artifactType.equals(nodes.getProperty(child, KIND))
+                    || nodes.getProperty(child, SOURCE) != null) continue;
+            if (found != null) throw new CorrespondenceRepositoryException("Duplicate Office PDF artifacts");
+            found = describe(child);
+        }
+        return Optional.ofNullable(found);
+    }
+
+    public void saveOffice(String technicalId, long reviewRevision, long officeRevision,
+            String artifactType, String filename, byte[] pdf, EmployeeId employee) {
+        requireOfficeIdentity(reviewRevision, officeRevision, artifactType);
+        requirePdf(pdf);
+        if (findOffice(technicalId, reviewRevision, officeRevision, artifactType).isPresent())
+            throw new CorrespondenceRepositoryException("Generated Office PDF already exists for this distribution");
+        String name = "office-" + artifactType.toLowerCase(java.util.Locale.ROOT)
+                + "-r" + reviewRevision + "-o" + officeRevision;
+        persist(technicalId, reviewRevision, officeRevision, artifactType,
+                null, filename, pdf, employee, name);
+    }
+
+    private static void requireOfficeIdentity(long review, long office, String artifactType) {
+        if (review < 1 || office < 1 || !("OFFICIAL_ACTION_SHEET".equals(artifactType)
+                || "CORRESPONDENCE_PACKET".equals(artifactType)))
+            throw new IllegalArgumentException("Invalid Office PDF identity");
+    }
+
+    private static void requirePdf(byte[] pdf) {
+        if (pdf == null || pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P'
+                || pdf[2] != 'D' || pdf[3] != 'F' || pdf[4] != '-')
+            throw new IllegalArgumentException("Generated content is not a valid PDF header");
+    }
+
+    private void persist(String technicalId, long reviewRevision, Long officeRevision,
+            String artifactType, String sourceNodeId, String filename, byte[] pdf,
+            EmployeeId employee, String name) {
+        NodeRef correspondence = locator.locate(technicalId);
         Map<QName, Serializable> properties = new HashMap<>();
         properties.put(ContentModel.PROP_NAME, filename);
-        properties.put(REVISION, revision);
+        properties.put(REVISION, reviewRevision);
+        if (officeRevision != null) properties.put(OFFICE_REVISION, officeRevision);
         properties.put(KIND, artifactType);
         if (sourceNodeId != null) properties.put(SOURCE, sourceNodeId);
         properties.put(CREATOR, employee.value());
@@ -113,9 +165,11 @@ public final class AlfrescoPresidentGeneratedDocumentStore implements PresidentG
                 || hash.length() != 64 || !(creator instanceof String) || !(created instanceof Date)) {
             throw new CorrespondenceRepositoryException("Invalid generated PDF audit metadata");
         }
+        Serializable office = nodes.getProperty(child, OFFICE_REVISION);
         return new CorrespondenceGeneratedDocument(child.getId(), filename,
                 data.getMimetype(), data.getSize(), type,
-                source instanceof String text ? text : null, number.longValue());
+                source instanceof String text ? text : null, number.longValue(),
+                office instanceof Number officeNumber ? officeNumber.longValue() : null);
     }
 
     private CorrespondenceGeneratedDocument describe(NodeRef child) {

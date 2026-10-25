@@ -23,11 +23,12 @@ class OfficeDistributionServiceTest {
     private final OfficeCompletionRepository office=mock(OfficeCompletionRepository.class);
     private final CorrespondenceDetailsRepository details=mock(CorrespondenceDetailsRepository.class);
     private final CorrespondenceDepartmentService departments=mock(CorrespondenceDepartmentService.class);
+    private final DirectorRecipientDirectory directors=mock(DirectorRecipientDirectory.class);
     private final OfficeActionSheetRenderer pdf=mock(OfficeActionSheetRenderer.class);
     private final OfficeDistributionRepository storage=mock(OfficeDistributionRepository.class);
     private final Clock clock=Clock.fixed(Instant.parse("2026-10-20T08:00:00Z"), ZoneOffset.UTC);
     private final OfficeDistributionService service=new OfficeDistributionService(correspondence, returns,president,office,
-            details,departments,new OfficeDistributionPlanner(departments),pdf,storage,clock);
+            details,departments,new OfficeDistributionPlanner(departments),directors,pdf,storage,clock);
     private final OfficeDispatchCommand command=new OfficeDispatchCommand("b9ff7420-3ae3-4b19-9a35-42fe2ba29c91",
             5,2,new EmployeeId("99"),"Office Clerk",null);
 
@@ -42,6 +43,9 @@ class OfficeDistributionServiceTest {
         when(office.find(command.technicalId())).thenReturn(Optional.of(new OfficeCompletionState(2,5,
                 "{\"schemaVersion\":1,\"selectedRecipientIds\":[\"118\"],\"selectedCopyRecipientIds\":[],\"selectedActionCodes\":[],\"otherRecipient\":\"\",\"otherAction\":\"\",\"typedExplanation\":\"Office\",\"officeNotes\":\"Note\"}",
                 "99","Office Clerk",null,clock.instant())));
+        when(directors.requireDirectorNames(anyList())).thenReturn(java.util.Map.of(
+                new DepartmentCode("117"), "مدير التحول الرقمي",
+                new DepartmentCode("118"), "مدير الموارد البشرية"));
         when(departments.requireDepartment(new DepartmentCode("117"))).thenReturn(new DepartmentDirectoryEntry(new DepartmentCode("117"),"IT","إدارة التحول الرقمي"));
         when(departments.requireDepartment(new DepartmentCode("118"))).thenReturn(new DepartmentDirectoryEntry(new DepartmentCode("118"),"Finance","إدارة الموارد البشرية"));
         when(details.findByTechnicalId(command.technicalId())).thenReturn(new CorrespondenceDetails(command.technicalId(),
@@ -49,7 +53,7 @@ class OfficeDistributionServiceTest {
     }
 
     @Test void dispatchMergesToCopyAndWritesOneImmutableHandoff() {
-        when(pdf.render(any(),any(),anyList(),anyList())).thenReturn("%PDF-example".getBytes());
+        when(pdf.render(any(),any(),anyList(),anyList(),any())).thenReturn("%PDF-example".getBytes());
         when(storage.distribute(eq(command),any(),any(),anyList())).thenAnswer(invocation -> {
             OfficeDistributionPlan plan=invocation.getArgument(1);
             List<DepartmentAssignment> actions=invocation.getArgument(3);
@@ -61,6 +65,21 @@ class OfficeDistributionServiceTest {
         });
         assertEquals("dispatch-1",service.distribute(command,CorrespondenceActorRole.PRESIDENT_OFFICE));
         verify(storage).distribute(eq(command),any(),any(),anyList());
+        var captor = org.mockito.ArgumentCaptor.forClass(OfficeActionSheetPrintContext.class);
+        verify(pdf).render(any(),any(),anyList(),anyList(),captor.capture());
+        assertEquals(java.time.LocalDate.of(2026,10,20), captor.getValue().generatedOn());
+    }
+
+    @Test void missingDirectorIdentityUsesSafePrintFallbackAndStillDispatches() {
+        when(directors.requireDirectorNames(anyList())).thenReturn(java.util.Map.of());
+        when(pdf.render(any(), any(), anyList(), anyList(), any()))
+                .thenReturn("%PDF-example".getBytes());
+        when(storage.distribute(eq(command), any(), any(), anyList())).thenReturn("dispatch-1");
+        assertEquals("dispatch-1", service.distribute(command, CorrespondenceActorRole.PRESIDENT_OFFICE));
+        var captor = org.mockito.ArgumentCaptor.forClass(OfficeActionSheetPrintContext.class);
+        verify(pdf).render(any(), any(), anyList(), anyList(), captor.capture());
+        assertTrue(captor.getValue().directorNames().isEmpty());
+        verify(storage).distribute(eq(command), any(), any(), anyList());
     }
 
     @Test void forbidsPrematureDispatch() {
