@@ -25,8 +25,12 @@ public final class AlfrescoCorrespondenceDraftUpdater {
     private static final QName PROP_ORIGIN_DEPARTMENT =
             qname("originDepartmentCode");
 
-//     private static final QName PROP_CREATED_BY_EMPLOYEE =
-//             qname("createdByEmployeeId");
+    private static final QName PROP_CREATED_BY_EMPLOYEE =
+            qname("createdByEmployeeId");
+    private static final QName PROP_CREATION_ROLE =
+            qname("createdByCorrespondenceRole");
+    private static final QName PROP_EXECUTIVE_COMPOSE =
+            qname("executiveComposeJson");
 
     private static final QName PROP_SUBJECT = qname("subject");
     private static final QName PROP_BODY = qname("bodyText");
@@ -56,7 +60,18 @@ public final class AlfrescoCorrespondenceDraftUpdater {
     public void updateDraft(UpdateCorrespondenceDraftCommand command) {
         Objects.requireNonNull(command, "command");
 
-        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR) {
+        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR
+                && command.actorRole() != CorrespondenceActorRole.PRESIDENT
+                && command.actorRole() != CorrespondenceActorRole.PRESIDENT_OFFICE) {
+            throw forbidden();
+        }
+        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR
+                && (command.executiveComposeJson() == null
+                        || command.executiveComposeJson().isBlank())) {
+            throw forbidden();
+        }
+        if (command.actorRole() == CorrespondenceActorRole.DIRECTOR
+                && command.executiveComposeJson() != null) {
             throw forbidden();
         }
 
@@ -91,6 +106,13 @@ public final class AlfrescoCorrespondenceDraftUpdater {
                 correspondence,
                 PROP_SOURCE,
                 command.sourceText());
+
+        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR) {
+            nodeService.setProperty(
+                    correspondence,
+                    PROP_EXECUTIVE_COMPOSE,
+                    command.executiveComposeJson());
+        }
     }
 
     private void requireOwnedDraft(
@@ -116,16 +138,18 @@ public final class AlfrescoCorrespondenceDraftUpdater {
             throw forbidden();
         }
 
-        // Serializable creator = nodeService.getProperty(
-        //         correspondence,
-        //         PROP_CREATED_BY_EMPLOYEE);
-
-        // if (!command.actorEmployeeId()
-        //         .value()
-        //         .equals(creator)) {
-
-        //     throw forbidden();
-        // }
+        // Retain the existing Director department-scoped editing policy.
+        // Executive drafts are private to their authenticated creator and role.
+        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR) {
+            Serializable creationRole = nodeService.getProperty(
+                    correspondence, PROP_CREATION_ROLE);
+            Serializable creator = nodeService.getProperty(
+                    correspondence, PROP_CREATED_BY_EMPLOYEE);
+            if (!command.actorRole().name().equals(creationRole)
+                    || !command.actorEmployeeId().value().equals(creator)) {
+                throw forbidden();
+            }
+        }
 
         if (permissionService.hasPermission(
                 correspondence,

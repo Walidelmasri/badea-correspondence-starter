@@ -168,6 +168,56 @@ class AlfrescoCorrespondenceDraftUpdaterTest {
         }
 
         @Test
+        void executiveCreatorCanUpdateOwnDraft() {
+                when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                        .thenReturn("PRESIDENT_OFFICE");
+                updater.updateDraft(executive(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        "10001"));
+                verify(nodeService).setProperty(correspondence, qname("executiveComposeJson"),
+                        "{\"recipient\":\"Legal Affairs\"}");
+        }
+
+        @Test
+        void executiveFromAnotherEmployeeCannotEditDraft() {
+                when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                        .thenReturn("PRESIDENT_OFFICE");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                        () -> updater.updateDraft(executive(
+                                CorrespondenceActorRole.PRESIDENT_OFFICE, "99999")));
+                verifyNoWrites();
+        }
+
+        @Test
+        void presidentCannotEditOfficeDraft() {
+                when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                        .thenReturn("PRESIDENT_OFFICE");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                        () -> updater.updateDraft(executive(CorrespondenceActorRole.PRESIDENT,
+                                "10001")));
+                verifyNoWrites();
+        }
+
+        @Test
+        void executiveCannotEditSubmittedDraft() {
+                when(nodeService.getProperty(correspondence, qname("state")))
+                        .thenReturn("WITH_PRESIDENT_OFFICE");
+                when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                        .thenReturn("PRESIDENT");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                        () -> updater.updateDraft(executive(CorrespondenceActorRole.PRESIDENT,
+                                "10001")));
+                verifyNoWrites();
+        }
+
+        private UpdateCorrespondenceDraftCommand executive(
+                CorrespondenceActorRole role, String employeeId) {
+                return new UpdateCorrespondenceDraftCommand(
+                        TECHNICAL_ID, role, new DepartmentCode("117"),
+                        new EmployeeId(employeeId), "Updated subject", null, null,
+                        null, null, "{\"recipient\":\"Legal Affairs\"}");
+        }
+
+        @Test
         void alfrescoWritePermissionIsRequired() {
                 when(permissionService.hasPermission(
                                 correspondence,

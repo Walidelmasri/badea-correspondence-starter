@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeId;
+import org.badea.correspondence.workflow.CorrespondenceActorRole;
 
 public record CreateCorrespondenceCommand(
         DepartmentCode originDepartmentCode,
@@ -15,7 +16,26 @@ public record CreateCorrespondenceCommand(
         String sourceText,
         EmployeeId createdByEmployeeId,
         String createdByNameEnglish,
-        String createdByNameArabic) {
+        String createdByNameArabic,
+        CorrespondenceActorRole createdByRole,
+        String executiveComposeJson) {
+
+    /** Preserve the existing Director creation contract unchanged. */
+    public CreateCorrespondenceCommand(
+            DepartmentCode originDepartmentCode,
+            String subject,
+            String bodyText,
+            String documentNumber,
+            LocalDate documentDate,
+            String sourceText,
+            EmployeeId createdByEmployeeId,
+            String createdByNameEnglish,
+            String createdByNameArabic) {
+        this(originDepartmentCode, subject, bodyText, documentNumber,
+                documentDate, sourceText, createdByEmployeeId,
+                createdByNameEnglish, createdByNameArabic,
+                CorrespondenceActorRole.DIRECTOR, null);
+    }
 
     public CreateCorrespondenceCommand {
         Objects.requireNonNull(
@@ -25,6 +45,18 @@ public record CreateCorrespondenceCommand(
         Objects.requireNonNull(
                 createdByEmployeeId,
                 "createdByEmployeeId must not be null");
+
+        Objects.requireNonNull(createdByRole, "createdByRole must not be null");
+        if (createdByRole == CorrespondenceActorRole.DIRECTOR
+                && executiveComposeJson != null) {
+            throw new IllegalArgumentException(
+                    "Director drafts must not contain executive Compose metadata");
+        }
+        if (createdByRole != CorrespondenceActorRole.DIRECTOR
+                && (executiveComposeJson == null || executiveComposeJson.isBlank())) {
+            throw new IllegalArgumentException(
+                    "Executive drafts require their Compose metadata");
+        }
 
         subject = requireText(
                 subject,

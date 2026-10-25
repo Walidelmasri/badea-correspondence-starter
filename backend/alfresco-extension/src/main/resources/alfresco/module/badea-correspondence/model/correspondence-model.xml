@@ -100,6 +100,19 @@
                 </property>
 
 
+                <!-- Optional metadata for executive-originated correspondence.
+                     Director correspondence never sets these properties. -->
+                <property name="bc:createdByCorrespondenceRole">
+                    <title>Original Correspondence Role</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+                <property name="bc:executiveComposeJson">
+                    <title>Executive Compose Form</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
                 <!-- Origin -->
 
                 <property name="bc:originDepartmentCode">

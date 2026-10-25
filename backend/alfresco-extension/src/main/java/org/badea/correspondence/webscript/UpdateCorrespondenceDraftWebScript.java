@@ -68,9 +68,11 @@ public final class UpdateCorrespondenceDraftWebScript
             CorrespondenceActorRole actorRole =
                     actorRoleResolver.resolveCurrentUserRole();
 
-            if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+            if (actorRole != CorrespondenceActorRole.DIRECTOR
+                    && actorRole != CorrespondenceActorRole.PRESIDENT
+                    && actorRole != CorrespondenceActorRole.PRESIDENT_OFFICE) {
                 throw new CorrespondenceAuthorizationException(
-                        "Director role required.");
+                        "Authorized correspondence role required.");
             }
 
             EmployeeDirectoryEntry employee =
@@ -104,7 +106,9 @@ public final class UpdateCorrespondenceDraftWebScript
                             optionalText(body, "bodyText"),
                             optionalText(body, "documentNumber"),
                             optionalDate(body, "documentDate"),
-                            optionalText(body, "sourceText"));
+                            optionalText(body, "sourceText"),
+                            actorRole == CorrespondenceActorRole.DIRECTOR
+                                    ? null : ExecutiveComposePayload.normalize(body));
 
             updater.updateDraft(command);
 

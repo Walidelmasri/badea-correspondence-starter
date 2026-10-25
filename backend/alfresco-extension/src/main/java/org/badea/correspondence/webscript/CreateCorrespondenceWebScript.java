@@ -65,23 +65,28 @@ public final class CreateCorrespondenceWebScript
 
         try {
             /*
-             * Draft creation is currently supported for Directors.
-             *
-             * The role is resolved from authenticated Alfresco group
-             * membership, not supplied by the frontend.
+             * Director requests retain their existing API contract.
+             * Executive requests must carry a validated executiveCompose
+             * object so none of the executive form fields are silently lost.
+             * The role is derived from Alfresco authentication, never JSON.
              */
             CorrespondenceActorRole actorRole =
                     actorRoleResolver.resolveCurrentUserRole();
 
-            if (actorRole != CorrespondenceActorRole.DIRECTOR) {
-
-                throw new CorrespondenceAuthorizationException(
-                        "Only Directors may create drafts "
-                                + "through this workflow.");
-            }
-
             JSONObject body =
                     readRequestBody(request);
+
+            String executiveComposeJson = null;
+            if (actorRole == CorrespondenceActorRole.DIRECTOR) {
+                // Preserve the original Director request behavior exactly.
+                // The Director endpoint never persists executive form fields.
+            } else if (actorRole == CorrespondenceActorRole.PRESIDENT
+                    || actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE) {
+                executiveComposeJson = ExecutiveComposePayload.normalize(body);
+            } else {
+                throw new CorrespondenceAuthorizationException(
+                        "A correspondence role is required to create drafts");
+            }
 
             /*
              * The originating department and creator identity
@@ -115,7 +120,9 @@ public final class CreateCorrespondenceWebScript
                             optionalText(body, "sourceText"),
                             employee.employeeId(),
                             employee.nameEnglish(),
-                            employee.nameArabic());
+                            employee.nameArabic(),
+                            actorRole,
+                            executiveComposeJson);
 
             String technicalId =
                     correspondenceRepository.createDraft(command);

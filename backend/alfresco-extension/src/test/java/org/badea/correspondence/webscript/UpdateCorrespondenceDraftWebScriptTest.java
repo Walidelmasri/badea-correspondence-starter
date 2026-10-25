@@ -139,19 +139,56 @@ class UpdateCorrespondenceDraftWebScriptTest {
     }
 
     @Test
-    void rejectsPresident() throws IOException {
-
+    void presidentUpdatesCompleteExecutiveComposeDraft() throws IOException {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT);
+        when(content.getContent()).thenReturn(executiveBody());
 
+        execute();
+        verify(response).setStatus(Status.STATUS_OK);
+
+        ArgumentCaptor<UpdateCorrespondenceDraftCommand> captured =
+                ArgumentCaptor.forClass(UpdateCorrespondenceDraftCommand.class);
+        verify(updater).updateDraft(captured.capture());
+        var command = captured.getValue();
+        assertEquals(CorrespondenceActorRole.PRESIDENT, command.actorRole());
+        JSONObject form = new JSONObject(command.executiveComposeJson());
+        assertEquals("Legal Affairs", form.getString("recipient"));
+        assertEquals("required-action", form.getString("instruction"));
+        assertEquals("", form.getString("copyTo"));
+    }
+
+    @Test
+    void officeUpdatesCompleteExecutiveComposeDraft() throws IOException {
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(content.getContent()).thenReturn(executiveBody());
+        execute();
+        verify(response).setStatus(Status.STATUS_OK);
+        verify(updater).updateDraft(any(UpdateCorrespondenceDraftCommand.class));
+    }
+
+    @Test
+    void executiveRequestWithoutCompleteComposeIsRejected() throws IOException {
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT);
+        // Preserve the old Director payload; it is not sufficient for executive drafts.
         JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_BAD_REQUEST);
+        assertEquals("INVALID_REQUEST", result.getString("code"));
+        verifyNoUpdates();
+    }
 
-        verify(response).setStatus(Status.STATUS_FORBIDDEN);
-
-        assertEquals(
-                "CORRESPONDENCE_FORBIDDEN",
-                result.getString("code"));
-
+    @Test
+    void unsupportedExecutiveFormFieldIsRejected() throws IOException {
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT);
+        when(content.getContent()).thenReturn(executiveBody().replace(
+                "\"recipient\": \"Legal Affairs\"",
+                "\"recipient\": \"Legal Affairs\", \"extra\": \"ignored\""));
+        JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_BAD_REQUEST);
+        assertEquals("INVALID_REQUEST", result.getString("code"));
         verifyNoUpdates();
     }
 
@@ -274,6 +311,25 @@ class UpdateCorrespondenceDraftWebScriptTest {
 
         verify(updater, never()).updateDraft(
                 any(UpdateCorrespondenceDraftCommand.class));
+    }
+
+    private static String executiveBody() {
+        return """
+                {
+                    "subject": "Updated subject",
+                    "bodyText": "Updated description",
+                    "documentNumber": "DOC-2026-001",
+                    "documentDate": "2026-10-14",
+                    "sourceText": "BADEA",
+                    "executiveCompose": {
+                        "recipient": "Legal Affairs",
+                        "copyTo": "",
+                        "entity": "BADEA",
+                        "instruction": "required-action",
+                        "explanation": "Please review"
+                    }
+                }
+                """;
     }
 
     private static String validBody() {

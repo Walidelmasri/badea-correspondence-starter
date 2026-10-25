@@ -180,7 +180,7 @@ class CreateCorrespondenceWebScriptTest {
     }
 
     @Test
-    void rejectsPresidentOfficeCreatingDirectorDraft()
+    void rejectsOfficeDraftWithoutExecutiveComposePayload()
             throws Exception {
 
         when(actorRoleResolver.resolveCurrentUserRole())
@@ -194,11 +194,12 @@ class CreateCorrespondenceWebScriptTest {
                         }
                         """);
 
-        assertForbidden(response);
+        assertEquals(Status.STATUS_BAD_REQUEST, response.status());
+        verify(repository, never()).createDraft(any(CreateCorrespondenceCommand.class));
     }
 
     @Test
-    void rejectsPresidentUsingDirectorDraftWorkflow()
+    void rejectsPresidentDraftWithoutExecutiveComposePayload()
             throws Exception {
 
         when(actorRoleResolver.resolveCurrentUserRole())
@@ -212,7 +213,87 @@ class CreateCorrespondenceWebScriptTest {
                         }
                         """);
 
-        assertForbidden(response);
+        assertEquals(Status.STATUS_BAD_REQUEST, response.status());
+        verify(repository, never()).createDraft(any(CreateCorrespondenceCommand.class));
+    }
+
+    @Test
+    void presidentCanCreateExecutiveDraftWithAllComposeFieldsPreserved()
+            throws Exception {
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT);
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(employeeWithDepartment());
+        when(repository.createDraft(any(CreateCorrespondenceCommand.class)))
+                .thenReturn("550e8400-e29b-41d4-a716-446655440000");
+
+        TestResponse response = execute("""
+                {
+                  "subject": "Presidential request",
+                  "documentDate": "2026-10-25",
+                  "executiveCompose": {
+                    "recipient": "Legal Affairs",
+                    "copyTo": "Digital Transformation",
+                    "entity": "Presidency",
+                    "instruction": "required-action",
+                    "explanation": "Review attached case"
+                  }
+                }
+                """);
+        assertEquals(Status.STATUS_CREATED, response.status());
+        ArgumentCaptor<CreateCorrespondenceCommand> captor =
+                ArgumentCaptor.forClass(CreateCorrespondenceCommand.class);
+        verify(repository).createDraft(captor.capture());
+        CreateCorrespondenceCommand command = captor.getValue();
+        assertEquals(CorrespondenceActorRole.PRESIDENT, command.createdByRole());
+        JSONObject stored = new JSONObject(command.executiveComposeJson());
+        assertEquals("Legal Affairs", stored.getString("recipient"));
+        assertEquals("Digital Transformation", stored.getString("copyTo"));
+        assertEquals("Presidency", stored.getString("entity"));
+        assertEquals("required-action", stored.getString("instruction"));
+        assertEquals("Review attached case", stored.getString("explanation"));
+    }
+
+    @Test
+    void officeCanCreateExecutiveDraftWithoutAlteringDirectorContract()
+            throws Exception {
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(employeeWithDepartment());
+        when(repository.createDraft(any(CreateCorrespondenceCommand.class)))
+                .thenReturn("550e8400-e29b-41d4-a716-446655440000");
+        TestResponse response = execute("""
+                {
+                  "subject": "Office outgoing correspondence",
+                  "executiveCompose": {"recipient": "Finance"}
+                }
+                """);
+        assertEquals(Status.STATUS_CREATED, response.status());
+        ArgumentCaptor<CreateCorrespondenceCommand> captor =
+                ArgumentCaptor.forClass(CreateCorrespondenceCommand.class);
+        verify(repository).createDraft(captor.capture());
+        assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                captor.getValue().createdByRole());
+        assertEquals("", new JSONObject(captor.getValue().executiveComposeJson())
+                .getString("explanation"));
+    }
+
+    @Test
+    void presidentRejectsUnrecognizedComposeFieldsRatherThanLosingData()
+            throws Exception {
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT);
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(employeeWithDepartment());
+        TestResponse response = execute("""
+                {
+                  "subject": "Presidential request",
+                  "executiveCompose": {"recipient": "Legal", "futureUnmappedField": "secret"}
+                }
+                """);
+        assertEquals(Status.STATUS_BAD_REQUEST, response.status());
+        verify(repository, never()).createDraft(any(CreateCorrespondenceCommand.class));
     }
 
     @Test

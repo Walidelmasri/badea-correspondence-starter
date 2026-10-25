@@ -208,6 +208,40 @@ class AlfrescoCorrespondenceRepositoryTest {
                 properties.get(
                         qname("lastActionSequence")));
         assertEquals(1L, properties.get(qname("currentWorkflowCycle")));
+        // Director creation never gains executive-only metadata.
+        org.junit.jupiter.api.Assertions.assertFalse(
+                properties.containsKey(qname("executiveComposeJson")));
+        org.junit.jupiter.api.Assertions.assertFalse(
+                properties.containsKey(qname("createdByCorrespondenceRole")));
+    }
+
+    @Test
+    void preservesExecutiveComposeJsonAndAuthenticatedOriginRole() {
+        DepartmentCode department = new DepartmentCode("111");
+        NodeRef folder = nodeRef("00000000-0000-0000-0000-000000000111");
+        NodeRef created = nodeRef("00000000-0000-0000-0000-000000000999");
+        ChildAssociationRef association = mock(ChildAssociationRef.class);
+        when(folderLocator.locateDepartmentFolder(department)).thenReturn(folder);
+        when(association.getChildRef()).thenReturn(created);
+        when(nodeService.createNode(eq(folder), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(qname("correspondence")), any()))
+                .thenReturn(association);
+
+        String json = "{\"recipient\":\"Legal Affairs\"}";
+        CreateCorrespondenceCommand command = new CreateCorrespondenceCommand(
+                department, "Presidential correspondence", null, null, null,
+                null, new EmployeeId("18280"), "Author", null,
+                CorrespondenceActorRole.PRESIDENT, json);
+        repository.createDraft(command);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<QName, Serializable>> captured =
+                ArgumentCaptor.forClass(Map.class);
+        verify(nodeService).createNode(eq(folder), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(qname("correspondence")), captured.capture());
+        assertEquals("PRESIDENT", captured.getValue().get(
+                qname("createdByCorrespondenceRole")));
+        assertEquals(json, captured.getValue().get(qname("executiveComposeJson")));
     }
 
     @Test

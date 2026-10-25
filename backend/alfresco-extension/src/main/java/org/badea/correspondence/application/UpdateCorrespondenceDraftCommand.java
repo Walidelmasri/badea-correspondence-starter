@@ -16,7 +16,24 @@ public record UpdateCorrespondenceDraftCommand(
         String bodyText,
         String documentNumber,
         LocalDate documentDate,
-        String sourceText) {
+        String sourceText,
+        String executiveComposeJson) {
+
+    /** Preserve every existing Director/editor call and its update contract. */
+    public UpdateCorrespondenceDraftCommand(
+            String technicalId,
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode,
+            EmployeeId actorEmployeeId,
+            String subject,
+            String bodyText,
+            String documentNumber,
+            LocalDate documentDate,
+            String sourceText) {
+        this(technicalId, actorRole, actorDepartmentCode, actorEmployeeId,
+                subject, bodyText, documentNumber, documentDate, sourceText, null);
+    }
+
 
     public UpdateCorrespondenceDraftCommand {
         technicalId = requireText(technicalId, "technicalId");

@@ -56,6 +56,12 @@ public final class AlfrescoCorrespondenceRepository
     private static final QName PROP_ORIGIN_DEPARTMENT_CODE =
             qname("originDepartmentCode");
 
+    private static final QName PROP_CREATION_ROLE =
+            qname("createdByCorrespondenceRole");
+
+    private static final QName PROP_EXECUTIVE_COMPOSE =
+            qname("executiveComposeJson");
+
     private static final QName PROP_STATE =
             qname("state");
 
@@ -212,6 +218,11 @@ public final class AlfrescoCorrespondenceRepository
         properties.put(
                 PROP_STATE,
                 CorrespondenceState.DRAFT.name());
+
+        if (command.createdByRole() != CorrespondenceActorRole.DIRECTOR) {
+            properties.put(PROP_CREATION_ROLE, command.createdByRole().name());
+            properties.put(PROP_EXECUTIVE_COMPOSE, command.executiveComposeJson());
+        }
 
         properties.put(
                 PROP_CREATED_BY_EMPLOYEE_ID,
