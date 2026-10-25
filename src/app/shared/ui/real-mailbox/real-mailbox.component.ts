@@ -23,6 +23,7 @@ import {
   CorrespondenceInboxView,
   CorrespondenceMailboxPage,
   DepartmentAssignment,
+  ShareEmployeeResult,
 } from '../../data-access/correspondence-api.service';
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
@@ -90,6 +91,57 @@ export class RealMailboxComponent implements OnInit {
   readonly forwardUncertain = signal(false);
   readonly forwardNotice = signal<'sent' | 'failed' | 'uncertain' | null>(null);
   readonly previewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
+
+  readonly sharingDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
+  readonly sharedLink = signal<string | null>(null);
+  readonly shareRecipient = signal('');
+  readonly shareComment = signal('');
+  readonly shareBusy = signal(false);
+  readonly shareLinkChecking = signal(false);
+  readonly shareSearching = signal(false);
+  readonly shareMatches = signal<readonly ShareEmployeeResult[]>([]);
+  readonly shareRecipientSelected = signal(false);
+  private shareLookupVersion = 0;
+  private shareSearchTimer: ReturnType<typeof setTimeout> | undefined;
+  readonly shareNotice = signal<'link-error' | 'email-submitted' | 'email-uncertain'
+    | 'email-error' | 'revoked' | 'revoke-error' | 'copied' | null>(null);
+  private shareVersion = 0;
+
+  readonly validShareRecipient = computed(() => this.shareRecipientSelected()
+    && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(this.shareRecipient().trim()));
+
+  readonly shareText = computed(() => this.translation.language() === 'ar' ? {
+    share: 'مشاركة', title: 'مشاركة المستند', recipient: 'اسم مستخدم الموظف',
+    recipientHint: 'ابحث عن موظف نشط بالاسم أو اسم المستخدم، ثم اختره من النتائج.',
+    searching: 'جارٍ البحث...', noMatches: 'لا توجد نتائج مطابقة.', archivedLink: 'يمكنك إلغاء رابط موجود فقط بعد الأرشفة.',
+    message: 'ملاحظة إلى المستلم (اختياري)',
+    create: 'إنشاء رابط المشاركة', creating: 'جارٍ التحضير...',
+    copy: 'نسخ الرابط', send: 'إرسال البريد الإلكتروني',
+    revoke: 'إلغاء مشاركة الرابط',
+    public: 'يمكن لأي شخص لديه الرابط وإمكانية الوصول إلى الخادم فتح المستند.',
+    submitted: 'قبل خادم البريد الرسالة. تحقق من البريد الوارد.',
+    uncertain: 'قد تكون الرسالة أُرسلت، لكن لم نستطع تأكيد النتيجة. لا تعاود الإرسال قبل التحقق.',
+    failed: 'تعذّر إتمام العملية. تحقق من البيانات أو اتصل بالدعم.',
+    revoked: 'تم إلغاء رابط المشاركة.', copied: 'تم نسخ الرابط.',
+    revokeConfirm: 'إلغاء هذا الرابط سيمنع جميع المستلمين الذين يستخدمونه من فتح المستند. متابعة؟',
+    close: 'إغلاق',
+  } : {
+    share: 'Share', title: 'Share document', recipient: 'Employee username',
+    recipientHint: 'Search for an active employee by name or username, then select a result.',
+    searching: 'Searching...', noMatches: 'No matching active employees.',
+    archivedLink: 'Archived documents allow revoking an existing link only.',
+    message: 'Message to recipient (optional)',
+    create: 'Generate share link', creating: 'Working...',
+    copy: 'Copy Link', send: 'Send Email', revoke: 'Revoke Link',
+    public: 'Anyone who has this link and can reach the server can open the document.',
+    submitted: 'Microsoft 365 accepted the email for delivery. Check the inbox.',
+    uncertain: 'The message may already have been sent. Check the mailbox before trying again.',
+    failed: 'The operation failed. Check the employee username or contact support.',
+    revoked: 'The shared link has been revoked.', copied: 'Link copied.',
+    revokeConfirm: 'Revoking this link will disable access for everyone using it. Continue?',
+    close: 'Close',
+  });
+
   private detailVersion = 0;
   private pageVersion = 0;
 
@@ -164,6 +216,7 @@ export class RealMailboxComponent implements OnInit {
     const version = ++this.pageVersion;
     ++this.detailVersion;
     this.closePreview();
+    this.closeShare();
     this.loading.set(true);
     this.listError.set(false);
     this.details.set(null);
@@ -194,6 +247,7 @@ export class RealMailboxComponent implements OnInit {
   select(id: string): void {
     if (id === this.selectedId()) return;
     this.closePreview();
+    this.closeShare();
     this.continueNotice.set(null);
     this.selectedId.set(id);
     void this.loadDetails(id);
@@ -275,6 +329,187 @@ export class RealMailboxComponent implements OnInit {
       return;
     }
     this.previewDocument.set(document);
+  }
+
+
+  beginShare(document: CorrespondenceDetails['documents'][number]): void {
+    if (document.mimeType !== 'application/pdf' || !this.details()) return;
+    ++this.shareVersion;
+    this.sharingDocument.set(document);
+    this.sharedLink.set(null);
+    this.shareRecipient.set('');
+    this.shareComment.set('');
+    this.shareNotice.set(null);
+    this.shareBusy.set(false);
+    this.shareMatches.set([]);
+    this.shareRecipientSelected.set(false);
+    this.shareLinkChecking.set(true);
+    void this.lookupExistingShareLink();
+  }
+
+  private async lookupExistingShareLink(): Promise<void> {
+    const document = this.sharingDocument();
+    const technicalId = this.selectedId();
+    if (!document || !technicalId) return;
+    const version = this.shareVersion;
+    try {
+      const link = await firstValueFrom(this.api.existingShareLink(technicalId, document.nodeId));
+      if (version === this.shareVersion && technicalId === this.selectedId()) {
+        this.sharedLink.set(link.url);
+      }
+    } catch (error: unknown) {
+      // 409 is the documented 'no existing link' response, not a failure.
+      if (version === this.shareVersion &&
+          !(error instanceof HttpErrorResponse && error.status === 409)) {
+        this.shareNotice.set('link-error');
+      }
+    } finally {
+      if (version === this.shareVersion) this.shareLinkChecking.set(false);
+    }
+  }
+
+  closeShare(): void {
+    ++this.shareVersion;
+    ++this.shareLookupVersion;
+    if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
+    this.shareSearchTimer = undefined;
+    this.shareMatches.set([]);
+    this.shareRecipientSelected.set(false);
+    this.shareSearching.set(false);
+    this.shareLinkChecking.set(false);
+    this.sharingDocument.set(null);
+    this.shareBusy.set(false);
+    this.sharedLink.set(null);
+    this.shareNotice.set(null);
+  }
+
+  updateShareRecipient(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.shareRecipient.set(value);
+    this.shareRecipientSelected.set(false);
+    this.shareMatches.set([]);
+    this.shareNotice.set(null);
+    const version = ++this.shareLookupVersion;
+    if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
+    this.shareSearchTimer = undefined;
+    this.shareSearching.set(false);
+    const query = value.trim();
+    if (query.length < 2 || query.length > 60) return;
+    this.shareSearching.set(true);
+    this.shareSearchTimer = setTimeout(() => {
+      void this.searchRecipients(query, version);
+    }, 250);
+  }
+
+  private async searchRecipients(query: string, version: number): Promise<void> {
+    try {
+      const result = await firstValueFrom(this.api.searchShareRecipients(query));
+      if (version === this.shareLookupVersion && this.sharingDocument()) {
+        this.shareMatches.set(result.employees);
+      }
+    } catch {
+      if (version === this.shareLookupVersion) this.shareNotice.set('email-error');
+    } finally {
+      if (version === this.shareLookupVersion) this.shareSearching.set(false);
+    }
+  }
+
+  selectShareRecipient(employee: ShareEmployeeResult): void {
+    ++this.shareLookupVersion;
+    if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
+    this.shareSearchTimer = undefined;
+    this.shareRecipient.set(employee.username);
+    this.shareRecipientSelected.set(true);
+    this.shareSearching.set(false);
+    this.shareMatches.set([]);
+    this.shareNotice.set(null);
+  }
+
+  updateShareComment(event: Event): void {
+    this.shareComment.set((event.target as HTMLTextAreaElement).value);
+    this.shareNotice.set(null);
+  }
+
+  async generateShareLink(): Promise<void> {
+    const document = this.sharingDocument();
+    const technicalId = this.selectedId();
+    if (!document || !technicalId || this.shareBusy() || this.shareLinkChecking()
+        || this.details()?.state === 'ARCHIVED') return;
+    const version = this.shareVersion;
+    this.shareBusy.set(true);
+    this.shareNotice.set(null);
+    try {
+      const result = await firstValueFrom(this.api.createShareLink(technicalId, document.nodeId));
+      if (version === this.shareVersion && technicalId === this.selectedId()) {
+        this.sharedLink.set(result.url);
+      }
+    } catch {
+      if (version === this.shareVersion) this.shareNotice.set('link-error');
+    } finally {
+      if (version === this.shareVersion) this.shareBusy.set(false);
+    }
+  }
+
+  async sendShareEmail(): Promise<void> {
+    const document = this.sharingDocument();
+    const id = this.selectedId();
+    const username = this.shareRecipient().trim();
+    const message = this.shareComment().trim();
+    if (!document || !id || !this.sharedLink() || this.shareBusy()
+        || this.details()?.state === 'ARCHIVED' || !this.validShareRecipient()
+        || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(username)
+        || message.length > 2000) return;
+    const version = this.shareVersion;
+    this.shareBusy.set(true);
+    this.shareNotice.set(null);
+    try {
+      await firstValueFrom(this.api.sendShareEmail(id, document.nodeId, username, message));
+      if (version === this.shareVersion) this.shareNotice.set('email-submitted');
+    } catch (error: unknown) {
+      if (version === this.shareVersion) {
+        const uncertain = error instanceof HttpErrorResponse &&
+          (error.status === 0 || error.status >= 500);
+        this.shareNotice.set(uncertain ? 'email-uncertain' : 'email-error');
+      }
+    } finally {
+      if (version === this.shareVersion) this.shareBusy.set(false);
+    }
+  }
+
+  async copyShareLink(): Promise<void> {
+    const link = this.sharedLink();
+    if (!link) return;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        window.prompt('Copy the Alfresco shared link:', link);
+        return;
+      }
+      await navigator.clipboard.writeText(link);
+      this.shareNotice.set('copied');
+    } catch {
+      window.prompt('Copy the Alfresco shared link:', link);
+    }
+  }
+
+  async revokeShareLink(): Promise<void> {
+    const document = this.sharingDocument();
+    const id = this.selectedId();
+    if (!document || !id || !this.sharedLink() || this.shareBusy()) return;
+    if (!window.confirm(this.shareText().revokeConfirm)) return;
+    const version = this.shareVersion;
+    this.shareBusy.set(true);
+    this.shareNotice.set(null);
+    try {
+      await firstValueFrom(this.api.revokeShareLink(id, document.nodeId));
+      if (version === this.shareVersion) {
+        this.sharedLink.set(null);
+        this.shareNotice.set('revoked');
+      }
+    } catch {
+      if (version === this.shareVersion) this.shareNotice.set('revoke-error');
+    } finally {
+      if (version === this.shareVersion) this.shareBusy.set(false);
+    }
   }
 
   closePreview(): void {

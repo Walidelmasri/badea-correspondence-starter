@@ -174,12 +174,67 @@ export interface OfficeCompletionSnapshot {
   readonly updatedAt: string | null;
 }
 
+
+/** Native Alfresco public link; anyone with this link and server access can open it. */
+export interface CorrespondenceShareLink {
+  readonly sharedId: string;
+  readonly url: string;
+  readonly filename: string;
+}
+export interface ShareEmployeeResult {
+  readonly username: string;
+  readonly nameEnglish: string;
+  readonly nameArabic: string | null;
+}
+export interface CorrespondenceShareEmailResult {
+  readonly status: 'submitted';
+  readonly recipient: string;
+  readonly recipientName: string;
+  readonly sharedId: string;
+  readonly url: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class CorrespondenceApiService {
   private readonly http =
     inject(HttpClient);
+
+
+  searchShareRecipients(query: string): Observable<{ readonly employees: readonly ShareEmployeeResult[] }> {
+    return this.http.get<{ readonly employees: readonly ShareEmployeeResult[] }>(
+      `/alfresco/service/badea/correspondence-share/recipients?q=${encodeURIComponent(query)}`,
+    );
+  }
+
+  existingShareLink(technicalId: string, nodeId: string): Observable<CorrespondenceShareLink> {
+    return this.http.get<CorrespondenceShareLink>(
+      `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/existing`,
+    );
+  }
+
+  createShareLink(technicalId: string, nodeId: string): Observable<CorrespondenceShareLink> {
+    return this.http.post<CorrespondenceShareLink>(
+      `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/link`,
+      {},
+    );
+  }
+
+  sendShareEmail(technicalId: string, nodeId: string, recipientUsername: string,
+      message: string): Observable<CorrespondenceShareEmailResult> {
+    return this.http.post<CorrespondenceShareEmailResult>(
+      `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/email`,
+      { recipientUsername, message },
+    );
+  }
+
+  revokeShareLink(technicalId: string, nodeId: string): Observable<{status: 'revoked'}> {
+    return this.http.post<{status: 'revoked'}>(
+      `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/revoke`,
+      {},
+    );
+  }
 
   createDraft(
     request: CreateCorrespondenceDraft | ExecutiveCorrespondenceDraft,

@@ -146,3 +146,28 @@
 .mailbox-cycle-option textarea { min-height: 5rem; }
 .mailbox-cycle-option .mailbox-action { margin-block-start: auto; }
 @media (max-width: 760px) { .mailbox-cycle-options { grid-template-columns: 1fr; } }
+
+/* Native Alfresco Share Link composer; isolated from PDF preview and workflows. */
+.mailbox-share-button { margin-inline-end: .75rem; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: var(--color-surface); padding: .5rem .7rem;
+  color: var(--color-primary-700); cursor: pointer; white-space: nowrap; }
+.mailbox-share-button:disabled { opacity: .4; cursor: default; }
+.mailbox-share-panel { display: grid; gap: .75rem; }
+.mailbox-share-heading, .mailbox-share-actions { display: flex; gap: .75rem;
+  flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.mailbox-share-panel label { font-weight: 600; font-size: .85rem; }
+.mailbox-share-panel input, .mailbox-share-panel textarea { display: block; width: 100%;
+  box-sizing: border-box; background: var(--color-surface); color: inherit; font: inherit;
+  padding: .65rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.mailbox-share-panel small { color: var(--color-text-secondary); }
+.mailbox-share-warning { font-size: .8rem; color: var(--color-text-secondary); }
+.mailbox-share-link { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center;
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: .7rem; }
+.mailbox-share-link a { min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.mailbox-share-panel button:not(.mailbox-action) { border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); padding: .5rem .75rem; cursor: pointer;
+  background: var(--color-surface); color: inherit; }
+
+.mailbox-share-results { list-style: none; margin: 0; padding: 0; max-height: 16rem; overflow-y: auto; }
+.mailbox-share-results button { width: 100%; display: flex; gap: .4rem; flex-wrap: wrap; text-align: start; align-items: baseline; }
+.mailbox-share-results li + li { border-top: 1px solid var(--color-border); }

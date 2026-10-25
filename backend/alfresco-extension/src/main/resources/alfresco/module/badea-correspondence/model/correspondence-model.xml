@@ -362,6 +362,21 @@
 
         </type>
 
+        <!-- Append-only share events; distinct from workflow transitions and source PDFs. -->
+        <type name="bc:shareAuditEvent">
+            <title>Correspondence Share Audit Event</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:shareEventKind"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:shareEventDocumentNodeId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:shareEventActorEmployeeId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:shareEventAt"><type>d:datetime</type><mandatory>true</mandatory></property>
+                <property name="bc:shareEventRecipient"><type>d:text</type></property>
+                <property name="bc:shareEventSharedId"><type>d:text</type></property>
+                <property name="bc:shareEventComment"><type>d:text</type></property>
+            </properties>
+        </type>
+
         <!-- Immutable, auditable President-produced PDFs. Not original attachments. -->
         <type name="bc:generatedDocument">
             <title>President Generated PDF</title>

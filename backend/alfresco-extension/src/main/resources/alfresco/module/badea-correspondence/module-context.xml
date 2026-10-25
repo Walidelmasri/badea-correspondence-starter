@@ -777,4 +777,74 @@
     <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
     <constructor-arg ref="badeaOfficeCycleContinuationService" />
 </bean>
+
+<!-- BADEA native Alfresco QuickShare + approved Microsoft 365 SMTP integration. -->
+<bean id="badeaCorrespondenceSharedLinks"
+      class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceSharedLinkRepository"
+      lazy-init="true">
+    <constructor-arg ref="NodeService" />
+    <constructor-arg ref="QuickShareService" />
+</bean>
+<bean id="badeaCorrespondenceSmtpShareMailSender"
+      class="org.badea.correspondence.infrastructure.mail.SmtpShareMailSender"
+      lazy-init="true">
+    <constructor-arg value="smtp.office365.com" />
+    <constructor-arg value="587" />
+    <constructor-arg value="#{systemEnvironment['BADEA_SHARE_SMTP_USERNAME']}" />
+    <constructor-arg value="#{systemEnvironment['BADEA_SHARE_SMTP_PASSWORD']}" />
+</bean>
+<bean id="badeaCorrespondenceShareAuditRepository"
+      class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceShareAuditRepository"
+      lazy-init="true">
+    <constructor-arg ref="NodeService" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+</bean>
+<bean id="badeaCorrespondenceShareService"
+      class="org.badea.correspondence.application.CorrespondenceShareService"
+      lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceDetailsService" />
+    <constructor-arg ref="badeaCorrespondenceSharedLinks" />
+    <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+    <constructor-arg ref="badeaCorrespondenceSmtpShareMailSender" />
+    <constructor-arg ref="badeaCorrespondenceShareAuditRepository" />
+</bean>
+<bean id="webscript.org.badea.correspondence.correspondence-share-recipients.get"
+      class="org.badea.correspondence.webscript.SearchShareRecipientsWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+</bean>
+<bean id="webscript.org.badea.correspondence.correspondence-share-existing.get"
+      class="org.badea.correspondence.webscript.ShareCorrespondenceDocumentWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceShareService" />
+    <constructor-arg value="existing" />
+</bean>
+<bean id="webscript.org.badea.correspondence.correspondence-share-link.post"
+      class="org.badea.correspondence.webscript.ShareCorrespondenceDocumentWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceShareService" />
+    <constructor-arg value="link" />
+</bean>
+<bean id="webscript.org.badea.correspondence.correspondence-share-email.post"
+      class="org.badea.correspondence.webscript.ShareCorrespondenceDocumentWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceShareService" />
+    <constructor-arg value="email" />
+</bean>
+<bean id="webscript.org.badea.correspondence.correspondence-share-revoke.post"
+      class="org.badea.correspondence.webscript.ShareCorrespondenceDocumentWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceShareService" />
+    <constructor-arg value="revoke" />
+</bean>
 </beans>

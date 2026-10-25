@@ -289,6 +289,28 @@ class OracleEmployeeDirectoryTest {
     }
 
     @Test
+    void activeDirectorySearchBindsEscapedPrefixWithHardLimit() throws SQLException {
+        JdbcFixture jdbc = createJdbcFixture();
+        when(jdbc.resultSet().next()).thenReturn(true, false);
+        when(jdbc.resultSet().getString("DIRECTORY_USER_ID")).thenReturn("employee.one@badea.org");
+        stubEmployee(jdbc.resultSet(), "0420", "Employee One", null,
+                null, null, null, null);
+        var entries = new OracleEmployeeDirectory(jdbc.dataSource()).searchActive("Al_%!");
+        assertEquals(1, entries.size());
+        assertEquals("employee.one", entries.getFirst().username().value());
+        verify(jdbc.statement()).setString(1, "al!_!%!!%");
+        verify(jdbc.statement()).setString(2, "al!_!%!!%");
+        verify(jdbc.statement()).setString(3, "al!_!%!!%");
+    }
+
+    @Test
+    void activeDirectorySearchRejectsTooShortQuery() {
+        var dataSource = mock(DataSource.class);
+        assertThrows(IllegalArgumentException.class,
+                () -> new OracleEmployeeDirectory(dataSource).searchActive("a"));
+    }
+
+    @Test
     void rejectsNullDataSource() {
         assertThrows(
             NullPointerException.class,

@@ -53,6 +53,23 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
               ) = ?
         """;
 
+    private static final String SEARCH_ACTIVE_SQL = """
+        SELECT e.EMP_ID AS EMPLOYEE_ID, e.USERID AS DIRECTORY_USER_ID,
+               e.NAME_ENG AS EMPLOYEE_NAME_ENGLISH, e.NAME_ARABIC AS EMPLOYEE_NAME_ARABIC,
+               e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE, d.DEPARTMENT_CODE AS DEPARTMENT_CODE,
+               d.NAME AS DEPARTMENT_NAME_ENGLISH, d.NAME_ARABIC AS DEPARTMENT_NAME_ARABIC
+        FROM BADEA_ADDONS.EMPLOYEES e
+        LEFT JOIN BADEA_ADDONS.COR_DEPARTMENTS d ON d.DEPARTMENT_CODE = e.DEPT_CODE
+        WHERE e.ACTIVE = 1
+          AND (LOWER(TRIM(e.NAME_ENG)) LIKE ? ESCAPE '!'
+               OR LOWER(TRIM(e.NAME_ARABIC)) LIKE ? ESCAPE '!'
+               OR LOWER(CASE WHEN INSTR(TRIM(e.USERID), '@') > 0
+                   THEN SUBSTR(TRIM(e.USERID), 1, INSTR(TRIM(e.USERID), '@') - 1)
+                   ELSE TRIM(e.USERID) END) LIKE ? ESCAPE '!')
+        ORDER BY e.NAME_ENG, e.EMP_ID
+        FETCH FIRST 10 ROWS ONLY
+        """;
+
     private final DataSource dataSource;
 
     public OracleEmployeeDirectory(DataSource dataSource) {
@@ -101,6 +118,34 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
                 "Failed to query the employee directory.",
                 exception
             );
+        }
+    }
+
+    @Override
+    public java.util.List<EmployeeDirectoryEntry> searchActive(String prefix) {
+        if (prefix == null || prefix.trim().length() < 2 || prefix.trim().length() > 60) {
+            throw new IllegalArgumentException("Search requires 2-60 characters.");
+        }
+        String escaped = prefix.trim().toLowerCase(java.util.Locale.ROOT)
+                .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SEARCH_ACTIVE_SQL)) {
+            statement.setString(1, escaped);
+            statement.setString(2, escaped);
+            statement.setString(3, escaped);
+            java.util.List<EmployeeDirectoryEntry> matches = new java.util.ArrayList<>();
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    String account = rows.getString("DIRECTORY_USER_ID");
+                    if (account == null || account.isBlank()) continue;
+                    DirectoryUsername username = new DirectoryUsername(account);
+                    if (!username.value().matches("[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}")) continue;
+                    matches.add(mapEmployee(rows, username));
+                }
+            }
+            return java.util.List.copyOf(matches);
+        } catch (SQLException exception) {
+            throw new EmployeeDirectoryException("Failed to search the employee directory.", exception);
         }
     }
 

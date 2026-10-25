@@ -78,6 +78,23 @@ describe('CorrespondenceApiService', () => {
       updatedByEmployeeId: '99999', updatedByNameEnglish: 'Test User', updatedAt: '2026-10-19T10:00:00Z' });
   });
 
+  it('searches active employees and retrieves an existing share without creating one', () => {
+    service.searchShareRecipients('ali').subscribe(result => {
+      expect(result.employees[0].username).toBe('ali.amin');
+    });
+    const find = http.expectOne('/alfresco/service/badea/correspondence-share/recipients?q=ali');
+    expect(find.request.method).toBe('GET');
+    find.flush({ employees: [{ username: 'ali.amin', nameEnglish: 'Ali', nameArabic: null }] });
+
+    service.existingShareLink('test-id', 'node-id').subscribe(result => {
+      expect(result.sharedId).toBe('shared_id_123');
+    });
+    const existing = http.expectOne('/alfresco/service/badea/correspondence-share/test-id/node-id/existing');
+    expect(existing.request.method).toBe('GET');
+    existing.flush({ sharedId: 'shared_id_123',
+      url: 'https://alfresco.internal.badea.org/#/preview/s/shared_id_123', filename: 'a.pdf' });
+  });
+
   it('fetches live Inbox from Alfresco', () => {
     service.listMailbox('inbox', 0, 25).subscribe(result => {
       expect(result.total).toBe(0);

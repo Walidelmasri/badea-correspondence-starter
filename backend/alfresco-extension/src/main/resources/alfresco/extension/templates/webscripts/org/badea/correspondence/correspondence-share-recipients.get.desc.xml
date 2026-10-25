@@ -1,0 +1,8 @@
+<webscript>
+  <shortname>BADEA employee share recipient search</shortname>
+  <description>Limited active Oracle directory lookup for correspondence participants</description>
+  <url>/badea/correspondence-share/recipients</url>
+  <authentication>user</authentication>
+  <format default="json" />
+  <family>BADEA Correspondence</family>
+</webscript>

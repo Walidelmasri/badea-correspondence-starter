@@ -1,0 +1,8 @@
+<webscript>
+  <shortname>Correspondence existing native shared link</shortname>
+  <description>Read an existing share URL for a correspondence document; never creates one</description>
+  <url>/badea/correspondence-share/{technicalId}/{nodeId}/existing</url>
+  <authentication>user</authentication>
+  <format default="json" />
+  <family>BADEA Correspondence</family>
+</webscript>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webscript>
+    <shortname>BADEA Correspondence Share link</shortname>
+    <description>Authenticated correspondence-document link operation.</description>
+    <url>/badea/correspondence-share/{technicalId}/{nodeId}/link</url>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>
