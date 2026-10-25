@@ -92,54 +92,65 @@ export class RealMailboxComponent implements OnInit {
   readonly forwardNotice = signal<'sent' | 'failed' | 'uncertain' | null>(null);
   readonly previewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
 
+  readonly mobileDetailsOpen = signal(false);
   readonly sharingDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
+  readonly shareSelectedNodeIds = signal<readonly string[]>([]);
+  readonly shareDocuments = computed(() => {
+    const d = this.details();
+    return d ? [...d.documents, ...(d.generatedDocuments ?? [])]
+      .filter(doc => doc.mimeType === 'application/pdf') : [];
+  });
   readonly sharedLink = signal<string | null>(null);
   readonly shareRecipient = signal('');
+  readonly shareSelectedEmployee = signal<ShareEmployeeResult | null>(null);
   readonly shareComment = signal('');
   readonly shareBusy = signal(false);
   readonly shareLinkChecking = signal(false);
   readonly shareSearching = signal(false);
   readonly shareMatches = signal<readonly ShareEmployeeResult[]>([]);
-  readonly shareRecipientSelected = signal(false);
   private shareLookupVersion = 0;
   private shareSearchTimer: ReturnType<typeof setTimeout> | undefined;
   readonly shareNotice = signal<'link-error' | 'email-submitted' | 'email-uncertain'
     | 'email-error' | 'revoked' | 'revoke-error' | 'copied' | null>(null);
   private shareVersion = 0;
-
-  readonly validShareRecipient = computed(() => this.shareRecipientSelected()
-    && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(this.shareRecipient().trim()));
+  private sharePreviousFocus: HTMLElement | null = null;
+  readonly validShareRecipient = computed(() => !!this.shareSelectedEmployee()
+    && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(this.shareSelectedEmployee()!.username));
 
   readonly shareText = computed(() => this.translation.language() === 'ar' ? {
-    share: 'مشاركة', title: 'مشاركة المستند', recipient: 'اسم مستخدم الموظف',
-    recipientHint: 'ابحث عن موظف نشط بالاسم أو اسم المستخدم، ثم اختره من النتائج.',
-    searching: 'جارٍ البحث...', noMatches: 'لا توجد نتائج مطابقة.', archivedLink: 'يمكنك إلغاء رابط موجود فقط بعد الأرشفة.',
-    message: 'ملاحظة إلى المستلم (اختياري)',
-    create: 'إنشاء رابط المشاركة', creating: 'جارٍ التحضير...',
-    copy: 'نسخ الرابط', send: 'إرسال البريد الإلكتروني',
-    revoke: 'إلغاء مشاركة الرابط',
-    public: 'يمكن لأي شخص لديه الرابط وإمكانية الوصول إلى الخادم فتح المستند.',
-    submitted: 'قبل خادم البريد الرسالة. تحقق من البريد الوارد.',
-    uncertain: 'قد تكون الرسالة أُرسلت، لكن لم نستطع تأكيد النتيجة. لا تعاود الإرسال قبل التحقق.',
+    share: 'مشاركة', title: 'مشاركة المستندات', files: 'المستندات المراد مشاركتها',
+    recipient: 'إرسال إلى', recipientHint: 'ابحث بالاسم العربي أو الإنجليزي أو اسم المستخدم.',
+    recipientPlaceholder: 'ابحث عن موظف...', remove: 'إزالة المستلم',
+    searching: 'جارٍ البحث...', noMatches: 'لا توجد نتائج مطابقة.',
+    archivedLink: 'لا يمكن إرسال مستندات مؤرشفة؛ يمكنك إدارة الرابط الموجود.',
+    message: 'رسالة إضافية (اختياري)',
+    creating: 'جارٍ التحضير...', copy: 'نسخ الرابط', send: 'إرسال المستندات',
+    revoke: 'إلغاء الرابط الحالي', public: 'الرابط متاح لمن يملكه ويستطيع الوصول إلى خادم BADEA.',
+    submitted: 'تم قبول البريد للإرسال. تحقق من صندوق البريد قبل المحاولة مرة ثانية.',
+    uncertain: 'قد تكون الرسالة أُرسلت، لكن لم نستطع التأكيد. تحقق من البريد قبل المحاولة مجددًا.',
     failed: 'تعذّر إتمام العملية. تحقق من البيانات أو اتصل بالدعم.',
-    revoked: 'تم إلغاء رابط المشاركة.', copied: 'تم نسخ الرابط.',
-    revokeConfirm: 'إلغاء هذا الرابط سيمنع جميع المستلمين الذين يستخدمونه من فتح المستند. متابعة؟',
-    close: 'إغلاق',
+    revoked: 'تم إلغاء الرابط.', copied: 'تم نسخ الرابط.',
+    revokeConfirm: 'إلغاء الرابط سيمنع جميع حامليه من فتح هذا المستند. متابعة؟',
+    close: 'إغلاق', back: 'العودة إلى القائمة', linkOptions: 'رابط المستند المحدد',
+    selectOne: 'اختر مستندًا واحدًا على الأقل (بحد أقصى 10).',
+    lookupFailed: 'تعذّر البحث عن الموظفين. حاول مرة أخرى.',
   } : {
-    share: 'Share', title: 'Share document', recipient: 'Employee username',
-    recipientHint: 'Search for an active employee by name or username, then select a result.',
-    searching: 'Searching...', noMatches: 'No matching active employees.',
-    archivedLink: 'Archived documents allow revoking an existing link only.',
-    message: 'Message to recipient (optional)',
-    create: 'Generate share link', creating: 'Working...',
-    copy: 'Copy Link', send: 'Send Email', revoke: 'Revoke Link',
-    public: 'Anyone who has this link and can reach the server can open the document.',
-    submitted: 'Microsoft 365 accepted the email for delivery. Check the inbox.',
-    uncertain: 'The message may already have been sent. Check the mailbox before trying again.',
-    failed: 'The operation failed. Check the employee username or contact support.',
-    revoked: 'The shared link has been revoked.', copied: 'Link copied.',
-    revokeConfirm: 'Revoking this link will disable access for everyone using it. Continue?',
-    close: 'Close',
+    share: 'Share', title: 'Share documents', files: 'Choose documents',
+    recipient: 'Send to', recipientHint: 'Search by English or Arabic name, or username.',
+    recipientPlaceholder: 'Search employees by name...', remove: 'Remove recipient',
+    searching: 'Searching...', noMatches: 'No matching employees.',
+    archivedLink: 'Archived correspondence cannot be newly shared; existing links can be managed.',
+    message: 'Add a message (optional)',
+    creating: 'Working...', copy: 'Copy Link', send: 'Send documents',
+    revoke: 'Revoke current link', public: 'Anyone holding the link who can reach BADEA can open it.',
+    submitted: 'Email accepted for delivery. Check the mailbox before sending again.',
+    uncertain: 'Email might have been sent. Check the mailbox before trying again.',
+    failed: 'The operation failed. Check the details or contact support.',
+    revoked: 'Shared link revoked.', copied: 'Link copied.',
+    revokeConfirm: 'Revoking this link removes access for everyone using it. Continue?',
+    close: 'Close', back: 'Back to list', linkOptions: 'Link for selected document',
+    selectOne: 'Select at least one PDF, up to 10.',
+    lookupFailed: 'Employee search failed. Try again.',
   });
 
   private detailVersion = 0;
@@ -204,6 +215,7 @@ export class RealMailboxComponent implements OnInit {
   setInboxView(view: CorrespondenceInboxView): void {
     if (this.box() !== 'inbox' || this.inboxView() === view) return;
     this.inboxView.set(view);
+    this.mobileDetailsOpen.set(false);
     this.selectedId.set(null);
     // Invalidate the previous page request so switching filters while loading works.
     ++this.pageVersion;
@@ -213,6 +225,7 @@ export class RealMailboxComponent implements OnInit {
 
   async loadPage(offset: number): Promise<void> {
     if (this.loading()) return;
+    this.mobileDetailsOpen.set(false);
     const version = ++this.pageVersion;
     ++this.detailVersion;
     this.closePreview();
@@ -245,6 +258,7 @@ export class RealMailboxComponent implements OnInit {
   }
 
   select(id: string): void {
+    this.mobileDetailsOpen.set(true);
     if (id === this.selectedId()) return;
     this.closePreview();
     this.closeShare();
@@ -332,19 +346,28 @@ export class RealMailboxComponent implements OnInit {
   }
 
 
+  backToMailbox(): void {
+    this.closeShare();
+    this.closePreview();
+    this.mobileDetailsOpen.set(false);
+  }
+
   beginShare(document: CorrespondenceDetails['documents'][number]): void {
     if (document.mimeType !== 'application/pdf' || !this.details()) return;
     ++this.shareVersion;
+    this.sharePreviousFocus = globalThis.document?.activeElement as HTMLElement | null;
     this.sharingDocument.set(document);
+    this.shareSelectedNodeIds.set([document.nodeId]);
     this.sharedLink.set(null);
     this.shareRecipient.set('');
+    this.shareSelectedEmployee.set(null);
     this.shareComment.set('');
     this.shareNotice.set(null);
     this.shareBusy.set(false);
     this.shareMatches.set([]);
-    this.shareRecipientSelected.set(false);
     this.shareLinkChecking.set(true);
     void this.lookupExistingShareLink();
+    setTimeout(() => globalThis.document?.getElementById('mailbox-share-employee')?.focus(), 0);
   }
 
   private async lookupExistingShareLink(): Promise<void> {
@@ -355,38 +378,48 @@ export class RealMailboxComponent implements OnInit {
     try {
       const link = await firstValueFrom(this.api.existingShareLink(technicalId, document.nodeId));
       if (version === this.shareVersion && technicalId === this.selectedId()) {
-        this.sharedLink.set(link.url);
+        this.sharedLink.set(link.available ? link.url ?? null : null);
       }
-    } catch (error: unknown) {
-      // 409 is the documented 'no existing link' response, not a failure.
-      if (version === this.shareVersion &&
-          !(error instanceof HttpErrorResponse && error.status === 409)) {
-        this.shareNotice.set('link-error');
-      }
+    } catch {
+      if (version === this.shareVersion) this.shareNotice.set('link-error');
     } finally {
       if (version === this.shareVersion) this.shareLinkChecking.set(false);
     }
   }
 
   closeShare(): void {
+    if (this.shareBusy()) return;
     ++this.shareVersion;
     ++this.shareLookupVersion;
     if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
     this.shareSearchTimer = undefined;
     this.shareMatches.set([]);
-    this.shareRecipientSelected.set(false);
+    this.shareSelectedEmployee.set(null);
+    this.shareSelectedNodeIds.set([]);
     this.shareSearching.set(false);
     this.shareLinkChecking.set(false);
     this.sharingDocument.set(null);
-    this.shareBusy.set(false);
     this.sharedLink.set(null);
+    this.shareNotice.set(null);
+    this.sharePreviousFocus?.focus();
+    this.sharePreviousFocus = null;
+  }
+
+  toggleShareDocument(nodeId: string, checked: boolean): void {
+    if (this.shareBusy() || this.details()?.state === 'ARCHIVED') return;
+    const selected = this.shareSelectedNodeIds();
+    if (checked && selected.length < 10 && !selected.includes(nodeId)) {
+      this.shareSelectedNodeIds.set([...selected, nodeId]);
+    } else if (!checked) {
+      this.shareSelectedNodeIds.set(selected.filter(id => id !== nodeId));
+    }
     this.shareNotice.set(null);
   }
 
   updateShareRecipient(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.shareRecipient.set(value);
-    this.shareRecipientSelected.set(false);
+    this.shareSelectedEmployee.set(null);
     this.shareMatches.set([]);
     this.shareNotice.set(null);
     const version = ++this.shareLookupVersion;
@@ -418,10 +451,16 @@ export class RealMailboxComponent implements OnInit {
     ++this.shareLookupVersion;
     if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
     this.shareSearchTimer = undefined;
-    this.shareRecipient.set(employee.username);
-    this.shareRecipientSelected.set(true);
+    this.shareRecipient.set('');
+    this.shareSelectedEmployee.set(employee);
     this.shareSearching.set(false);
     this.shareMatches.set([]);
+    this.shareNotice.set(null);
+  }
+
+  removeShareRecipient(): void {
+    this.shareSelectedEmployee.set(null);
+    this.shareRecipient.set('');
     this.shareNotice.set(null);
   }
 
@@ -430,19 +469,28 @@ export class RealMailboxComponent implements OnInit {
     this.shareNotice.set(null);
   }
 
-  async generateShareLink(): Promise<void> {
+  /** Copying a link is independent of email sending; create it on explicit copy if needed. */
+  async copyShareLink(): Promise<void> {
     const document = this.sharingDocument();
-    const technicalId = this.selectedId();
-    if (!document || !technicalId || this.shareBusy() || this.shareLinkChecking()
-        || this.details()?.state === 'ARCHIVED') return;
+    const id = this.selectedId();
+    if (!document || !id || this.shareBusy() || this.shareLinkChecking()) return;
     const version = this.shareVersion;
     this.shareBusy.set(true);
     this.shareNotice.set(null);
     try {
-      const result = await firstValueFrom(this.api.createShareLink(technicalId, document.nodeId));
-      if (version === this.shareVersion && technicalId === this.selectedId()) {
-        this.sharedLink.set(result.url);
+      let url = this.sharedLink();
+      if (!url && this.details()?.state !== 'ARCHIVED') {
+        const result = await firstValueFrom(this.api.createShareLink(id, document.nodeId));
+        url = result.url;
+        if (version === this.shareVersion) this.sharedLink.set(url);
       }
+      if (!url) return;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        window.prompt('Copy link:', url);
+      }
+      if (version === this.shareVersion) this.shareNotice.set('copied');
     } catch {
       if (version === this.shareVersion) this.shareNotice.set('link-error');
     } finally {
@@ -453,41 +501,32 @@ export class RealMailboxComponent implements OnInit {
   async sendShareEmail(): Promise<void> {
     const document = this.sharingDocument();
     const id = this.selectedId();
-    const username = this.shareRecipient().trim();
+    const employee = this.shareSelectedEmployee();
     const message = this.shareComment().trim();
-    if (!document || !id || !this.sharedLink() || this.shareBusy()
-        || this.details()?.state === 'ARCHIVED' || !this.validShareRecipient()
-        || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(username)
+    const nodeIds = this.shareSelectedNodeIds();
+    if (!document || !id || !employee || !this.validShareRecipient() || this.shareBusy()
+        || this.details()?.state === 'ARCHIVED' || nodeIds.length === 0 || nodeIds.length > 10
+        || this.shareNotice() === 'email-uncertain' || this.shareNotice() === 'email-submitted'
         || message.length > 2000) return;
     const version = this.shareVersion;
     this.shareBusy.set(true);
     this.shareNotice.set(null);
     try {
-      await firstValueFrom(this.api.sendShareEmail(id, document.nodeId, username, message));
-      if (version === this.shareVersion) this.shareNotice.set('email-submitted');
+      const result = await firstValueFrom(this.api.sendShareBatchEmail(
+        id, nodeIds, employee.username, message));
+      if (version === this.shareVersion) {
+        const clicked = result.links.find(link => link.nodeId === document.nodeId);
+        if (clicked) this.sharedLink.set(clicked.url);
+        this.shareNotice.set('email-submitted');
+      }
     } catch (error: unknown) {
       if (version === this.shareVersion) {
-        const uncertain = error instanceof HttpErrorResponse &&
-          (error.status === 0 || error.status >= 500);
+        const uncertain = error instanceof HttpErrorResponse
+          && (error.status === 0 || error.status >= 500);
         this.shareNotice.set(uncertain ? 'email-uncertain' : 'email-error');
       }
     } finally {
       if (version === this.shareVersion) this.shareBusy.set(false);
-    }
-  }
-
-  async copyShareLink(): Promise<void> {
-    const link = this.sharedLink();
-    if (!link) return;
-    try {
-      if (!navigator.clipboard?.writeText) {
-        window.prompt('Copy the Alfresco shared link:', link);
-        return;
-      }
-      await navigator.clipboard.writeText(link);
-      this.shareNotice.set('copied');
-    } catch {
-      window.prompt('Copy the Alfresco shared link:', link);
     }
   }
 

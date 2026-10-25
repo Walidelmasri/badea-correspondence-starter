@@ -42,7 +42,7 @@
   </div>
 }
 
-  <div class="workspace">
+  <div class="workspace" [class.workspace--show-detail]="detailOpen()">
     <section
       class="workspace__list"
       [attr.aria-label]="title()"

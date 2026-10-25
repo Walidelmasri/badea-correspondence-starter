@@ -41,6 +41,7 @@ public final class CorrespondenceShareService {
 
     public record Link(String sharedId, String url, String filename) {}
     public record SendResult(String recipient, String recipientName, Link link) {}
+    public record BatchSendResult(String recipient, String recipientName, java.util.List<Link> links) {}
 
     public Link createLink(String technicalId, String nodeId, CorrespondenceActorRole role,
             DepartmentCode department, String employeeId) {
@@ -56,6 +57,70 @@ public final class CorrespondenceShareService {
             DepartmentCode department, String employeeId) {
         ApprovedDocument document = authorizedDocument(technicalId, nodeId, role, department, employeeId, true);
         return makeLink(links.requireExisting(nodeId), document.filename());
+    }
+
+    /** Absence of a public link is a normal state, not a conflict. */
+    public java.util.Optional<Link> findExistingLink(String technicalId, String nodeId,
+            CorrespondenceActorRole role, DepartmentCode department, String employeeId) {
+        ApprovedDocument doc = authorizedDocument(technicalId, nodeId, role, department, employeeId, true);
+        return links.findExisting(nodeId).map(id -> makeLink(id, doc.filename()));
+    }
+
+    /** One SMTP message with 1-10 separately authorized PDF links. Never retries SMTP. */
+    public BatchSendResult sendBatch(String technicalId, java.util.List<String> nodeIds,
+            CorrespondenceActorRole role, DepartmentCode department, String employeeId,
+            String senderName, String recipientUsername, String comment) {
+        if (nodeIds == null || nodeIds.isEmpty() || nodeIds.size() > 10
+                || new java.util.HashSet<>(nodeIds).size() != nodeIds.size()) {
+            throw new IllegalArgumentException("Select between one and ten distinct documents.");
+        }
+        if (recipientUsername == null || !USERNAME.matcher(recipientUsername).matches()) {
+            throw new IllegalArgumentException("Invalid BADEA employee username.");
+        }
+        if (comment != null && comment.length() > 2000) {
+            throw new IllegalArgumentException("Message must be 2000 characters or fewer.");
+        }
+        // Validate ALL document ownership/authorization before publishing ANY public link.
+        java.util.List<ApprovedDocument> approved = new java.util.ArrayList<>();
+        for (String nodeId : nodeIds) {
+            approved.add(authorizedDocument(technicalId, nodeId, role, department, employeeId, false));
+        }
+        EmployeeDirectoryEntry recipient = directory.findActiveByUsername(
+                new DirectoryUsername(recipientUsername))
+                .orElseThrow(() -> new IllegalArgumentException("No active BADEA employee found."));
+        String address = recipient.username().value() + "@badea.org";
+        java.util.List<Link> shared = new java.util.ArrayList<>();
+        for (int i = 0; i < nodeIds.size(); i++) {
+            Link link = makeLink(links.getOrCreate(nodeIds.get(i)), approved.get(i).filename());
+            shared.add(link);
+            audit.append(new CorrespondenceShareAuditRepository.Entry(
+                    technicalId, nodeIds.get(i), "LINK_READY", employeeId, null, link.sharedId(), null));
+        }
+        var documentItems = shared.stream().map(link ->
+                new CorrespondenceShareMailTemplate.Item(link.filename(), link.url())).toList();
+        var rendered = CorrespondenceShareMailTemplate.renderMultiple(
+                senderName, documentItems, approved.get(0).reference(), comment);
+        for (int i = 0; i < nodeIds.size(); i++) {
+            audit.append(new CorrespondenceShareAuditRepository.Entry(
+                    technicalId, nodeIds.get(i), "EMAIL_ATTEMPTED", employeeId,
+                    address, shared.get(i).sharedId(), comment));
+        }
+        try {
+            mail.send(address, rendered.subject(), rendered.plainText(), rendered.html());
+        } catch (MailSubmissionException exception) {
+            for (int i = 0; i < nodeIds.size(); i++) {
+                audit.append(new CorrespondenceShareAuditRepository.Entry(
+                        technicalId, nodeIds.get(i), "EMAIL_FAILED_OR_UNCERTAIN", employeeId,
+                        address, shared.get(i).sharedId(), comment));
+            }
+            throw exception;
+        }
+        for (int i = 0; i < nodeIds.size(); i++) {
+            audit.append(new CorrespondenceShareAuditRepository.Entry(
+                    technicalId, nodeIds.get(i), "EMAIL_ACCEPTED_BY_SMTP", employeeId,
+                    address, shared.get(i).sharedId(), comment));
+        }
+        return new BatchSendResult(address, recipient.nameEnglish(), java.util.List.copyOf(shared));
     }
 
     public SendResult send(String technicalId, String nodeId, CorrespondenceActorRole role,

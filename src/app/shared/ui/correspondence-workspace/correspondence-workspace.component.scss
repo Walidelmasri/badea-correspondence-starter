@@ -227,4 +227,6 @@
   .workspace__detail {
     display: none;
   }
+  .workspace.workspace--show-detail .workspace__list { display: none; }
+  .workspace.workspace--show-detail .workspace__detail { display: block; }
 }

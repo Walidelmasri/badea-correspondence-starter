@@ -147,27 +147,78 @@
 .mailbox-cycle-option .mailbox-action { margin-block-start: auto; }
 @media (max-width: 760px) { .mailbox-cycle-options { grid-template-columns: 1fr; } }
 
-/* Native Alfresco Share Link composer; isolated from PDF preview and workflows. */
+/* Accessible, scrollable share dialog overlays both panes on desktop and phones. */
 .mailbox-share-button { margin-inline-end: .75rem; border: 1px solid var(--color-border);
   border-radius: var(--radius-sm); background: var(--color-surface); padding: .5rem .7rem;
   color: var(--color-primary-700); cursor: pointer; white-space: nowrap; }
 .mailbox-share-button:disabled { opacity: .4; cursor: default; }
-.mailbox-share-panel { display: grid; gap: .75rem; }
-.mailbox-share-heading, .mailbox-share-actions { display: flex; gap: .75rem;
-  flex-wrap: wrap; align-items: center; justify-content: space-between; }
-.mailbox-share-panel label { font-weight: 600; font-size: .85rem; }
-.mailbox-share-panel input, .mailbox-share-panel textarea { display: block; width: 100%;
-  box-sizing: border-box; background: var(--color-surface); color: inherit; font: inherit;
-  padding: .65rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
-.mailbox-share-panel small { color: var(--color-text-secondary); }
-.mailbox-share-warning { font-size: .8rem; color: var(--color-text-secondary); }
-.mailbox-share-link { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center;
-  border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: .7rem; }
-.mailbox-share-link a { min-width: 0; overflow-wrap: anywhere; flex: 1; }
-.mailbox-share-panel button:not(.mailbox-action) { border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm); padding: .5rem .75rem; cursor: pointer;
-  background: var(--color-surface); color: inherit; }
-
-.mailbox-share-results { list-style: none; margin: 0; padding: 0; max-height: 16rem; overflow-y: auto; }
-.mailbox-share-results button { width: 100%; display: flex; gap: .4rem; flex-wrap: wrap; text-align: start; align-items: baseline; }
+.mailbox-share-layer { position: fixed; inset: 0; z-index: 1500; display: grid;
+  place-items: center; padding: 1rem; box-sizing: border-box; }
+.mailbox-share-scrim { position: absolute; inset: 0; width: 100%; height: 100%;
+  border: 0; background: rgba(13,31,26,.62); cursor: default; }
+.mailbox-share-dialog { position: relative; z-index: 1; display: flex; flex-direction: column;
+  box-sizing: border-box; width: min(100%, 39rem); max-height: min(90dvh, 850px);
+  background: var(--color-surface); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,.22); color: var(--color-text-primary); }
+.mailbox-share-dialog__header, .mailbox-share-dialog__footer { display: flex;
+  align-items: center; justify-content: space-between; gap: .8rem; padding: 1.1rem 1.4rem;
+  background: var(--color-surface); }
+.mailbox-share-dialog__header { border-block-end: 1px solid var(--color-border); }
+.mailbox-share-dialog__header h2 { font-size: 1.25rem; margin: 0; }
+.mailbox-share-dialog__header p { margin: .4rem 0 0; font-size: .8rem; color: var(--color-text-secondary); }
+.mailbox-share-dialog__footer { border-block-start: 1px solid var(--color-border); }
+.mailbox-share-dialog__footer button { min-height: 2.6rem; padding: .5rem 1rem; cursor: pointer;
+  border-radius: 8px; }
+.mailbox-share-dialog__footer button:disabled { cursor: not-allowed; opacity: .55; }
+.mailbox-share-dialog__body { min-height: 0; overflow: auto; display: grid; gap: 1rem; padding: 1.25rem 1.4rem; }
+.mailbox-share-close { flex: 0 0 auto; border: none; background: transparent; font-size: 1.2rem;
+  cursor: pointer; padding: .45rem; }
+.mailbox-share-fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
+.mailbox-share-fieldset legend, .mailbox-share-recipient-field label, .mailbox-share-message label {
+  font-size: .88rem; font-weight: 700; margin-block-end: .6rem; }
+.mailbox-share-document-list { display: grid; gap: .45rem; max-height: 12rem; overflow-y: auto; }
+.mailbox-share-document { display: flex; align-items: center; gap: .8rem; padding: .7rem .8rem;
+  border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; }
+.mailbox-share-document:has(input:checked) { border-color: #24745f; background: #edf6f2; }
+.mailbox-share-document input { accent-color: #165d4c; flex-shrink: 0; width: 1.1rem; height: 1.1rem; }
+.mailbox-share-document span { display: grid; gap: .2rem; min-width: 0; overflow-wrap: anywhere; }
+.mailbox-share-document strong { font-size: .85rem; }
+.mailbox-share-document small, .mailbox-share-fieldset small, .mailbox-share-hint {
+  font-size: .76rem; color: var(--color-text-secondary); }
+.mailbox-share-recipient-field, .mailbox-share-message { display: grid; gap: .4rem; min-width: 0; }
+.mailbox-share-recipient-field input, .mailbox-share-message textarea { display: block; box-sizing: border-box;
+  width: 100%; font: inherit; color: inherit; background: var(--color-surface); padding: .75rem;
+  border: 1px solid var(--color-border); border-radius: 8px; }
+.mailbox-share-recipient-field input:focus, .mailbox-share-message textarea:focus {
+  border-color: #24745f; outline: 2px solid #d1e9df; }
+.mailbox-share-results { list-style: none; margin: 0; padding: 0; max-height: 11rem; overflow: auto;
+  border: 1px solid var(--color-border); border-radius: 8px; }
+.mailbox-share-results button { display: grid; gap: .15rem; text-align: start; border: 0;
+  background: transparent; padding: .75rem; width: 100%; cursor: pointer; }
+.mailbox-share-results button:hover { background: var(--color-primary-050); }
 .mailbox-share-results li + li { border-top: 1px solid var(--color-border); }
+.mailbox-share-results small { color: var(--color-text-secondary); }
+.mailbox-share-recipient-chip { display: flex; align-items: center; justify-content: space-between;
+  padding: .55rem .75rem; border: 1px solid #8ebdad; border-radius: 10px; background: #ebf5f0;
+  color: #153f33; }
+.mailbox-share-recipient-chip span { display: grid; gap: .2rem; min-width: 0; }
+.mailbox-share-recipient-chip small { font-size: .76rem; }
+.mailbox-share-recipient-chip button { border: 0; border-radius: 100px; background: transparent;
+  min-width: 2rem; min-height: 2rem; cursor: pointer; }
+.mailbox-share-warning { font-size: .78rem; line-height: 1.5; color: var(--color-text-secondary); }
+.mailbox-share-link-tools { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  border-block-start: 1px solid var(--color-border); padding-block-start: .75rem; }
+.mailbox-share-link-tools span { flex: 1 1 100%; font-size: .78rem; overflow-wrap: anywhere; }
+.mailbox-share-link-tools button, .mailbox-share-dialog__footer button:not(.mailbox-action) {
+  padding: .5rem .85rem; border: 1px solid var(--color-border); background: var(--color-surface);
+  color: inherit; border-radius: 8px; cursor: pointer; }
+.mailbox-share-success { color: #19623d; font-weight: 600; }
+.mailbox-mobile-back { display: none; }
+@media (max-width: 48rem) {
+  .mailbox-mobile-back { display: inline-block; margin: .75rem; padding: .65rem 1rem;
+    border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 8px; }
+  .mailbox-share-layer { padding: 0; }
+  .mailbox-share-dialog { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; }
+  .mailbox-share-dialog__body { padding: 1rem; }
+  .mailbox-share-dialog__header, .mailbox-share-dialog__footer { padding: .9rem 1rem; }
+}

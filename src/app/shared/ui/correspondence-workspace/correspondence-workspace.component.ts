@@ -18,6 +18,7 @@ export class CorrespondenceWorkspaceComponent {
   readonly description = input.required<string>();
   readonly showSearch = input(true);
   readonly showPrimaryAction = input(true);
+  readonly detailOpen = input(false);
   readonly searchLabel = input.required<string>();
   readonly searchPlaceholder = input.required<string>();
 

@@ -28,264 +28,222 @@ class OracleEmployeeDirectoryTest {
 
     @Test
     void returnsEmptyWhenNoActiveEmployeeMatches()
-        throws SQLException {
+            throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
 
         when(jdbc.resultSet().next())
-            .thenReturn(false);
+                .thenReturn(false);
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(jdbc.dataSource());
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        Optional<EmployeeDirectoryEntry> result =
-            directory.findActiveByUsername(
-                new DirectoryUsername("adil.amin")
-            );
+        Optional<EmployeeDirectoryEntry> result = directory.findActiveByUsername(
+                new DirectoryUsername("adil.amin"));
 
         assertTrue(result.isEmpty());
 
         verify(jdbc.statement())
-            .setString(1, "adil.amin");
+                .setString(1, "adil.amin");
     }
 
     @Test
     void resolvesActiveEmployeeWithCurrentDepartment()
-        throws SQLException {
+            throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
 
         when(jdbc.resultSet().next())
-            .thenReturn(true, false);
+                .thenReturn(true, false);
 
         stubEmployee(
-            jdbc.resultSet(),
-            "17257",
-            "Adil Mustafa Amin",
-            "عادل مصطفى امين",
-            "117",
-            "117",
-            "Information Technology",
-            "تقنية المعلومات"
-        );
+                jdbc.resultSet(),
+                "17257",
+                "Adil Mustafa Amin",
+                "عادل مصطفى امين",
+                "117",
+                "117",
+                "Information Technology",
+                "تقنية المعلومات");
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(jdbc.dataSource());
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        EmployeeDirectoryEntry employee =
-            directory.findActiveByUsername(
-                new DirectoryUsername("adil.amin")
-            ).orElseThrow();
+        EmployeeDirectoryEntry employee = directory.findActiveByUsername(
+                new DirectoryUsername("adil.amin")).orElseThrow();
 
         assertEquals(
-            "17257",
-            employee.employeeId().value()
-        );
+                "17257",
+                employee.employeeId().value());
 
         assertEquals(
-            "adil.amin",
-            employee.username().value()
-        );
+                "adil.amin",
+                employee.username().value());
 
         assertEquals(
-            "Adil Mustafa Amin",
-            employee.nameEnglish()
-        );
+                "Adil Mustafa Amin",
+                employee.nameEnglish());
 
         assertEquals(
-            "عادل مصطفى امين",
-            employee.nameArabic()
-        );
+                "عادل مصطفى امين",
+                employee.nameArabic());
 
-        DepartmentDirectoryEntry department =
-            employee.department().orElseThrow();
+        DepartmentDirectoryEntry department = employee.department().orElseThrow();
 
         assertEquals(
-            "117",
-            department.code().value()
-        );
+                "117",
+                department.code().value());
 
         assertEquals(
-            "Information Technology",
-            department.nameEnglish()
-        );
+                "Information Technology",
+                department.nameEnglish());
 
         assertEquals(
-            "تقنية المعلومات",
-            department.nameArabic()
-        );
+                "تقنية المعلومات",
+                department.nameArabic());
     }
 
     @Test
     void allowsActiveEmployeeWithoutDepartment()
-        throws SQLException {
+            throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
 
         when(jdbc.resultSet().next())
-            .thenReturn(true, false);
+                .thenReturn(true, false);
 
         stubEmployee(
-            jdbc.resultSet(),
-            "0685",
-            "Example Employee",
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+                jdbc.resultSet(),
+                "0685",
+                "Example Employee",
+                null,
+                null,
+                null,
+                null,
+                null);
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(jdbc.dataSource());
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        EmployeeDirectoryEntry employee =
-            directory.findActiveByUsername(
-                new DirectoryUsername("employee.user")
-            ).orElseThrow();
+        EmployeeDirectoryEntry employee = directory.findActiveByUsername(
+                new DirectoryUsername("employee.user")).orElseThrow();
 
         assertTrue(employee.department().isEmpty());
     }
 
     @Test
     void treatsLegacyNonNumericDepartmentAsNotCurrent()
-        throws SQLException {
+            throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
 
         when(jdbc.resultSet().next())
-            .thenReturn(true, false);
+                .thenReturn(true, false);
 
         stubEmployee(
-            jdbc.resultSet(),
-            "0685",
-            "Example Employee",
-            null,
-            "HRA",
-            null,
-            null,
-            null
-        );
+                jdbc.resultSet(),
+                "0685",
+                "Example Employee",
+                null,
+                "HRA",
+                null,
+                null,
+                null);
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(jdbc.dataSource());
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        EmployeeDirectoryEntry employee =
-            directory.findActiveByUsername(
-                new DirectoryUsername("employee.user")
-            ).orElseThrow();
+        EmployeeDirectoryEntry employee = directory.findActiveByUsername(
+                new DirectoryUsername("employee.user")).orElseThrow();
 
         assertTrue(employee.department().isEmpty());
     }
 
     @Test
     void rejectsCurrentDepartmentWithoutMatchingDepartmentRow()
-        throws SQLException {
+            throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
 
         when(jdbc.resultSet().next())
-            .thenReturn(true, false);
+                .thenReturn(true, false);
 
         stubEmployee(
-            jdbc.resultSet(),
-            "17257",
-            "Adil Mustafa Amin",
-            "عادل مصطفى امين",
-            "117",
-            null,
-            null,
-            null
-        );
+                jdbc.resultSet(),
+                "17257",
+                "Adil Mustafa Amin",
+                "عادل مصطفى امين",
+                "117",
+                null,
+                null,
+                null);
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(jdbc.dataSource());
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        EmployeeDirectoryException exception =
-            assertThrows(
+        EmployeeDirectoryException exception = assertThrows(
                 EmployeeDirectoryException.class,
                 () -> directory.findActiveByUsername(
-                    new DirectoryUsername("adil.amin")
-                )
-            );
+                        new DirectoryUsername("adil.amin")));
 
         assertEquals(
-            "Employee 17257 references current department 117 "
-                + "but no matching department exists.",
-            exception.getMessage()
-        );
+                "Employee 17257 references current department 117 "
+                        + "but no matching department exists.",
+                exception.getMessage());
     }
 
     @Test
     void rejectsMultipleActiveEmployeesForSameUsername()
-        throws SQLException {
+            throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
 
         when(jdbc.resultSet().next())
-            .thenReturn(true, true);
+                .thenReturn(true, true);
 
         stubEmployee(
-            jdbc.resultSet(),
-            "17257",
-            "Adil Mustafa Amin",
-            "عادل مصطفى امين",
-            "117",
-            "117",
-            "Information Technology",
-            "تقنية المعلومات"
-        );
+                jdbc.resultSet(),
+                "17257",
+                "Adil Mustafa Amin",
+                "عادل مصطفى امين",
+                "117",
+                "117",
+                "Information Technology",
+                "تقنية المعلومات");
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(jdbc.dataSource());
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        EmployeeDirectoryException exception =
-            assertThrows(
+        EmployeeDirectoryException exception = assertThrows(
                 EmployeeDirectoryException.class,
                 () -> directory.findActiveByUsername(
-                    new DirectoryUsername("adil.amin")
-                )
-            );
+                        new DirectoryUsername("adil.amin")));
 
         assertEquals(
-            "Multiple active employee directory entries were found "
-                + "for username: adil.amin",
-            exception.getMessage()
-        );
+                "Multiple active employee directory entries were found "
+                        + "for username: adil.amin",
+                exception.getMessage());
     }
 
     @Test
     void wrapsSqlFailureAsDirectoryFailure()
-        throws SQLException {
+            throws SQLException {
 
         DataSource dataSource = mock(DataSource.class);
 
-        SQLException sqlException =
-            new SQLException("Database unavailable.");
+        SQLException sqlException = new SQLException("Database unavailable.");
 
         when(dataSource.getConnection())
-            .thenThrow(sqlException);
+                .thenThrow(sqlException);
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(dataSource);
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(dataSource);
 
-        EmployeeDirectoryException exception =
-            assertThrows(
+        EmployeeDirectoryException exception = assertThrows(
                 EmployeeDirectoryException.class,
                 () -> directory.findActiveByUsername(
-                    new DirectoryUsername("adil.amin")
-                )
-            );
+                        new DirectoryUsername("adil.amin")));
 
         assertEquals(
-            "Failed to query the employee directory.",
-            exception.getMessage()
-        );
+                "Failed to query the employee directory.",
+                exception.getMessage());
 
         assertSame(
-            sqlException,
-            exception.getCause()
-        );
+                sqlException,
+                exception.getCause());
     }
 
     @Test
@@ -298,9 +256,9 @@ class OracleEmployeeDirectoryTest {
         var entries = new OracleEmployeeDirectory(jdbc.dataSource()).searchActive("Al_%!");
         assertEquals(1, entries.size());
         assertEquals("employee.one", entries.getFirst().username().value());
-        verify(jdbc.statement()).setString(1, "al!_!%!!%");
-        verify(jdbc.statement()).setString(2, "al!_!%!!%");
-        verify(jdbc.statement()).setString(3, "al!_!%!!%");
+        verify(jdbc.statement()).setString(1, "%al!_!%!!%");
+        verify(jdbc.statement()).setString(2, "%al!_!%!!%");
+        verify(jdbc.statement()).setString(3, "%al!_!%!!%");
     }
 
     @Test
@@ -313,112 +271,96 @@ class OracleEmployeeDirectoryTest {
     @Test
     void rejectsNullDataSource() {
         assertThrows(
-            NullPointerException.class,
-            () -> new OracleEmployeeDirectory(null)
-        );
+                NullPointerException.class,
+                () -> new OracleEmployeeDirectory(null));
     }
 
     @Test
     void rejectsNullUsername() {
         DataSource dataSource = mock(DataSource.class);
 
-        OracleEmployeeDirectory directory =
-            new OracleEmployeeDirectory(dataSource);
+        OracleEmployeeDirectory directory = new OracleEmployeeDirectory(dataSource);
 
         assertThrows(
-            NullPointerException.class,
-            () -> directory.findActiveByUsername(null)
-        );
+                NullPointerException.class,
+                () -> directory.findActiveByUsername(null));
     }
 
     private static JdbcFixture createJdbcFixture()
-        throws SQLException {
+            throws SQLException {
 
-        DataSource dataSource =
-            mock(DataSource.class);
+        DataSource dataSource = mock(DataSource.class);
 
-        Connection connection =
-            mock(Connection.class);
+        Connection connection = mock(Connection.class);
 
-        PreparedStatement statement =
-            mock(PreparedStatement.class);
+        PreparedStatement statement = mock(PreparedStatement.class);
 
-        ResultSet resultSet =
-            mock(ResultSet.class);
+        ResultSet resultSet = mock(ResultSet.class);
 
         when(dataSource.getConnection())
-            .thenReturn(connection);
+                .thenReturn(connection);
 
         when(connection.prepareStatement(anyString()))
-            .thenReturn(statement);
+                .thenReturn(statement);
 
         when(statement.executeQuery())
-            .thenReturn(resultSet);
+                .thenReturn(resultSet);
 
         return new JdbcFixture(
-            dataSource,
-            connection,
-            statement,
-            resultSet
-        );
+                dataSource,
+                connection,
+                statement,
+                resultSet);
     }
 
     private static void stubEmployee(
-        ResultSet resultSet,
-        String employeeId,
-        String employeeNameEnglish,
-        String employeeNameArabic,
-        String employeeDepartmentCode,
-        String joinedDepartmentCode,
-        String departmentNameEnglish,
-        String departmentNameArabic
-    ) throws SQLException {
+            ResultSet resultSet,
+            String employeeId,
+            String employeeNameEnglish,
+            String employeeNameArabic,
+            String employeeDepartmentCode,
+            String joinedDepartmentCode,
+            String departmentNameEnglish,
+            String departmentNameArabic) throws SQLException {
 
         when(resultSet.getString("EMPLOYEE_ID"))
-            .thenReturn(employeeId);
+                .thenReturn(employeeId);
 
         when(
-            resultSet.getString(
-                "EMPLOYEE_NAME_ENGLISH"
-            )
-        ).thenReturn(employeeNameEnglish);
+                resultSet.getString(
+                        "EMPLOYEE_NAME_ENGLISH"))
+                .thenReturn(employeeNameEnglish);
 
         when(
-            resultSet.getString(
-                "EMPLOYEE_NAME_ARABIC"
-            )
-        ).thenReturn(employeeNameArabic);
+                resultSet.getString(
+                        "EMPLOYEE_NAME_ARABIC"))
+                .thenReturn(employeeNameArabic);
 
         when(
-            resultSet.getString(
-                "EMPLOYEE_DEPARTMENT_CODE"
-            )
-        ).thenReturn(employeeDepartmentCode);
+                resultSet.getString(
+                        "EMPLOYEE_DEPARTMENT_CODE"))
+                .thenReturn(employeeDepartmentCode);
 
         when(
-            resultSet.getString(
-                "DEPARTMENT_CODE"
-            )
-        ).thenReturn(joinedDepartmentCode);
+                resultSet.getString(
+                        "DEPARTMENT_CODE"))
+                .thenReturn(joinedDepartmentCode);
 
         when(
-            resultSet.getString(
-                "DEPARTMENT_NAME_ENGLISH"
-            )
-        ).thenReturn(departmentNameEnglish);
+                resultSet.getString(
+                        "DEPARTMENT_NAME_ENGLISH"))
+                .thenReturn(departmentNameEnglish);
 
         when(
-            resultSet.getString(
-                "DEPARTMENT_NAME_ARABIC"
-            )
-        ).thenReturn(departmentNameArabic);
+                resultSet.getString(
+                        "DEPARTMENT_NAME_ARABIC"))
+                .thenReturn(departmentNameArabic);
     }
 
     private record JdbcFixture(
-        DataSource dataSource,
-        Connection connection,
-        PreparedStatement statement,
-        ResultSet resultSet
-    ) {
+            DataSource dataSource,
+            Connection connection,
+            PreparedStatement statement,
+            ResultSet resultSet) {
     }
 }

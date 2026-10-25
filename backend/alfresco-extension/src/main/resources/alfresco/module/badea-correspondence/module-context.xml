@@ -847,4 +847,11 @@
     <constructor-arg ref="badeaCorrespondenceShareService" />
     <constructor-arg value="revoke" />
 </bean>
+<bean id="webscript.org.badea.correspondence.correspondence-share-batch-email.post"
+      class="org.badea.correspondence.webscript.ShareCorrespondenceBatchEmailWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceShareService" />
+</bean>
 </beans>

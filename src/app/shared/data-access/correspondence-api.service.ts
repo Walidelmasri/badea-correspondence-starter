@@ -181,6 +181,18 @@ export interface CorrespondenceShareLink {
   readonly url: string;
   readonly filename: string;
 }
+export interface ExistingCorrespondenceShareLink {
+  readonly available: boolean;
+  readonly sharedId?: string;
+  readonly url?: string;
+  readonly filename?: string;
+}
+export interface BatchShareEmailResult {
+  readonly status: 'submitted';
+  readonly recipient: string;
+  readonly recipientName: string;
+  readonly links: readonly (CorrespondenceShareLink & { readonly nodeId: string })[];
+}
 export interface ShareEmployeeResult {
   readonly username: string;
   readonly nameEnglish: string;
@@ -208,8 +220,8 @@ export class CorrespondenceApiService {
     );
   }
 
-  existingShareLink(technicalId: string, nodeId: string): Observable<CorrespondenceShareLink> {
-    return this.http.get<CorrespondenceShareLink>(
+  existingShareLink(technicalId: string, nodeId: string): Observable<ExistingCorrespondenceShareLink> {
+    return this.http.get<ExistingCorrespondenceShareLink>(
       `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/existing`,
     );
   }
@@ -218,6 +230,14 @@ export class CorrespondenceApiService {
     return this.http.post<CorrespondenceShareLink>(
       `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/link`,
       {},
+    );
+  }
+
+  sendShareBatchEmail(technicalId: string, nodeIds: readonly string[], recipientUsername: string,
+      message: string): Observable<BatchShareEmailResult> {
+    return this.http.post<BatchShareEmailResult>(
+      `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/email-batch`,
+      { nodeIds, recipientUsername, message },
     );
   }
 

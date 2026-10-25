@@ -36,6 +36,11 @@ public final class AlfrescoCorrespondenceSharedLinkRepository
         return id;
     }
 
+    @Override public java.util.Optional<String> findExisting(String nodeId) {
+        String id = (String) nodes.getProperty(nodeRef(nodeId), QuickShareModel.PROP_QSHARE_SHAREDID);
+        return id == null || id.isBlank() ? java.util.Optional.empty() : java.util.Optional.of(id);
+    }
+
     @Override public void revoke(String nodeId) {
         NodeRef node = nodeRef(nodeId);
         String existing = requireExisting(nodeId);

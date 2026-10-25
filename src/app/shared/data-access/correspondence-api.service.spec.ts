@@ -95,6 +95,29 @@ describe('CorrespondenceApiService', () => {
       url: 'https://alfresco.internal.badea.org/#/preview/s/shared_id_123', filename: 'a.pdf' });
   });
 
+  it('returns no existing QuickShare link without treating it as an error', () => {
+    service.existingShareLink('test-id', 'node-id').subscribe(result => {
+      expect(result.available).toBe(false);
+      expect(result.url).toBeUndefined();
+    });
+    const req = http.expectOne('/alfresco/service/badea/correspondence-share/test-id/node-id/existing');
+    req.flush({ available: false });
+  });
+
+  it('sends one selected-document batch with one recipient and optional message', () => {
+    service.sendShareBatchEmail('technical-id', ['node-one', 'node-two'], 'staff.member', 'Review').subscribe(result => {
+      expect(result.status).toBe('submitted');
+      expect(result.links.length).toBe(2);
+    });
+    const req = http.expectOne('/alfresco/service/badea/correspondence-share/technical-id/email-batch');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ nodeIds: ['node-one', 'node-two'],
+      recipientUsername: 'staff.member', message: 'Review' });
+    req.flush({ status: 'submitted', recipient: 'staff.member@badea.org', recipientName: 'Staff Member',
+      links: [{ nodeId: 'node-one', sharedId: 'abc123', filename: 'A.pdf', url: 'https://example.test/abc123' },
+              { nodeId: 'node-two', sharedId: 'def456', filename: 'B.pdf', url: 'https://example.test/def456' }] });
+  });
+
   it('fetches live Inbox from Alfresco', () => {
     service.listMailbox('inbox', 0, 25).subscribe(result => {
       expect(result.total).toBe(0);

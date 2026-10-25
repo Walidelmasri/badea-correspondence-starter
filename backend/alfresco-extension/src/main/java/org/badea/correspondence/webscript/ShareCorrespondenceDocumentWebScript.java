@@ -64,9 +64,10 @@ public final class ShareCorrespondenceDocumentWebScript extends AbstractWebScrip
             JSONObject result = new JSONObject();
             switch (operation) {
                 case "existing" -> {
-                    var link = shares.existingLink(id, nodeId, role, department, employeeId);
-                    result.put("sharedId", link.sharedId()).put("url", link.url())
-                            .put("filename", link.filename());
+                    var link = shares.findExistingLink(id, nodeId, role, department, employeeId);
+                    result.put("available", link.isPresent());
+                    link.ifPresent(found -> result.put("sharedId", found.sharedId())
+                            .put("url", found.url()).put("filename", found.filename()));
                 }
                 case "link" -> {
                     var link = shares.createLink(id, nodeId, role, department, employeeId);

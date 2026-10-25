@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webscript>
+    <shortname>BADEA Correspondence Share selected PDFs</shortname>
+    <description>Create or reuse native links and send one email for selected authorized documents.</description>
+    <url>/badea/correspondence-share/{technicalId}/email-batch</url>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>

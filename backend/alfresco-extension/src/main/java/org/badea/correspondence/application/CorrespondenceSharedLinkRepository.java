@@ -4,5 +4,6 @@ package org.badea.correspondence.application;
 public interface CorrespondenceSharedLinkRepository {
     String getOrCreate(String documentNodeId);
     String requireExisting(String documentNodeId);
+    java.util.Optional<String> findExisting(String documentNodeId);
     void revoke(String documentNodeId);
 }

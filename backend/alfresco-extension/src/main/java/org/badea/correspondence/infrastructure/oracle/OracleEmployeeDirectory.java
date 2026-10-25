@@ -127,7 +127,8 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
             throw new IllegalArgumentException("Search requires 2-60 characters.");
         }
         String escaped = prefix.trim().toLowerCase(java.util.Locale.ROOT)
-                .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+                .replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        escaped = "%" + escaped + "%";
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(SEARCH_ACTIVE_SQL)) {
             statement.setString(1, escaped);
