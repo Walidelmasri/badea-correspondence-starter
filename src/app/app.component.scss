@@ -43,14 +43,18 @@
   gap: 1rem;
 }
 
-.app-header__brand-name {
+.app-header__brand-logo {
   flex: 0 0 auto;
+  width: clamp(7.25rem, 10vw, 9rem);
+  height: auto;
+  max-height: 3.3rem;
+  object-fit: contain;
+}
 
-  color: var(--color-primary-700);
-
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+.app-header__brand:focus-visible {
+  outline: 3px solid var(--color-primary-600);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .app-header__title {

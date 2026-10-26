@@ -4,10 +4,12 @@
 ) {
 <div class="app-shell">
   <header class="app-header">
-    <div class="app-header__brand">
-      <span class="app-header__brand-name">
-        BADEA
-      </span>
+    <a class="app-header__brand" routerLink="/dashboard"
+      [attr.aria-label]="translation.text().navigation.dashboard">
+      <img class="app-header__brand-logo"
+        [src]="translation.language() === 'ar' ? 'branding/badea-ar.png' : 'branding/badea-en.jpg'"
+        [alt]="translation.language() === 'ar' ? 'المصرف العربي للتنمية الاقتصادية في أفريقيا' : 'Arab Bank for Economic Development in Africa'"
+        width="152" height="56" />
 
       <div class="app-header__title">
         <strong>
@@ -18,7 +20,7 @@
           {{ translation.text().app.nameEnglish }}
         </span>
       </div>
-    </div>
+    </a>
 
     <nav class="app-navigation" aria-label="Main navigation">
       @for (item of navigation; track item.key) {

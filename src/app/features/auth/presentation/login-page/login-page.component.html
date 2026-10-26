@@ -5,9 +5,10 @@
     [attr.aria-busy]="isBusy()"
   >
     <div class="login-card__topbar">
-      <span class="login-card__brand">
-        BADEA
-      </span>
+      <img class="login-card__logo"
+        [src]="translation.language() === 'ar' ? 'branding/badea-ar.png' : 'branding/badea-en.jpg'"
+        [alt]="translation.language() === 'ar' ? 'المصرف العربي للتنمية الاقتصادية في أفريقيا' : 'Arab Bank for Economic Development in Africa'"
+        width="176" height="65" />
 
       <button
         class="login-card__language"

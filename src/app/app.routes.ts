@@ -35,7 +35,7 @@ export const routes: Routes = [
       {
         path: '',
         pathMatch: 'full',
-        redirectTo: 'inbox',
+        redirectTo: 'dashboard',
       },
 
       {
@@ -143,7 +143,7 @@ export const routes: Routes = [
       },
       {
         path: '**',
-        redirectTo: 'inbox',
+        redirectTo: 'dashboard',
       },
     ],
   },

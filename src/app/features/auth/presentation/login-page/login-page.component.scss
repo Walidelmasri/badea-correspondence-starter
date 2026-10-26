@@ -54,13 +54,11 @@
   margin-block-end: 2.5rem;
 }
 
-.login-card__brand {
-  color:
-    var(--color-primary-700);
-
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+.login-card__logo {
+  width: min(11rem, 55vw);
+  height: auto;
+  max-height: 4rem;
+  object-fit: contain;
 }
 
 .login-card__language {

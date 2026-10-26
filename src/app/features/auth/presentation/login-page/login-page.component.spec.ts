@@ -256,6 +256,17 @@ describe(
       ).toBe(false);
     });
 
+    it('navigates to Dashboard after login when there is no return URL', async () => {
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      authService.login.mockReturnValue(of({} as CurrentUser));
+
+      component.form.setValue({ userId: 'test.user', password: 'test-password' });
+      component.submit();
+      await fixture.whenStable();
+
+      expect(navigate).toHaveBeenCalledWith('/dashboard');
+    });
+
     it('restores the form when authentication fails', () => {
       authService
         .login

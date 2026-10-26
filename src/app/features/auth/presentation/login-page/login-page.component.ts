@@ -283,7 +283,7 @@ export class LoginPageComponent {
       returnUrl.startsWith('//') ||
       returnUrl.startsWith('/login')
     ) {
-      return '/inbox';
+      return '/dashboard';
     }
 
     return returnUrl;
