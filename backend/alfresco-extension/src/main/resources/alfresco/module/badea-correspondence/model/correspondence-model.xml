@@ -464,6 +464,15 @@
                 <property name="bc:presidentCycleSnapshotSha256"><type>d:text</type><mandatory>true</mandatory></property>
             </properties>
         </type>
+        <!-- Per-employee read progress. No changes to the official action history. -->
+    <type name="bc:readReceipt">
+        <title>Correspondence Read Receipt</title>
+        <parent>cm:content</parent>
+        <properties>
+            <property name="bc:readEmployeeKey"><type>d:text</type><mandatory>true</mandatory></property>
+            <property name="bc:readActionSequence"><type>d:long</type><mandatory>true</mandatory></property>
+        </properties>
+    </type>
     </types>
 
 </model>

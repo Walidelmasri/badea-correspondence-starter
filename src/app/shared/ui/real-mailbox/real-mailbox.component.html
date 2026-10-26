@@ -38,9 +38,15 @@
         @for (item of results.items; track item.technicalId) {
           <button type="button" class="mailbox-item"
             [class.mailbox-item--selected]="selectedId() === item.technicalId"
+            [class.mailbox-item--unread]="item.unread"
             (click)="select(item.technicalId)">
             <span class="mailbox-item__date">{{ formatDate(item.modifiedAt) }}</span>
             <strong>{{ item.subject }}</strong>
+            @if (box() === 'inbox' && item.unread) {
+              <span class="mailbox-unread-indicator" aria-label="Unread">
+                {{ translation.language() === 'ar' ? 'غير مقروء' : 'Unread' }}
+              </span>
+            }
             <span>{{ item.senderName }}</span>
             <small>{{ statusLabel(item.state) }}</small>
           </button>
@@ -79,9 +85,17 @@
     }
     @if (selected(); as item) {
       <article class="mailbox-detail">
-        <header>
-          <span>{{ statusLabel(item.state) }}</span>
-          <h2>{{ item.subject }}</h2>
+        <header class="mailbox-detail__header">
+          <div>
+            <span>{{ statusLabel(item.state) }}</span>
+            <h2>{{ item.subject }}</h2>
+          </div>
+          <button type="button" class="mailbox-history-trigger"
+            [attr.aria-expanded]="historyDrawerOpen()"
+            aria-haspopup="dialog" (click)="openHistory()">
+            {{ historyDrawerLabels().open }}
+            @if (history(); as actions) { <span class="mailbox-count">{{ actions.length }}</span> }
+          </button>
         </header>
         <dl>
           <div><dt>{{ labels().sender }}</dt><dd>{{ item.senderName }}</dd></div>
@@ -98,6 +112,29 @@
             <small>{{ followUp.actorNameEnglish }}</small>
             @if (followUp.explanation) {
               <p dir="auto">{{ followUp.explanation }}</p>
+            }
+            @if (details(); as latestDetails) {
+              <details class="mailbox-follow-up-attachments" open>
+                <summary>
+                  {{ historyDrawerLabels().attachments }}
+                  <span class="mailbox-count">{{ latestDetails.documents.length }}</span>
+                </summary>
+                <p>{{ historyDrawerLabels().acrossRounds }}</p>
+                @if (latestDetails.documents.length === 0) {
+                  <p role="status">{{ historyDrawerLabels().noAttachments }}</p>
+                } @else {
+                  <ul>
+                    @for (document of latestDetails.documents; track document.nodeId) {
+                      <li>
+                        <span dir="auto">{{ document.filename }}</span>
+                        <button type="button" class="mailbox-history-trigger"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          (click)="openDocument(document)">{{ labels().openDocument }}</button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </details>
             }
           </section>
         }
@@ -323,27 +360,6 @@
           @if (archiveNotice() === 'uncertain') {
             <p role="alert">{{ labels().administrativeCloseUncertain }}</p>
           }
-          <section class="mailbox-detail__section">
-            <h3>{{ labels().historyTitle }}</h3>
-            @if (historyLoading()) {
-              <p role="status">{{ labels().historyLoading }}</p>
-            } @else if (historyError()) {
-              <p role="alert">{{ labels().historyFailed }}</p>
-            } @else if (history(); as actions) {
-              <ol class="mailbox-history">
-                @for (action of newestHistory(); track action.sequence) {
-                  <li>
-                    <strong>{{ actionLabel(action.actionType) }}</strong>
-                    <span>{{ action.actorNameEnglish }}</span>
-                    <time>{{ formatDate(action.actedAt) }}</time>
-                    @if (action.explanation) {
-                      <p>{{ action.explanation }}</p>
-                    }
-                  </li>
-                }
-              </ol>
-            }
-          </section>
           @if (canCompleteOfficeReview()) {
             <app-office-completion-editor [technicalId]="full.technicalId"
               (dispatched)="loadPage(0)" />
@@ -370,6 +386,42 @@
     }
   </div>
 </app-correspondence-workspace>
+
+@if (historyDrawerOpen()) {
+  <div class="mailbox-history-layer">
+    <button type="button" class="mailbox-history-scrim"
+      [attr.aria-label]="historyDrawerLabels().close" (click)="closeHistory()"></button>
+    <section class="mailbox-history-drawer" role="dialog" aria-modal="true"
+      aria-labelledby="mailbox-history-drawer-title" (keydown)="onHistoryKeydown($event)">
+      <header class="mailbox-history-drawer__header">
+        <div>
+          <h2 id="mailbox-history-drawer-title">{{ labels().historyTitle }}</h2>
+          <small>{{ selected()?.subject }}</small>
+        </div>
+        <button id="mailbox-history-close" type="button" (click)="closeHistory()"
+          [attr.aria-label]="historyDrawerLabels().close">×</button>
+      </header>
+      <div class="mailbox-history-drawer__content">
+        @if (historyLoading()) {
+          <p role="status">{{ labels().historyLoading }}</p>
+        } @else if (historyError()) {
+          <p role="alert">{{ labels().historyFailed }}</p>
+        } @else if (history(); as actions) {
+          <ol class="mailbox-history">
+            @for (action of newestHistory(); track action.sequence) {
+              <li>
+                <strong>{{ actionLabel(action.actionType) }}</strong>
+                <span>{{ action.actorNameEnglish }}</span>
+                <time>{{ formatDate(action.actedAt) }}</time>
+                @if (action.explanation) { <p dir="auto">{{ action.explanation }}</p> }
+              </li>
+            }
+          </ol>
+        }
+      </div>
+    </section>
+  </div>
+}
 
 @if (sharingDocument(); as sharedDoc) {
   <div class="mailbox-share-layer">

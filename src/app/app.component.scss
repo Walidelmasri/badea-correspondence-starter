@@ -374,3 +374,22 @@
     display: none;
   }
 }
+/* Responsive correspondence notification panel. No full-width iPad PDF loss. */
+.app-notifications { position: relative; flex: 0 0 auto; }
+.app-notifications__trigger { min-height: 2.5rem; min-width: 2.5rem; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: white; cursor: pointer; position: relative; color: var(--color-primary-800); font-size: 1.3rem; }
+.app-notifications__count { position: absolute; inset-inline-end: -.55rem; inset-block-start: -.5rem;
+  min-width: 1.3rem; padding: .13rem .3rem; border-radius: 100px; color: white;
+  background: var(--color-primary-700); font-size: .68rem; font-weight: 700; }
+.app-notifications__panel { position: absolute; inset-block-start: calc(100% + .7rem); inset-inline-end: 0;
+  width: min(23rem, calc(100vw - 2rem)); max-height: min(31rem, 76dvh); overflow-y: auto;
+  border: 1px solid var(--color-border); border-radius: .8rem; background: white;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 16%); z-index: 1000; padding: 1rem; }
+.app-notifications__heading { display: flex; justify-content: space-between; align-items: center; }
+.app-notifications__heading button { border: 0; background: transparent; cursor: pointer; font-size: 1.4rem; }
+.app-notifications__panel ul { list-style: none; margin: .75rem 0; padding: 0; }
+.app-notifications__panel li { border-block-end: 1px solid var(--color-border); }
+.app-notifications__panel li a { display: grid; gap: .2rem; padding: .75rem .25rem; }
+.app-notifications__panel li strong { font-size: .88rem; overflow-wrap: anywhere; }
+.app-notifications__panel li span { font-size: .75rem; color: var(--color-text-secondary); }
+.app-notifications__view { display: block; padding: .6rem; color: var(--color-primary-700); font-weight: 700; text-align: center; }

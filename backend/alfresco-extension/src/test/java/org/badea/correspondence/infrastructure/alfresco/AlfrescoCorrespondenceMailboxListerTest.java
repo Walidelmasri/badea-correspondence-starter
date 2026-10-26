@@ -229,6 +229,25 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
+    void unreadInboxIsFilteredServerSideWithCorrectTotal() {
+        var receipts = mock(AlfrescoCorrespondenceReadReceipts.class);
+        lister = new AlfrescoCorrespondenceMailboxLister(nodes, permissions, folders, receipts);
+        when(receipts.latestIncoming(document, CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", false)).thenReturn(7L);
+        when(receipts.isUnread(document, "10001", 7L)).thenReturn(true);
+        var unread = lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "unread", 0, 25);
+        assertEquals(1, unread.total());
+        assertTrue(unread.items().getFirst().unread());
+        assertEquals(7L, unread.items().getFirst().incomingSequence());
+        when(receipts.isUnread(document, "10001", 7L)).thenReturn(false);
+        assertEquals(0, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "unread", 0, 25).total());
+        assertEquals(1, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "all", 0, 25).total());
+    }
+
+    @Test
     void presidentDraftRequiresSavedReviewSinceLatestAssignment() {
         action("10001", "PRESIDENT_OFFICE", "PRESIDENT", null);
         prop("state", "WITH_PRESIDENT");

@@ -1,0 +1,9 @@
+<webscript>
+  <shortname>Mark authorized correspondence read for current employee</shortname>
+  <description>Persist per-employee unread progress without altering workflow</description>
+  <url>/badea/correspondence/{technicalId}/read</url>
+  <authentication>user</authentication>
+  <transaction>required</transaction>
+  <format default="json" />
+  <family>BADEA Correspondence</family>
+</webscript>

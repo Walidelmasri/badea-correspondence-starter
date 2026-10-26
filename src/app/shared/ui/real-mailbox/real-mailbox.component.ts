@@ -5,13 +5,16 @@ import {
   inject,
   input,
   OnInit,
+  DestroyRef,
   signal,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { UnreadInboxStore } from '../../../core/notifications/unread-inbox.store';
 import { CorrespondenceService } from '../../../core/correspondence/correspondence.service';
 import { CorrespondenceDepartment } from '../../../core/correspondence/correspondence.model';
 import { TranslationService } from '../../../core/i18n/translation.service';
@@ -51,6 +54,9 @@ export class RealMailboxComponent implements OnInit {
   private readonly api = inject(CorrespondenceApiService);
   private readonly correspondence = inject(CorrespondenceService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly unreadStore = inject(UnreadInboxStore);
   readonly session = inject(AuthSessionStore);
   readonly translation = inject(TranslationService);
 
@@ -61,7 +67,7 @@ export class RealMailboxComponent implements OnInit {
 
   readonly inboxView = signal<CorrespondenceInboxView>('all');
   readonly inboxViews: readonly CorrespondenceInboxView[] =
-    ['all', 'needs_action', 'handled', 'archived'];
+    ['all', 'unread', 'needs_action', 'handled', 'archived'];
   readonly page = signal<CorrespondenceMailboxPage | null>(null);
   readonly loading = signal(false);
   readonly listError = signal(false);
@@ -78,6 +84,17 @@ export class RealMailboxComponent implements OnInit {
   readonly detailsLoading = signal(false);
   readonly detailsError = signal(false);
   readonly history = signal<readonly CorrespondenceHistoryEntry[] | null>(null);
+  readonly historyDrawerOpen = signal(false);
+  private historyPreviousFocus: HTMLElement | null = null;
+  readonly historyDrawerLabels = computed(() => this.translation.language() === 'ar' ? {
+    open: 'عرض سجل المراسلة', close: 'إغلاق السجل',
+    attachments: 'جميع المرفقات الأصلية', acrossRounds: 'المستندات المحفوظة في المراسلة عبر جميع الدورات (غير مصنفة حسب الدورة)',
+    noAttachments: 'لا توجد مرفقات أصلية في هذه المراسلة.',
+  } : {
+    open: 'View history', close: 'Close history',
+    attachments: 'All source attachments', acrossRounds: 'Saved PDFs across all rounds (not yet grouped by round)',
+    noAttachments: 'No source attachments are returned for this correspondence.',
+  });
   // The API order is oldest-first for authorization decisions. Display-only
   // projections must not mutate that order or affect canCompleteOfficeReview().
   readonly newestHistory = computed(() => [...(this.history() ?? [])].reverse());
@@ -209,7 +226,14 @@ export class RealMailboxComponent implements OnInit {
     // The directory is display-only; a temporary directory failure must not
     // block authenticated mailbox access or document preview.
     void this.loadDepartments();
-    void this.loadPage(0);
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      this.inboxView.set(this.box() === 'inbox' && params.get('view') === 'unread'
+        ? 'unread' : 'all');
+      // Invalidate any in-flight page fetch when opening a notification.
+      ++this.pageVersion;
+      this.loading.set(false);
+      void this.loadPage(0);
+    });
   }
 
   private async loadDepartments(): Promise<void> {
@@ -241,6 +265,7 @@ export class RealMailboxComponent implements OnInit {
 
   async loadPage(offset: number): Promise<void> {
     if (this.loading()) return;
+    this.closeHistory();
     this.mobileDetailsOpen.set(false);
     const version = ++this.pageVersion;
     ++this.detailVersion;
@@ -258,10 +283,14 @@ export class RealMailboxComponent implements OnInit {
       const page = await firstValueFrom(this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
       if (version !== this.pageVersion) return;
       this.page.set(page);
-      const id = page.items.find(item => item.technicalId === this.selectedId())?.technicalId
+      const requestedId = this.box() === 'inbox'
+        ? this.route.snapshot.queryParamMap.get('open') : null;
+      const id = page.items.find(item => item.technicalId === requestedId)?.technicalId
+        ?? page.items.find(item => item.technicalId === this.selectedId())?.technicalId
         ?? page.items[0]?.technicalId ?? null;
       this.selectedId.set(id);
-      if (id) void this.loadDetails(id);
+      if (id) void this.loadDetails(id, id === requestedId &&
+        !!page.items.find(item => item.technicalId === id)?.unread);
     } catch {
       if (version === this.pageVersion) {
         this.page.set(null);
@@ -274,13 +303,18 @@ export class RealMailboxComponent implements OnInit {
   }
 
   select(id: string): void {
+    this.closeHistory();
     this.mobileDetailsOpen.set(true);
-    if (id === this.selectedId()) return;
+    if (id === this.selectedId()) {
+      if (this.details()?.technicalId === id) void this.acknowledgeRead(id);
+      else void this.loadDetails(id, true);
+      return;
+    }
     this.closePreview();
     this.closeShare();
     this.continueNotice.set(null);
     this.selectedId.set(id);
-    void this.loadDetails(id);
+    void this.loadDetails(id, true);
   }
 
   retryDetails(): void {
@@ -288,7 +322,7 @@ export class RealMailboxComponent implements OnInit {
     if (id) void this.loadDetails(id);
   }
 
-  private async loadDetails(id: string): Promise<void> {
+  private async loadDetails(id: string, openedByUser = false): Promise<void> {
     const version = ++this.detailVersion;
     this.details.set(null);
     this.detailsError.set(false);
@@ -312,6 +346,7 @@ export class RealMailboxComponent implements OnInit {
       if (version !== this.detailVersion || this.selectedId() !== id) return;
       this.details.set(result);
       this.detailsLoading.set(false);
+      if (openedByUser) void this.acknowledgeRead(id);
       // Assignment API is independent of correspondence details/history.
       try {
         const assigned = await firstValueFrom(this.api.getDepartmentAssignments(id));
@@ -340,6 +375,25 @@ export class RealMailboxComponent implements OnInit {
     }
   }
 
+  private async acknowledgeRead(id: string): Promise<void> {
+    if (this.box() !== 'inbox') return;
+    const item = this.page()?.items.find(value => value.technicalId === id);
+    if (!item?.unread || !item.incomingSequence) return;
+    try {
+      const marked = await firstValueFrom(this.api.markRead(id, item.incomingSequence));
+      if (marked.readThroughSequence < item.incomingSequence) return;
+      this.page.update(page => page ? {
+        ...page,
+        items: page.items.map(value => value.technicalId === id &&
+          value.incomingSequence <= marked.readThroughSequence
+          ? { ...value, unread: false } : value),
+      } : page);
+      void this.unreadStore.refresh();
+    } catch {
+      // Keep Unread visible if the receipt could not be persisted.
+    }
+  }
+
   previous(): void {
     const p = this.page();
     if (p && this.canGoBack()) void this.loadPage(Math.max(0, p.offset - p.limit));
@@ -362,7 +416,38 @@ export class RealMailboxComponent implements OnInit {
   }
 
 
+  openHistory(): void {
+    if (!this.selectedId() || this.historyDrawerOpen()) return;
+    this.historyPreviousFocus = globalThis.document?.activeElement as HTMLElement | null;
+    this.historyDrawerOpen.set(true);
+    setTimeout(() => globalThis.document?.getElementById('mailbox-history-close')?.focus(), 0);
+  }
+
+  closeHistory(): void {
+    if (!this.historyDrawerOpen()) return;
+    this.historyDrawerOpen.set(false);
+    const previous = this.historyPreviousFocus;
+    this.historyPreviousFocus = null;
+    setTimeout(() => previous?.isConnected && previous.focus(), 0);
+  }
+
+  onHistoryKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeHistory();
+    } else if (event.key === 'Tab') {
+      // The close button is the only keyboard action inside this read-only drawer.
+      // Keep focus inside the modal on desktop, iPad keyboards, and accessibility tools.
+      const close = globalThis.document?.getElementById('mailbox-history-close');
+      if (close) {
+        event.preventDefault();
+        close.focus();
+      }
+    }
+  }
+
   backToMailbox(): void {
+    this.closeHistory();
     this.closeShare();
     this.closePreview();
     this.mobileDetailsOpen.set(false);

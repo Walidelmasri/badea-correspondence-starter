@@ -51,12 +51,20 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private final CorrespondenceFolderLocator folders;
     private final AlfrescoCorrespondenceParticipationReader participationReader;
     private final AlfrescoDepartmentAssignmentReader departmentAssignments;
+    private final AlfrescoCorrespondenceReadReceipts readReceipts;
 
     public AlfrescoCorrespondenceMailboxLister(NodeService nodes,
             PermissionService permissions, CorrespondenceFolderLocator folders) {
+        this(nodes, permissions, folders, null);
+    }
+
+    public AlfrescoCorrespondenceMailboxLister(NodeService nodes,
+            PermissionService permissions, CorrespondenceFolderLocator folders,
+            AlfrescoCorrespondenceReadReceipts readReceipts) {
         this.nodes = Objects.requireNonNull(nodes);
         this.permissions = Objects.requireNonNull(permissions);
         this.folders = Objects.requireNonNull(folders);
+        this.readReceipts = readReceipts;
         this.participationReader = new AlfrescoCorrespondenceParticipationReader(nodes);
         this.departmentAssignments = new AlfrescoDepartmentAssignmentReader(nodes);
     }
@@ -77,7 +85,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
             throw new IllegalArgumentException("Invalid mailbox pagination");
         if (role == CorrespondenceActorRole.DIRECTOR && department == null) throw forbidden();
         if (!"all".equals(view) && !"needs_action".equals(view)
-                && !"handled".equals(view) && !"archived".equals(view))
+                && !"handled".equals(view) && !"archived".equals(view)
+                && !"unread".equals(view))
             throw new IllegalArgumentException("Invalid inbox view");
 
         List<MailboxSummary> matches = new ArrayList<>();
@@ -157,11 +166,18 @@ public final class AlfrescoCorrespondenceMailboxLister {
                 };
                 if (!matchesView) continue;
             }
+            long incoming = 0;
+            boolean unread = false;
+            if ("inbox".equals(box) && readReceipts != null && employeeId != null) {
+                incoming = readReceipts.latestIncoming(node, role, department, employeeId, directorReceived);
+                unread = readReceipts.isUnread(node, employeeId, incoming);
+            }
+            if ("inbox".equals(box) && "unread".equals(view) && !unread) continue;
             matches.add(new MailboxSummary(
                     required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
                     optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
                     required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
-                    timestamp(node, ContentModel.PROP_MODIFIED), active));
+                    timestamp(node, ContentModel.PROP_MODIFIED), active, unread, incoming));
         }
     }
 
@@ -279,12 +295,19 @@ public final class AlfrescoCorrespondenceMailboxLister {
 
     public record MailboxSummary(String technicalId, String subject, String documentNumber,
             String state, String originDepartmentCode, String senderName,
-            Instant createdAt, Instant modifiedAt, boolean needsAction) {
+            Instant createdAt, Instant modifiedAt, boolean needsAction,
+            boolean unread, long incomingSequence) {
+        public MailboxSummary(String technicalId, String subject, String documentNumber,
+                String state, String originDepartmentCode, String senderName,
+                Instant createdAt, Instant modifiedAt, boolean needsAction) {
+            this(technicalId, subject, documentNumber, state, originDepartmentCode,
+                    senderName, createdAt, modifiedAt, needsAction, false, 0);
+        }
         public MailboxSummary(String technicalId, String subject, String documentNumber,
                 String state, String originDepartmentCode, String senderName,
                 Instant createdAt, Instant modifiedAt) {
             this(technicalId, subject, documentNumber, state, originDepartmentCode,
-                    senderName, createdAt, modifiedAt, false);
+                    senderName, createdAt, modifiedAt, false, false, 0);
         }
     }
     public record MailboxPage(List<MailboxSummary> items, int offset, int limit, int total) {

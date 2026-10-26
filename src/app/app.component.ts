@@ -30,8 +30,9 @@ import {
   TranslationService,
 } from './core/i18n/translation.service';
 
-import {
-  MAIN_NAVIGATION,
+import { UnreadInboxStore } from './core/notifications/unread-inbox.store';
+
+import { MAIN_NAVIGATION,
 } from './core/navigation/navigation.config';
 
 @Component({
@@ -61,6 +62,8 @@ export class AppComponent {
 
   readonly translation =
     inject(TranslationService);
+
+  readonly notifications = inject(UnreadInboxStore);
 
   readonly navigation =
     MAIN_NAVIGATION;
@@ -102,6 +105,16 @@ export class AppComponent {
             ),
       },
     );
+
+  notificationText(): {title: string; empty: string; unread: string; all: string; failed: string} {
+    return this.translation.language() === 'ar' ? {
+      title: 'الإشعارات', empty: 'لا توجد مراسلات غير مقروءة.', unread: 'غير مقروء',
+      all: 'عرض كل غير المقروء', failed: 'تعذر تحميل الإشعارات',
+    } : {
+      title: 'Notifications', empty: 'No unread correspondence.', unread: 'Unread',
+      all: 'View unread inbox', failed: 'Could not load notifications',
+    };
+  }
 
   toggleLanguage(): void {
     this.translation

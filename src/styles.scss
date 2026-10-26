@@ -174,3 +174,46 @@ app-real-mailbox {
     .mailbox-featured-packet__actions button { flex: 1; }
   }
 }
+
+/* Stage 5A: iPad-friendly history overlay; does not reduce PDF workspace width. */
+.mailbox-detail__header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .75rem; }
+.mailbox-detail__header > div { min-width: 0; flex: 1 1 14rem; }
+.mailbox-history-trigger { display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  min-height: 2.5rem; padding: .45rem .75rem; border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-primary-800);
+  font-weight: 700; cursor: pointer; }
+.mailbox-history-trigger:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.mailbox-history-layer { position: fixed; inset: 0; z-index: 1450; }
+.mailbox-history-scrim { position: absolute; inset: 0; background: rgb(11 30 24 / 42%); cursor: pointer; }
+.mailbox-history-drawer { position: absolute; inset-block: 0; inset-inline-end: 0;
+  display: flex; flex-direction: column; min-width: 0;
+  width: min(100%, 23rem); height: 100dvh;
+  background: var(--color-surface); box-shadow: var(--shadow-md); }
+.mailbox-history-drawer__header { padding: 1.1rem; display: flex; gap: 1rem;
+  justify-content: space-between; align-items: flex-start; border-block-end: 1px solid var(--color-border); }
+.mailbox-history-drawer__header h2 { margin: 0 0 .5rem; font-size: 1.1rem; }
+.mailbox-history-drawer__header small { display: block; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.mailbox-history-drawer__header button { flex-shrink: 0; min-width: 2.7rem; min-height: 2.7rem;
+  font-size: 1.5rem; border: 1px solid var(--color-border); border-radius: 8px; background: white; cursor: pointer; }
+.mailbox-history-drawer__content { overflow-y: auto; overscroll-behavior: contain; padding: 1.2rem; }
+.mailbox-history-drawer .mailbox-history { margin-block-start: 0; }
+.mailbox-follow-up-attachments { margin-block-start: 1rem; padding-block-start: .8rem;
+  border-block-start: 1px solid var(--color-border); }
+.mailbox-follow-up-attachments summary { cursor: pointer; font-size: .83rem; font-weight: 700; }
+.mailbox-follow-up-attachments summary .mailbox-count { margin-inline-start: .45rem; }
+.mailbox-follow-up-attachments p { color: var(--color-text-secondary); font-size: .76rem; }
+.mailbox-follow-up-attachments ul { padding: 0; margin: .65rem 0 0; list-style: none; display: grid; gap: .55rem; }
+.mailbox-follow-up-attachments li { min-width: 0; display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: .55rem; padding: .55rem .75rem; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.mailbox-follow-up-attachments li > span { flex: 1 1 10rem; overflow-wrap: anywhere; font-size: .8rem; }
+.mailbox-follow-up-attachments .mailbox-history-trigger { min-height: 2.2rem; font-size: .78rem; }
+@media (max-width: 40rem) { .mailbox-history-drawer { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .mailbox-history-drawer { scroll-behavior: auto; } }
+
+/* Unread state scoped to the correspondence mailbox only. */
+app-real-mailbox .mailbox-item--unread { background: color-mix(in srgb, var(--color-primary-050) 58%, white); }
+app-real-mailbox .mailbox-item--unread strong { font-weight: 800; }
+app-real-mailbox .mailbox-unread-indicator { display: inline-flex; align-self: flex-start; border-radius: 2rem;
+  padding: .15rem .45rem; background: var(--color-primary-100); color: var(--color-primary-900) !important;
+  font-size: .72rem; font-weight: 700; }

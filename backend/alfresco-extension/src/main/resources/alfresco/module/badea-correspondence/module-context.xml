@@ -575,6 +575,22 @@
         ref="badeaCorrespondenceFolderLocator" />
 </bean>
 
+<!-- Read receipts live separately from workflow state and source documents. -->
+<bean id="badeaCorrespondenceReadReceipts"
+      class="org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceReadReceipts"
+      lazy-init="true">
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+</bean>
+<bean id="webscript.org.badea.correspondence.correspondence-read.post"
+      class="org.badea.correspondence.webscript.MarkCorrespondenceReadWebScript"
+      parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceDetailsService" />
+    <constructor-arg ref="badeaCorrespondenceReadReceipts" />
+</bean>
+
 <!-- Current-assignment Inbox and originating-Director Sent; read-only. -->
 <bean
     id="badeaCorrespondenceMailboxLister"
@@ -584,6 +600,7 @@
     <constructor-arg ref="nodeService" />
     <constructor-arg ref="permissionService" />
     <constructor-arg ref="badeaCorrespondenceFolderLocator" />
+    <constructor-arg ref="badeaCorrespondenceReadReceipts" />
 </bean>
 
 <!--

@@ -205,6 +205,8 @@ public final class ListCorrespondenceWebScript
             item.put("originDepartmentCode", summary.originDepartmentCode());
             item.put("senderName", summary.senderName());
             item.put("needsAction", summary.needsAction());
+            item.put("unread", summary.unread());
+            item.put("incomingSequence", summary.incomingSequence());
             item.put("createdAt", summary.createdAt().toString());
             item.put("modifiedAt", summary.modifiedAt().toString());
             items.put(item);

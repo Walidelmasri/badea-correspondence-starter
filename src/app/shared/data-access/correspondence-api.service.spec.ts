@@ -45,6 +45,16 @@ describe('CorrespondenceApiService', () => {
     );
   });
 
+  it('marks a specific viewed action sequence read without changing workflow state', () => {
+    service.markRead('11111111-1111-1111-1111-111111111111', 7).subscribe(result => {
+      expect(result.readThroughSequence).toBe(7);
+    });
+    const req = http.expectOne('/alfresco/service/badea/correspondence/11111111-1111-1111-1111-111111111111/read');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ throughSequence: 7 });
+    req.flush({ readThroughSequence: 7 });
+  });
+
   it('continues an Office correspondence cycle without client-controlled state', () => {
     const id = '11111111-1111-1111-1111-111111111111';
     service.continueOfficeCycle(id).subscribe(result => {

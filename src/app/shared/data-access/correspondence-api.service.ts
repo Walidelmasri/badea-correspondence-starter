@@ -114,13 +114,15 @@ export interface CorrespondenceHistoryPage {
 }
 
 export type CorrespondenceMailboxBox = 'inbox' | 'sent';
-export type CorrespondenceInboxView = 'all' | 'needs_action' | 'handled' | 'archived';
+export type CorrespondenceInboxView = 'all' | 'needs_action' | 'handled' | 'archived' | 'unread';
 
 export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary {
   readonly state: CorrespondenceDetails['state'];
   readonly originDepartmentCode: string;
   readonly senderName: string;
   readonly needsAction: boolean;
+  readonly unread: boolean;
+  readonly incomingSequence: number;
 }
 
 export interface CorrespondenceMailboxPage {
@@ -322,6 +324,13 @@ export class CorrespondenceApiService {
   getHistory(technicalId: string): Observable<CorrespondenceHistoryPage> {
     return this.http.get<CorrespondenceHistoryPage>(
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/history`,
+    );
+  }
+
+  markRead(technicalId: string, throughSequence: number): Observable<{readonly readThroughSequence: number}> {
+    return this.http.post<{readonly readThroughSequence: number}>(
+      `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/read`,
+      { throughSequence },
     );
   }
 
