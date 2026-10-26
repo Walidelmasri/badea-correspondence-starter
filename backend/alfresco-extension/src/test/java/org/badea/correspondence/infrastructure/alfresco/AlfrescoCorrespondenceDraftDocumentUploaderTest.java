@@ -142,6 +142,10 @@ class AlfrescoCorrespondenceDraftDocumentUploaderTest {
                 assertEquals("main-letter.pdf", result.filename());
                 assertEquals("application/pdf", result.mimeType());
                 assertEquals(PDF_BYTES.length, result.sizeBytes());
+                assertEquals(1L, result.workflowCycle());
+                verify(nodeService).addAspect(document,
+                        qname("sourceDocumentCycleMetadata"),
+                        java.util.Map.of(qname("sourceDocumentCycle"), 1L));
 
                 verify(writer).setMimetype("application/pdf");
 
@@ -152,6 +156,25 @@ class AlfrescoCorrespondenceDraftDocumentUploaderTest {
                 assertArrayEquals(
                                 PDF_BYTES,
                                 streamCaptor.getValue().readAllBytes());
+        }
+
+        @Test
+        void aLaterRoundIsCapturedOnNewSourceDocument() {
+                when(nodeService.getProperty(correspondence,
+                        qname("currentWorkflowCycle"))).thenReturn(2L);
+                ChildAssociationRef association = mock(ChildAssociationRef.class);
+                when(association.getChildRef()).thenReturn(document);
+                when(nodeService.createNode(eq(correspondence),
+                        eq(ContentModel.ASSOC_CONTAINS), any(QName.class),
+                        eq(ContentModel.TYPE_CONTENT), anyMap())).thenReturn(association);
+                when(contentService.getWriter(document,
+                        ContentModel.PROP_CONTENT, true)).thenReturn(writer);
+
+                CorrespondenceDocument result = uploadAsCreator();
+                assertEquals(2L, result.workflowCycle());
+                verify(nodeService).addAspect(document,
+                        qname("sourceDocumentCycleMetadata"),
+                        java.util.Map.of(qname("sourceDocumentCycle"), 2L));
         }
 
         @Test

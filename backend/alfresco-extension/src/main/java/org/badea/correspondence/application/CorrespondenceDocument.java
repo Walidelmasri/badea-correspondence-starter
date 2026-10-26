@@ -6,7 +6,8 @@ public record CorrespondenceDocument(
         String nodeId,
         String filename,
         String mimeType,
-        long sizeBytes) {
+        long sizeBytes,
+        Long workflowCycle) {
 
     public CorrespondenceDocument {
 
@@ -30,10 +31,19 @@ public record CorrespondenceDocument(
                     "Document identity, filename and MIME type must not be blank.");
         }
 
+        if (workflowCycle != null && workflowCycle < 1L) {
+            throw new IllegalArgumentException("Workflow round must be positive.");
+        }
+
         if (sizeBytes < 0) {
 
             throw new IllegalArgumentException(
                     "Document size must not be negative.");
         }
+    }
+
+    /** Retain the old constructor for existing callers and unclassified legacy PDFs. */
+    public CorrespondenceDocument(String nodeId, String filename, String mimeType, long sizeBytes) {
+        this(nodeId, filename, mimeType, sizeBytes, null);
     }
 }

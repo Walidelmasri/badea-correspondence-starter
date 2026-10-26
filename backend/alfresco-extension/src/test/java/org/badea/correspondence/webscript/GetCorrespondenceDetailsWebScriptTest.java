@@ -188,6 +188,8 @@ class GetCorrespondenceDetailsWebScriptTest {
         assertEquals(
                 4096L,
                 document.getLong("sizeBytes"));
+        assertTrue(document.isNull("workflowCycle"));
+        assertEquals(1L, result.getLong("currentWorkflowCycle"));
     }
 
     @Test

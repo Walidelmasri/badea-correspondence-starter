@@ -61,6 +61,9 @@ public final class AlfrescoCorrespondenceDetailsRepository
     private static final QName PROP_EXECUTIVE_COMPOSE =
             qname("executiveComposeJson");
 
+    private static final QName PROP_SOURCE_DOCUMENT_CYCLE =
+            qname("sourceDocumentCycle");
+
     private final NodeService nodeService;
     private final CorrespondenceNodeLocator nodeLocator;
 
@@ -132,7 +135,8 @@ public final class AlfrescoCorrespondenceDetailsRepository
                         "createdByNameArabic"),
                 readSourceDocuments(correspondence),
                 readGeneratedDocuments(correspondence),
-                optionalText(properties, PROP_EXECUTIVE_COMPOSE, "executiveComposeJson"));
+                optionalText(properties, PROP_EXECUTIVE_COMPOSE, "executiveComposeJson"),
+                new AlfrescoCorrespondenceCycleReader(nodeService).current(correspondence));
     }
 
     /**
@@ -197,12 +201,20 @@ public final class AlfrescoCorrespondenceDetailsRepository
 
             long sizeBytes = content.getSize();
 
+            Serializable rawCycle = properties.get(PROP_SOURCE_DOCUMENT_CYCLE);
+            // Older PDFs have no aspect; preserve them as unclassified rather
+            // than incorrectly assigning them to Round 1 based on their name.
+            Long workflowCycle = rawCycle == null ? null
+                    : AlfrescoCorrespondenceCycleReader.number(
+                            rawCycle, "sourceDocumentCycle");
+
             documents.add(
                     new CorrespondenceDocument(
                             child.getId(),
                             filename,
                             mimeType,
-                            sizeBytes));
+                            sizeBytes,
+                            workflowCycle));
         }
 
         documents.sort(

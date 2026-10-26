@@ -31,6 +31,7 @@ import {
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
 import { chooseFeaturedPacket } from './featured-packet';
 import { queueFollowUpFiles } from './follow-up-file-queue';
+import { groupSourceDocuments, sourceDocumentsForRound } from './source-document-rounds';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
@@ -88,13 +89,27 @@ export class RealMailboxComponent implements OnInit {
   private historyPreviousFocus: HTMLElement | null = null;
   readonly historyDrawerLabels = computed(() => this.translation.language() === 'ar' ? {
     open: 'عرض سجل المراسلة', close: 'إغلاق السجل',
-    attachments: 'جميع المرفقات الأصلية', acrossRounds: 'المستندات المحفوظة في المراسلة عبر جميع الدورات (غير مصنفة حسب الدورة)',
-    noAttachments: 'لا توجد مرفقات أصلية في هذه المراسلة.',
+    attachments: 'مرفقات الدورة الحالية',
+    noRoundAttachments: 'لا توجد مرفقات مصنفة لهذه الدورة. المستندات الأقدم موجودة في قسم المستندات.',
+    unclassified: 'مرفقات سابقة غير مصنفة',
+    round: 'الدورة',
   } : {
     open: 'View history', close: 'Close history',
-    attachments: 'All source attachments', acrossRounds: 'Saved PDFs across all rounds (not yet grouped by round)',
-    noAttachments: 'No source attachments are returned for this correspondence.',
+    attachments: 'Current round attachments',
+    noRoundAttachments: 'No classified attachments for this round. Older files remain in Documents.',
+    unclassified: 'Earlier unclassified attachments',
+    round: 'Round',
   });
+  // Metadata comes from Alfresco, not filenames or ordering in the audit trail.
+  readonly currentRoundAttachments = computed(() => sourceDocumentsForRound(
+    this.details()?.documents ?? [], this.details()?.currentWorkflowCycle,
+  ));
+  readonly sourceDocumentGroups = computed(() => groupSourceDocuments(this.details()?.documents ?? []));
+  actorDisplayName(actor: { actorNameArabic: string | null; actorNameEnglish: string }): string {
+    return this.translation.language() === 'ar'
+      ? (actor.actorNameArabic?.trim() || actor.actorNameEnglish)
+      : actor.actorNameEnglish;
+  }
   // The API order is oldest-first for authorization decisions. Display-only
   // projections must not mutate that order or affect canCompleteOfficeReview().
   readonly newestHistory = computed(() => [...(this.history() ?? [])].reverse());

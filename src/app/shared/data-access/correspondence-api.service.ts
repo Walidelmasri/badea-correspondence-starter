@@ -64,6 +64,8 @@ export interface CorrespondenceDocumentUpload {
   readonly filename: string;
   readonly mimeType: string;
   readonly sizeBytes: number;
+  /** Null for pre-metadata source PDFs; generated output has no source round. */
+  readonly workflowCycle?: number | null;
 }
 export interface CorrespondenceGeneratedDocument extends CorrespondenceDocumentUpload {
   readonly artifactType: 'ANNOTATED_PDF' | 'HANDWRITTEN_EXPLANATION' | 'OFFICIAL_ACTION_SHEET' | 'CORRESPONDENCE_PACKET';
@@ -74,6 +76,7 @@ export interface CorrespondenceGeneratedDocument extends CorrespondenceDocumentU
 }
 export interface CorrespondenceDetails extends CreateCorrespondenceDraft {
   readonly technicalId: string;
+  readonly currentWorkflowCycle?: number;
   readonly state:
   | 'DRAFT'
   | 'WITH_PRESIDENT_OFFICE'

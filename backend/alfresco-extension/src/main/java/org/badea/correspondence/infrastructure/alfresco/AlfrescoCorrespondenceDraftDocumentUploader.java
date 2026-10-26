@@ -62,6 +62,11 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
     private static final QName PROP_CREATION_ROLE =
             qname("createdByCorrespondenceRole");
 
+    private static final QName SOURCE_DOCUMENT_CYCLE_ASPECT =
+            qname("sourceDocumentCycleMetadata");
+    private static final QName SOURCE_DOCUMENT_CYCLE =
+            qname("sourceDocumentCycle");
+
     private final NodeService nodeService;
 
     private final ContentService contentService;
@@ -141,6 +146,9 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
                 actorDepartmentCode,
                 actorEmployeeId);
 
+        long workflowCycle = new AlfrescoCorrespondenceCycleReader(nodeService)
+                .current(correspondence);
+
         /*
          * A unique association name provides stable document
          * identity without depending on the uploaded filename.
@@ -173,6 +181,11 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
         NodeRef document =
                 created.getChildRef();
 
+        // Tag the actual Alfresco source PDF, not an inferred frontend filename.
+        // The upload Web Script runs inside an Alfresco write transaction.
+        nodeService.addAspect(document, SOURCE_DOCUMENT_CYCLE_ASPECT,
+                Map.of(SOURCE_DOCUMENT_CYCLE, Long.valueOf(workflowCycle)));
+
         ContentWriter writer =
                 contentService.getWriter(
                         document,
@@ -194,7 +207,8 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
                 document.getId(),
                 validatedFilename,
                 PDF_MIME_TYPE,
-                pdfBytes.length);
+                pdfBytes.length,
+                workflowCycle);
     }
 
     private void authorizeDraftUpload(

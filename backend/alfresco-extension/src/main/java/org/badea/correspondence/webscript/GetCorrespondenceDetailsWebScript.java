@@ -132,6 +132,7 @@ public final class GetCorrespondenceDetailsWebScript
         result.put(
                 "state",
                 details.state().name());
+        result.put("currentWorkflowCycle", details.currentWorkflowCycle());
 
         result.put(
                 "subject",
@@ -193,6 +194,9 @@ public final class GetCorrespondenceDetailsWebScript
             item.put(
                     "sizeBytes",
                     document.sizeBytes());
+
+            item.put("workflowCycle", document.workflowCycle() == null
+                    ? JSONObject.NULL : document.workflowCycle());
 
             documents.put(item);
         }

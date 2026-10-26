@@ -136,6 +136,8 @@ public final class UploadCorrespondenceDocumentWebScript
             result.put("filename", document.filename());
             result.put("mimeType", document.mimeType());
             result.put("sizeBytes", document.sizeBytes());
+            result.put("workflowCycle", document.workflowCycle() == null
+                    ? JSONObject.NULL : document.workflowCycle());
 
             response.setHeader(
                     "Cache-Control",

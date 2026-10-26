@@ -188,9 +188,34 @@ class AlfrescoCorrespondenceDetailsRepositoryTest {
         assertEquals(
                 4096L,
                 document.sizeBytes());
+        assertEquals(null, document.workflowCycle(),
+                "Pre-metadata PDFs must remain unclassified, not guessed as Round 1");
 
         verify(nodeService, never())
                 .getProperties(history);
+    }
+
+    @Test
+    void readsPersistedSourceRoundAndCurrentWorkflowRound() {
+        NodeRef pdf = nodeRef("22222222-2222-2222-2222-222222222222");
+        when(nodeService.getProperties(correspondence)).thenReturn(correspondenceProperties());
+        when(nodeService.getProperty(correspondence,
+                qname("currentWorkflowCycle"))).thenReturn(2L);
+        ChildAssociationRef pdfAssociation = childAssociation(pdf);
+        when(nodeService.getChildAssocs(correspondence)).thenReturn(List.of(pdfAssociation));
+        when(nodeService.getType(pdf)).thenReturn(ContentModel.TYPE_CONTENT);
+        ContentData content = mock(ContentData.class);
+        when(content.getMimetype()).thenReturn("application/pdf");
+        when(content.getSize()).thenReturn(2048L);
+        Map<QName, Serializable> pdfProperties = new HashMap<>();
+        pdfProperties.put(ContentModel.PROP_NAME, "anything.pdf");
+        pdfProperties.put(ContentModel.PROP_CONTENT, content);
+        pdfProperties.put(qname("sourceDocumentCycle"), 2L);
+        when(nodeService.getProperties(pdf)).thenReturn(pdfProperties);
+
+        CorrespondenceDetails details = repository.findByTechnicalId(TECHNICAL_ID);
+        assertEquals(2L, details.currentWorkflowCycle());
+        assertEquals(2L, details.documents().getFirst().workflowCycle());
     }
 
     @Test

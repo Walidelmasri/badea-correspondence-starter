@@ -475,4 +475,18 @@
     </type>
     </types>
 
+    <!-- Optional on existing cm:content source PDFs; all new uploads get this
+         aspect atomically in the upload transaction. Never infer legacy rounds. -->
+    <aspects>
+        <aspect name="bc:sourceDocumentCycleMetadata">
+            <title>Source Document Workflow Round</title>
+            <properties>
+                <property name="bc:sourceDocumentCycle">
+                    <type>d:long</type>
+                    <mandatory>true</mandatory>
+                </property>
+            </properties>
+        </aspect>
+    </aspects>
+
 </model>

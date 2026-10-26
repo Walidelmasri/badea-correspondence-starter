@@ -109,22 +109,21 @@
               <h3 id="mailbox-latest-follow-up-title">{{ labels().latestDirectorFollowUp }}</h3>
               <time>{{ formatDate(followUp.actedAt) }}</time>
             </div>
-            <small>{{ followUp.actorNameEnglish }}</small>
+            <small>{{ actorDisplayName(followUp) }}</small>
             @if (followUp.explanation) {
               <p dir="auto">{{ followUp.explanation }}</p>
             }
             @if (details(); as latestDetails) {
               <details class="mailbox-follow-up-attachments" open>
                 <summary>
-                  {{ historyDrawerLabels().attachments }}
-                  <span class="mailbox-count">{{ latestDetails.documents.length }}</span>
+                  {{ historyDrawerLabels().round }} {{ latestDetails.currentWorkflowCycle }} — {{ historyDrawerLabels().attachments }}
+                  <span class="mailbox-count">{{ currentRoundAttachments().length }}</span>
                 </summary>
-                <p>{{ historyDrawerLabels().acrossRounds }}</p>
-                @if (latestDetails.documents.length === 0) {
-                  <p role="status">{{ historyDrawerLabels().noAttachments }}</p>
+                @if (currentRoundAttachments().length === 0) {
+                  <p role="status">{{ historyDrawerLabels().noRoundAttachments }}</p>
                 } @else {
                   <ul>
-                    @for (document of latestDetails.documents; track document.nodeId) {
+                    @for (document of currentRoundAttachments(); track document.nodeId) {
                       <li>
                         <span dir="auto">{{ document.filename }}</span>
                         <button type="button" class="mailbox-history-trigger"
@@ -177,26 +176,29 @@
                   <span class="mailbox-count">{{ full.documents.length + secondaryGeneratedDocuments().length }}</span>
                 </summary>
                 @if (full.documents.length > 0) {
-                  <h4>{{ labels().sourceDocuments }}</h4>
-                  <ul class="mailbox-files">
-                    @for (document of full.documents; track document.nodeId) {
-                      <li>
-                        <button type="button" class="mailbox-file-button"
-                          [disabled]="document.mimeType !== 'application/pdf'"
-                          [attr.aria-label]="labels().openDocument + ': ' + document.filename"
-                          (click)="openDocument(document)">
-                          <span class="mailbox-document-detail">
-                            <strong dir="auto">{{ document.filename }}</strong>
-                            <small>{{ formatSize(document.sizeBytes) }}</small>
-                          </span>
-                          <span class="mailbox-file-open">{{ labels().openDocument }}</span>
-                        </button>
-                        <button type="button" class="mailbox-share-button"
-                          [disabled]="document.mimeType !== 'application/pdf'"
-                          (click)="beginShare(document)">{{ shareText().share }}</button>
-                      </li>
-                    }
-                  </ul>
+                  @for (group of sourceDocumentGroups(); track group.cycle) {
+                    <h4>{{ group.cycle === null ? historyDrawerLabels().unclassified :
+                      historyDrawerLabels().round + ' ' + group.cycle }}</h4>
+                    <ul class="mailbox-files">
+                      @for (document of group.documents; track document.nodeId) {
+                        <li>
+                          <button type="button" class="mailbox-file-button"
+                            [disabled]="document.mimeType !== 'application/pdf'"
+                            [attr.aria-label]="labels().openDocument + ': ' + document.filename"
+                            (click)="openDocument(document)">
+                            <span class="mailbox-document-detail">
+                              <strong dir="auto">{{ document.filename }}</strong>
+                              <small>{{ formatSize(document.sizeBytes) }}</small>
+                            </span>
+                            <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                          </button>
+                          <button type="button" class="mailbox-share-button"
+                            [disabled]="document.mimeType !== 'application/pdf'"
+                            (click)="beginShare(document)">{{ shareText().share }}</button>
+                        </li>
+                      }
+                    </ul>
+                  }
                 }
                 @if (secondaryGeneratedDocuments().length > 0) {
                   <h4>{{ labels().otherOfficialDocuments }}</h4>
@@ -411,7 +413,7 @@
             @for (action of newestHistory(); track action.sequence) {
               <li>
                 <strong>{{ actionLabel(action.actionType) }}</strong>
-                <span>{{ action.actorNameEnglish }}</span>
+                <span>{{ actorDisplayName(action) }}</span>
                 <time>{{ formatDate(action.actedAt) }}</time>
                 @if (action.explanation) { <p dir="auto">{{ action.explanation }}</p> }
               </li>
