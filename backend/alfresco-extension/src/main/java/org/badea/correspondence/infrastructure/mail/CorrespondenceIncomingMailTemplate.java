@@ -18,14 +18,14 @@ public final class CorrespondenceIncomingMailTemplate {
         String ref = shorten(reference, 100, "Pending reference");
         String topic = shorten(correspondenceSubject, 180, "New correspondence");
         String url = safeInternalHttps(secureInboxUrl);
-        String emailSubject = "BADEA Correspondence | Action required";
-        String plain = "مراسلات الرئاسة - المصرف العربي للتنمية الاقتصادية في أفريقيا\n"
+        String emailSubject = "Tarasol | Action required";
+        String plain = "تراسل | المصرف العربي للتنمية الاقتصادية في أفريقيا\n"
                 + "لديك مراسلة واردة تتطلب الاطلاع أو الإجراء.\n"
                 + "الرقم المرجعي: " + ref + "\nالموضوع: " + topic + "\n\n"
-                + "BADEA Presidency Correspondence\n"
+                + "Tarasol | BADEA Official Correspondence\n"
                 + "You have received correspondence for review or action.\n"
                 + "Reference: " + ref + "\nSubject: " + topic + "\n"
-                + (url == null ? "Open the BADEA Correspondence application.\n"
+                + (url == null ? "Open Tarasol, the BADEA correspondence application.\n"
                         : "Open Inbox: " + url + "\n")
                 + "Sign in with your BADEA account. Do not forward this message.\n";
         String link = url == null
@@ -38,7 +38,7 @@ public final class CorrespondenceIncomingMailTemplate {
                 + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr><td align=\"center\">"
                 + "<table role=\"presentation\" width=\"600\" style=\"max-width:100%;background:white;border:1px solid #dbe6e1\">"
                 + "<tr><td style=\"padding:23px 30px;background:#145749;color:white;font-size:20px;font-weight:bold\">"
-                + "BADEA | مراسلات الرئاسة</td></tr>"
+                + "BADEA | تراسل · Tarasol</td></tr>"
                 + "<tr><td style=\"padding:28px 30px\">"
                 + "<div dir=\"rtl\" style=\"text-align:right;line-height:1.8\">"
                 + "<h2>مراسلة واردة جديدة</h2><p>لديك مراسلة تتطلب الاطلاع أو الإجراء.</p>"

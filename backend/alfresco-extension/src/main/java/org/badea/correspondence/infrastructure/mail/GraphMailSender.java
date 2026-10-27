@@ -105,7 +105,7 @@ public final class GraphMailSender {
                 + "This link is a public Alfresco share link. Do not forward it to unauthorized people.";
         JSONObject mail = new JSONObject()
                 .put("message", new JSONObject()
-                        .put("subject", "BADEA Correspondence — Shared Document")
+                        .put("subject", "Tarasol | Shared Document")
                         .put("body", new JSONObject()
                                 .put("contentType", "Text")
                                 .put("content", body))

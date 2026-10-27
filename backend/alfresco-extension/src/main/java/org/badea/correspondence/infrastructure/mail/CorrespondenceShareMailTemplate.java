@@ -16,7 +16,7 @@ public final class CorrespondenceShareMailTemplate {
         String displayFile = normalize(filename, "Correspondence document");
         String displayReference = normalize(technicalId, "");
         String displayMessage = message == null ? "" : message.trim();
-        String subject = "BADEA Correspondence | Shared document";
+        String subject = "Tarasol | BADEA | Shared document";
         String plain = "A correspondence document has been shared with you.\n\n"
                 + "Shared by: " + displaySender + "\nDocument: " + displayFile
                 + "\nReference: " + displayReference + "\n"
@@ -66,7 +66,7 @@ public final class CorrespondenceShareMailTemplate {
         String note = message == null ? "" : message.strip();
         String count = documents.size() == 1 ? "1 document" : documents.size() + " documents";
 
-        StringBuilder plain = new StringBuilder("BADEA Correspondence\n")
+        StringBuilder plain = new StringBuilder("Tarasol | BADEA\n")
                 .append(displaySender).append(" shared ").append(count).append(" with you.\n")
                 .append("Reference: ").append(ref).append("\n\n");
         StringBuilder documentRows = new StringBuilder();
@@ -123,7 +123,7 @@ public final class CorrespondenceShareMailTemplate {
                           border-collapse:separate;background-color:#ffffff;">
                         <tr><td style="padding:23px 30px;background-color:#145749;
                             color:#ffffff;font-size:20px;font-weight:700;line-height:26px;">
-                          BADEA <span style="font-weight:400;">Correspondence</span>
+                          BADEA <span style="font-weight:400;">| Tarasol · تراسل</span>
                         </td></tr>
                         <tr><td style="padding:28px 30px 26px;background-color:#ffffff;">
                           <p style="margin:0 0 16px;font-size:21px;line-height:28px;
@@ -155,7 +155,7 @@ public final class CorrespondenceShareMailTemplate {
                   </table>
                 </body></html>
                 """.formatted(escape(displaySender), count, escape(ref), noteHtml, documentRows);
-        return new Rendered("BADEA Correspondence | Shared documents", plain.toString(), html);
+        return new Rendered("Tarasol | BADEA | Shared documents", plain.toString(), html);
     }
 
     private static String normalize(String value, String fallback) {

@@ -96,7 +96,7 @@ public final class SmtpShareMailSender {
                 .encodeToString(subject.getBytes(StandardCharsets.UTF_8)) + "?=";
         String date = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now());
         return "Date: " + date + "\r\n" +
-                "From: BADEA Correspondence <" + FROM + ">\r\n" +
+                "From: Tarasol (BADEA) <" + FROM + ">\r\n" +
                 "To: <" + to + ">\r\n" +
                 "Subject: " + encodedSubject + "\r\n" +
                 "Message-ID: <" + UUID.randomUUID() + "@badea.org>\r\n" +

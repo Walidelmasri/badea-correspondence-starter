@@ -9,8 +9,8 @@ type TranslationShape<T> = {
 
 const AR_TRANSLATIONS = {
   app: {
-    name: 'مراسلات الرئاسة',
-    nameEnglish: 'Presidency Correspondence',
+    name: 'تراسل',
+    nameEnglish: 'Tarasol',
   },
 
   navigation: {
@@ -24,7 +24,7 @@ const AR_TRANSLATIONS = {
   },
 
   dashboard: {
-    eyebrow: 'نظرة عامة • مراسلات الرئاسة',
+    eyebrow: 'نظرة عامة • تراسل',
     title: 'لوحة المتابعة',
     subtitle: 'صورة واضحة عن المراسلات التي يمكنك الوصول إليها والمهام التي تتطلب المتابعة.',
     scoped: 'الإحصاءات حسب صلاحيات حسابك الحالي',
@@ -283,7 +283,7 @@ drafts: {
   },
 },
   compose: {
-    eyebrow: 'مراسلات الرئاسة',
+    eyebrow: 'تراسل',
     title: 'مراسلة جديدة',
     description: 'إعداد وإرسال مراسلة جديدة',
 
@@ -387,12 +387,12 @@ drafts: {
     },
   },
   auth: {
-    eyebrow: 'مراسلات الرئاسة',
+    eyebrow: 'تراسل',
 
     title: 'تسجيل الدخول',
 
     description:
-      'استخدم حساب BADEA للدخول إلى نظام مراسلات الرئاسة.',
+      'استخدم حساب BADEA للدخول إلى نظام تراسل.',
 
     username: 'اسم المستخدم',
 
@@ -543,8 +543,8 @@ drafts: {
 
 const EN_TRANSLATIONS = {
   app: {
-    name: 'Presidency Correspondence',
-    nameEnglish: 'Presidency Correspondence',
+    name: 'Tarasol',
+    nameEnglish: 'Tarasol',
   },
 
   navigation: {
@@ -557,7 +557,7 @@ const EN_TRANSLATIONS = {
   },
 
   dashboard: {
-    eyebrow: 'OVERVIEW • PRESIDENCY CORRESPONDENCE',
+    eyebrow: 'OVERVIEW • TARASOL',
     title: 'Correspondence dashboard',
     subtitle: 'A clear view of your accessible correspondence and the work requiring attention.',
     scoped: 'Statistics are scoped to your current access',
@@ -817,7 +817,7 @@ drafts: {
   },
 },
   compose: {
-    eyebrow: 'Presidency Correspondence',
+    eyebrow: 'Tarasol',
     title: 'New Correspondence',
     description: 'Prepare and send new correspondence',
 
@@ -1008,12 +1008,12 @@ drafts: {
 },
   auth: {
     eyebrow:
-      'Presidency Correspondence',
+      'Tarasol',
 
     title: 'Sign in',
 
     description:
-      'Use your BADEA account to access Presidency Correspondence.',
+      'Use your BADEA account to access Tarasol.',
 
     username: 'Username',
 
