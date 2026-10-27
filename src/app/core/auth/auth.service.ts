@@ -6,6 +6,7 @@ import {
 import {
   inject,
   Injectable,
+  signal,
 } from '@angular/core';
 
 import {
@@ -52,6 +53,9 @@ export class AuthService {
   private restoreRequest:
     Observable<boolean> | null = null;
 
+  private readonly deniedState = signal(false);
+  readonly accessDenied = this.deniedState.asReadonly();
+
   readonly currentUser =
     this.session.currentUser;
 
@@ -68,6 +72,7 @@ export class AuthService {
       credentials.userId.trim();
 
     this.session.clear();
+    this.deniedState.set(false);
 
     return this.http
       .post<
@@ -138,6 +143,7 @@ export class AuthService {
   }
 
   logout(): Observable<void> {
+    this.deniedState.set(false);
     if (!this.session.ticket()) {
       this.session.clear();
 
@@ -187,20 +193,32 @@ export class AuthService {
         ),
 
         switchMap((user) =>
-          this.loadEmployeeProfile()
-            .pipe(
-              map((employeeProfile) => {
-                if (!employeeProfile) {
-                  return user;
-                }
+          this.loadEmployeeProfile().pipe(
+            map((employeeProfile) => {
+              if (
+                !user.enabled ||
+                !isTarasolRole(employeeProfile.correspondenceRole)
+              ) {
+                throw new HttpErrorResponse({
+                  status: 403,
+                  statusText: 'Forbidden',
+                });
+              }
 
-                return {
-                  ...user,
-                  employeeProfile,
-                };
-              }),
-            ),
+              return { ...user, employeeProfile };
+            }),
+          ),
         ),
+
+        catchError((error: unknown) => {
+          if (
+            error instanceof HttpErrorResponse &&
+            error.status === 403
+          ) {
+            this.deniedState.set(true);
+          }
+          return throwError(() => error);
+        }),
 
         tap((user) => {
           this.session.setCurrentUser(
@@ -210,29 +228,14 @@ export class AuthService {
       );
   }
 
-  private loadEmployeeProfile():
-    Observable<EmployeeProfile | null> {
-    return this.http
-      .get<EmployeeProfile>(
-        BADEA_CURRENT_EMPLOYEE_URL,
-      )
-      .pipe(
-        catchError((error: unknown) => {
-          if (
-            error instanceof
-              HttpErrorResponse &&
-            (
-              error.status === 404 ||
-              error.status === 503
-            )
-          ) {
-            return of(null);
-          }
-
-          return throwError(
-            () => error,
-          );
-        }),
-      );
+  private loadEmployeeProfile(): Observable<EmployeeProfile> {
+    // A directory or role-lookup failure is never a successful login.
+    return this.http.get<EmployeeProfile>(BADEA_CURRENT_EMPLOYEE_URL);
   }
+}
+
+function isTarasolRole(role: string | null | undefined): boolean {
+  return role === 'PRESIDENT' ||
+    role === 'PRESIDENT_OFFICE' ||
+    role === 'DIRECTOR';
 }

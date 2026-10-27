@@ -416,6 +416,10 @@ drafts: {
 
     unavailable:
       'تعذر الاتصال بخدمة تسجيل الدخول. حاول مرة أخرى.',
+
+    accessDeniedTitle: 'لا تملك صلاحية الوصول إلى تراسل',
+    accessDeniedDescription: 'هذا الحساب غير مخوّل بالدخول إلى المنصة. يرجى التواصل مع إدارة تقنية المعلومات إذا كنت تعتقد أن هذا خطأ.',
+    returnToLogin: 'تسجيل الدخول بحساب آخر',
   },
   user: {
     office: 'مكتب الرئيس',
@@ -1036,6 +1040,10 @@ drafts: {
 
     unavailable:
       'The sign-in service could not be reached. Try again.',
+
+    accessDeniedTitle: 'You do not have access to Tarasol',
+    accessDeniedDescription: 'Your account is not authorized to use this platform. Contact IT if you believe this is a mistake.',
+    returnToLogin: 'Sign in with another account',
   },
   presidentReview: {
     eyebrow: 'President Workspace',

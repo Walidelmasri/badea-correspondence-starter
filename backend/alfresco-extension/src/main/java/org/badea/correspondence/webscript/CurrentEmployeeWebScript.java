@@ -28,8 +28,8 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
  * Returns the authenticated employee and their resolved
  * correspondence workflow role.
  *
- * Users without a valid correspondence role can still
- * authenticate, but correspondence operations remain blocked.
+ * Valid Alfresco credentials without exactly one correspondence
+ * workflow group are denied with HTTP 403.
  */
 public final class CurrentEmployeeWebScript
         extends AbstractWebScript {
@@ -59,27 +59,13 @@ public final class CurrentEmployeeWebScript
             throws IOException {
 
         try {
+            // Check Alfresco workflow group membership before returning any
+            // application profile. Valid AD credentials alone are insufficient.
+            CorrespondenceActorRole role =
+                    roleResolver.resolveCurrentUserRole();
+
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
-
-            CorrespondenceActorRole role = null;
-
-            try {
-                role = roleResolver.resolveCurrentUserRole();
-
-            } catch (CorrespondenceAuthorizationException exception) {
-                /*
-                 * A missing or ambiguous workflow role must not
-                 * prevent an otherwise valid Alfresco login.
-                 *
-                 * Returning null makes the UI fail closed.
-                 * All write/read endpoints still authorize
-                 * roles independently.
-                 */
-                LOGGER.warn(
-                        "No unambiguous correspondence role "
-                                + "for the authenticated user.");
-            }
 
             response.setHeader("Cache-Control", "no-store");
 
@@ -87,6 +73,14 @@ public final class CurrentEmployeeWebScript
                     response,
                     Status.STATUS_OK,
                     toJson(employee, role));
+
+        } catch (CorrespondenceAuthorizationException exception) {
+
+            writeError(
+                    response,
+                    Status.STATUS_FORBIDDEN,
+                    "CORRESPONDENCE_FORBIDDEN",
+                    "You do not have access to Tarasol.");
 
         } catch (CurrentEmployeeNotFoundException exception) {
 

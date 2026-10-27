@@ -55,15 +55,18 @@
 }
 
 .login-card__identity {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  width: 100%;
   margin-block-end: 1.5rem;
   padding-block: 0.15rem;
 }
 
 .login-card__product-logo {
-  width: min(18rem, 76vw);
+  display: block;
+  width: min(18rem, 100%);
   height: auto;
+  margin-inline: auto;
   object-fit: contain;
 }
 

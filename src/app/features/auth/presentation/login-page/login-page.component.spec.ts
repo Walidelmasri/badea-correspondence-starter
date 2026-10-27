@@ -53,6 +53,7 @@ describe(
       Router;
 
     const authService = {
+      accessDenied: vi.fn().mockReturnValue(false),
       ensureAuthenticated:
         vi.fn<
           () =>
@@ -70,6 +71,7 @@ describe(
     };
 
     beforeEach(() => {
+      authService.accessDenied.mockReset().mockReturnValue(false);
       authService
         .ensureAuthenticated
         .mockReset();
@@ -265,6 +267,17 @@ describe(
       await fixture.whenStable();
 
       expect(navigate).toHaveBeenCalledWith('/dashboard');
+    });
+
+    it('navigates to the 403 screen for a valid account without an authorized group', async () => {
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      authService.login.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 403, statusText: 'Forbidden' })),
+      );
+      component.form.setValue({ userId: 'test.user', password: 'password' });
+      component.submit();
+      await fixture.whenStable();
+      expect(navigate).toHaveBeenCalledWith('/access-denied');
     });
 
     it('restores the form when authentication fails', () => {

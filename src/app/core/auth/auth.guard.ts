@@ -32,10 +32,12 @@ export const authGuard:
       .pipe(
         map(
           (isAuthenticated) => {
-            if (
-              isAuthenticated
-            ) {
+            if (isAuthenticated) {
               return true;
+            }
+
+            if (auth.accessDenied()) {
+              return router.createUrlTree(['/access-denied']);
             }
 
             return router

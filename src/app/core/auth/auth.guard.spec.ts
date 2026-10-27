@@ -37,12 +37,14 @@ describe('authGuard', () => {
 
   const authService = {
     ensureAuthenticated: vi.fn(),
+    accessDenied: vi.fn(),
   };
 
   beforeEach(() => {
     authService
       .ensureAuthenticated
       .mockReset();
+    authService.accessDenied.mockReset().mockReturnValue(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -124,6 +126,17 @@ describe('authGuard', () => {
     ).toBe(
       '/login?returnUrl=%2Finbox',
     );
+  });
+
+  it('redirects disallowed restored sessions to the 403 page', async () => {
+    authService.ensureAuthenticated.mockReturnValue(of(false));
+    authService.accessDenied.mockReturnValue(true);
+    const result = TestBed.runInInjectionContext(
+      () => authGuard({} as ActivatedRouteSnapshot,
+        { url: '/inbox' } as RouterStateSnapshot),
+    );
+    const redirected = await firstValueFrom(result as Observable<boolean | UrlTree>);
+    expect(router.serializeUrl(redirected as UrlTree)).toBe('/access-denied');
   });
 
   it('preserves the originally requested URL when redirecting to login', async () => {

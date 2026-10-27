@@ -117,13 +117,11 @@ export class LoginPageComponent {
         next: (
           isAuthenticated,
         ) => {
-          if (
-            !isAuthenticated
-          ) {
-            this.isCheckingSession.set(
-              false,
-            );
-
+          if (!isAuthenticated) {
+            if (this.auth.accessDenied()) {
+              void this.router.navigateByUrl('/access-denied');
+            }
+            this.isCheckingSession.set(false);
             return;
           }
 
@@ -242,14 +240,15 @@ export class LoginPageComponent {
           }
         },
 
-        error: (
-          error: unknown,
-        ) => {
-          this.errorMessage.set(
-            this.resolveLoginError(
-              error,
-            ),
-          );
+        error: (error: unknown) => {
+          if (
+            error instanceof HttpErrorResponse &&
+            error.status === 403
+          ) {
+            void this.router.navigateByUrl('/access-denied');
+            return;
+          }
+          this.errorMessage.set(this.resolveLoginError(error));
         },
       });
   }
@@ -296,8 +295,7 @@ export class LoginPageComponent {
       error instanceof
         HttpErrorResponse &&
       (
-        error.status === 401 ||
-        error.status === 403
+        error.status === 401
       )
     ) {
       return this.translation

@@ -113,7 +113,7 @@ class CurrentEmployeeWebScriptTest {
     }
 
     @Test
-    void doesNotAssignARoleWhenMembershipIsInvalid()
+    void deniesAuthenticatedUsersWithoutAnUnambiguousAlfrescoGroup()
             throws IOException {
 
         when(roleResolver.resolveCurrentUserRole())
@@ -122,11 +122,9 @@ class CurrentEmployeeWebScriptTest {
 
         JSONObject result = execute();
 
-        verify(response).setStatus(Status.STATUS_OK);
-
-        assertTrue(result.isNull("correspondenceRole"));
-
-        assertEquals("10001", result.getString("employeeId"));
+        verify(response).setStatus(Status.STATUS_FORBIDDEN);
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
+        verify(employeeService, never()).getCurrentEmployee();
     }
 
     private JSONObject execute() throws IOException {

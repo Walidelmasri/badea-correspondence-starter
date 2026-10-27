@@ -58,6 +58,7 @@ const currentUser: CurrentUser = {
 const employeeProfile: EmployeeProfile = {
   employeeId: '18280',
   username: 'almunder.salih',
+  correspondenceRole: 'DIRECTOR',
   nameEnglish:
     'Almunder Salih Melod Sahboun',
   nameArabic:
@@ -279,74 +280,74 @@ describe('AuthService', () => {
     ).toBe(false);
   });
 
-  it('restores the authenticated user when no Oracle employee mapping exists', () => {
+  it('fails closed when an employee cannot be resolved', () => {
     const next = vi.fn();
+    session.setTicket('TICKET_existing');
+    service.ensureAuthenticated().subscribe(next);
 
-    session.setTicket(
-      'TICKET_existing',
+    http.expectOne(ALFRESCO_CURRENT_USER_URL).flush({ entry: currentUser });
+    http.expectOne(BADEA_CURRENT_EMPLOYEE_URL).flush(
+      { code: 'EMPLOYEE_NOT_FOUND' },
+      { status: 404, statusText: 'Not Found' },
     );
 
-    expect(
-      session.currentUser(),
-    ).toBeNull();
+    expect(next).toHaveBeenCalledWith(false);
+    expect(session.ticket()).toBeNull();
+    expect(session.isAuthenticated()).toBe(false);
+  });
 
-    service
-      .ensureAuthenticated()
-      .subscribe(next);
+  it('marks a valid Alfresco login with no Tarasol group as denied', () => {
+    const next = vi.fn();
+    const error = vi.fn();
+    service.login({ userId: 'test.user', password: 'password' })
+      .subscribe({ next, error });
 
-    const userRequest =
-      http.expectOne(
-        ALFRESCO_CURRENT_USER_URL,
-      );
+    http.expectOne(ALFRESCO_TICKETS_URL).flush({
+      entry: { id: 'TICKET_no-role', userId: 'test.user' },
+    });
+    http.expectOne(ALFRESCO_CURRENT_USER_URL).flush({ entry: currentUser });
+    http.expectOne(BADEA_CURRENT_EMPLOYEE_URL).flush(
+      { code: 'CORRESPONDENCE_FORBIDDEN' },
+      { status: 403, statusText: 'Forbidden' },
+    );
 
-    expect(
-      userRequest.request.method,
-    ).toBe('GET');
+    expect(next).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledOnce();
+    expect(service.accessDenied()).toBe(true);
+    expect(session.isAuthenticated()).toBe(false);
+    expect(session.ticket()).toBeNull();
+  });
 
-    userRequest.flush({
-      entry: currentUser,
+  it('rejects a successful profile response with a null correspondence role', () => {
+    const error = vi.fn();
+    service.login({ userId: 'test.user', password: 'password' })
+      .subscribe({ error });
+    http.expectOne(ALFRESCO_TICKETS_URL).flush({
+      entry: { id: 'TICKET_no-role', userId: 'test.user' },
+    });
+    http.expectOne(ALFRESCO_CURRENT_USER_URL).flush({ entry: currentUser });
+    http.expectOne(BADEA_CURRENT_EMPLOYEE_URL).flush({
+      ...employeeProfile, correspondenceRole: null,
     });
 
-    const employeeRequest =
-      http.expectOne(
-        BADEA_CURRENT_EMPLOYEE_URL,
-      );
+    expect(error).toHaveBeenCalledOnce();
+    expect(service.accessDenied()).toBe(true);
+    expect(session.isAuthenticated()).toBe(false);
+  });
 
-    employeeRequest.flush(
-      {
-        code:
-          'EMPLOYEE_NOT_FOUND',
-        message:
-          'No active employee profile was found for the authenticated user.',
-      },
-      {
-        status: 404,
-        statusText:
-          'Not Found',
-      },
+  it('redirects a restored disallowed session to access denied', () => {
+    const next = vi.fn();
+    session.setTicket('TICKET_existing');
+    service.ensureAuthenticated().subscribe(next);
+    http.expectOne(ALFRESCO_CURRENT_USER_URL).flush({ entry: currentUser });
+    http.expectOne(BADEA_CURRENT_EMPLOYEE_URL).flush(
+      { code: 'CORRESPONDENCE_FORBIDDEN' },
+      { status: 403, statusText: 'Forbidden' },
     );
 
-    expect(next)
-      .toHaveBeenCalledOnce();
-
-    expect(next)
-      .toHaveBeenCalledWith(true);
-
-    expect(
-      session.ticket(),
-    ).toBe(
-      'TICKET_existing',
-    );
-
-    expect(
-      session.currentUser(),
-    ).toEqual(
-      currentUser,
-    );
-
-    expect(
-      session.isAuthenticated(),
-    ).toBe(true);
+    expect(next).toHaveBeenCalledWith(false);
+    expect(service.accessDenied()).toBe(true);
+    expect(session.ticket()).toBeNull();
   });
 
   it('invalidates the Alfresco ticket and clears the local session on logout', () => {

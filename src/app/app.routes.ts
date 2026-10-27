@@ -25,6 +25,13 @@ export const routes: Routes = [
   },
 
   {
+    path: 'access-denied',
+    loadComponent: () =>
+      import('./features/auth/presentation/access-denied-page.component')
+        .then(module => module.AccessDeniedPageComponent),
+  },
+
+  {
     path: '',
 
     canActivateChild: [
@@ -120,14 +127,8 @@ export const routes: Routes = [
 
       {
         path: 'president-review',
-
-        loadComponent: () =>
-          import(
-            './features/president-review/presentation/president-review-page.component'
-          ).then(
-            (module) =>
-              module.PresidentReviewPageComponent,
-          ),
+        pathMatch: 'full',
+        redirectTo: 'inbox',
       },
       {
         path: 'director/new',
