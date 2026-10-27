@@ -13,6 +13,12 @@ import java.util.Optional;
  */
 public interface EmployeeDirectory {
 
+    /** Lookup an active employee by the canonical HR/Oracle ID, not by inferred username. */
+    default Optional<EmployeeDirectoryEntry> findActiveByEmployeeId(EmployeeId employeeId) {
+        return Optional.empty();
+    }
+
+
     /**
      * Finds the active employee associated with the supplied directory
      * username.

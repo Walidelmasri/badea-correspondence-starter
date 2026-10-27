@@ -28,12 +28,23 @@ public final class OfficeDistributionService {
     private final OfficeActionSheetRenderer renderer;
     private final OfficeDistributionRepository persistence;
     private final Clock clock;
+    private final PresidentSignatureStore signatureStore;
 
     public OfficeDistributionService(CorrespondenceTransitionRepository correspondence,
             PresidentReturnEvidence history, PresidentReviewStateRepository president,
             OfficeCompletionRepository office, CorrespondenceDetailsRepository details,
             CorrespondenceDepartmentService departments, OfficeDistributionPlanner planner,
             DirectorRecipientDirectory directors, OfficeActionSheetRenderer renderer, OfficeDistributionRepository persistence, Clock clock) {
+        this(correspondence, history, president, office, details, departments,
+                planner, directors, renderer, persistence, clock, null);
+    }
+
+    public OfficeDistributionService(CorrespondenceTransitionRepository correspondence,
+            PresidentReturnEvidence history, PresidentReviewStateRepository president,
+            OfficeCompletionRepository office, CorrespondenceDetailsRepository details,
+            CorrespondenceDepartmentService departments, OfficeDistributionPlanner planner,
+            DirectorRecipientDirectory directors, OfficeActionSheetRenderer renderer,
+            OfficeDistributionRepository persistence, Clock clock, PresidentSignatureStore signatureStore) {
         this.correspondence = Objects.requireNonNull(correspondence);
         this.history = Objects.requireNonNull(history);
         this.president = Objects.requireNonNull(president);
@@ -45,6 +56,7 @@ public final class OfficeDistributionService {
         this.renderer = Objects.requireNonNull(renderer);
         this.persistence = Objects.requireNonNull(persistence);
         this.clock = Objects.requireNonNull(clock);
+        this.signatureStore = signatureStore;
     }
 
     public String distribute(OfficeDispatchCommand command, CorrespondenceActorRole role) {
@@ -74,9 +86,14 @@ public final class OfficeDistributionService {
         CorrespondenceDetails source = details.findByTechnicalId(command.technicalId());
         // One timestamp for the PDF generation date and persisted assignment history.
         Instant now = clock.instant();
-        var names = directors.requireDirectorNames(plan.recipients().to());
+        // The official action sheet addresses department heads by title, not personal name.
+        // Do not query AD or a manager-name directory as a prerequisite for distribution.
+        // Only the saved review's President may authorize this reusable mark.
+        // A missing or different owner's signature leaves the official PDF unsigned.
+        PresidentSignatureDrawing signature = signatureStore == null ? null
+                : signatureStore.loadForReview(command.technicalId()).orElse(null);
         var printContext = new OfficeActionSheetPrintContext(
-                LocalDate.ofInstant(now, ZoneId.of("Asia/Riyadh")), names);
+                LocalDate.ofInstant(now, ZoneId.of("Asia/Riyadh")), java.util.Map.of(), signature);
         byte[] pdf = renderer.render(source, plan, to, copy, printContext);
         if (pdf == null || pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P'
                 || pdf[2] != 'D' || pdf[3] != 'F' || pdf[4] != '-') {

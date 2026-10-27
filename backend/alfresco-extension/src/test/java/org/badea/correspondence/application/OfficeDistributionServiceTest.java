@@ -43,9 +43,6 @@ class OfficeDistributionServiceTest {
         when(office.find(command.technicalId())).thenReturn(Optional.of(new OfficeCompletionState(2,5,
                 "{\"schemaVersion\":1,\"selectedRecipientIds\":[\"118\"],\"selectedCopyRecipientIds\":[],\"selectedActionCodes\":[],\"otherRecipient\":\"\",\"otherAction\":\"\",\"typedExplanation\":\"Office\",\"officeNotes\":\"Note\"}",
                 "99","Office Clerk",null,clock.instant())));
-        when(directors.requireDirectorNames(anyList())).thenReturn(java.util.Map.of(
-                new DepartmentCode("117"), "مدير التحول الرقمي",
-                new DepartmentCode("118"), "مدير الموارد البشرية"));
         when(departments.requireDepartment(new DepartmentCode("117"))).thenReturn(new DepartmentDirectoryEntry(new DepartmentCode("117"),"IT","إدارة التحول الرقمي"));
         when(departments.requireDepartment(new DepartmentCode("118"))).thenReturn(new DepartmentDirectoryEntry(new DepartmentCode("118"),"Finance","إدارة الموارد البشرية"));
         when(details.findByTechnicalId(command.technicalId())).thenReturn(new CorrespondenceDetails(command.technicalId(),
@@ -70,8 +67,7 @@ class OfficeDistributionServiceTest {
         assertEquals(java.time.LocalDate.of(2026,10,20), captor.getValue().generatedOn());
     }
 
-    @Test void missingDirectorIdentityUsesSafePrintFallbackAndStillDispatches() {
-        when(directors.requireDirectorNames(anyList())).thenReturn(java.util.Map.of());
+    @Test void actionSheetUsesDepartmentTitlesAndDispatchDoesNotRequireDirectorIdentity() {
         when(pdf.render(any(), any(), anyList(), anyList(), any()))
                 .thenReturn("%PDF-example".getBytes());
         when(storage.distribute(eq(command), any(), any(), anyList())).thenReturn("dispatch-1");
@@ -79,7 +75,27 @@ class OfficeDistributionServiceTest {
         var captor = org.mockito.ArgumentCaptor.forClass(OfficeActionSheetPrintContext.class);
         verify(pdf).render(any(), any(), anyList(), anyList(), captor.capture());
         assertTrue(captor.getValue().directorNames().isEmpty());
+        verifyNoInteractions(directors);
         verify(storage).distribute(eq(command), any(), any(), anyList());
+    }
+
+    @Test void officeCanStampOnlySignatureMatchingThisPresidentialReview() {
+        var signatureStore=mock(PresidentSignatureStore.class);
+        var signature=new PresidentSignatureDrawing(List.of(List.of(
+                new PresidentSignatureDrawing.Point(.1f,.1f),
+                new PresidentSignatureDrawing.Point(.2f,.5f),
+                new PresidentSignatureDrawing.Point(.6f,.2f),
+                new PresidentSignatureDrawing.Point(.9f,.8f))));
+        when(signatureStore.loadForReview(command.technicalId())).thenReturn(Optional.of(signature));
+        var signatureAware=new OfficeDistributionService(correspondence,returns,president,office,
+                details,departments,new OfficeDistributionPlanner(departments),directors,pdf,storage,
+                clock,signatureStore);
+        when(pdf.render(any(),any(),anyList(),anyList(),any())).thenReturn("%PDF-example".getBytes());
+        when(storage.distribute(eq(command),any(),any(),anyList())).thenReturn("dispatch-2");
+        assertEquals("dispatch-2",signatureAware.distribute(command,CorrespondenceActorRole.PRESIDENT_OFFICE));
+        var context=org.mockito.ArgumentCaptor.forClass(OfficeActionSheetPrintContext.class);
+        verify(pdf).render(any(),any(),anyList(),anyList(),context.capture());
+        assertEquals(signature,context.getValue().presidentSignature());
     }
 
     @Test void forbidsPrematureDispatch() {

@@ -23,21 +23,78 @@ class PdfBoxOfficeActionSheetRendererTest {
                 PdfBoxOfficeActionSheetRenderer.recipientHeader(List.of(dept), context));
     }
 
-    @Test void recipientHeaderUsesVerifiedPersonalNameNotDepartmentName() {
+    @Test void recipientHeaderUsesDepartmentTitleEvenIfDirectorNameExists() {
         var recipients=List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
                 "Digital Transformation","إدارة التحول الرقمي"));
-        assertEquals("أحمد محمد", PdfBoxOfficeActionSheetRenderer.recipientHeader(recipients,printContext()));
+        assertEquals("مدير إدارة التحول الرقمي", PdfBoxOfficeActionSheetRenderer.recipientHeader(recipients,printContext()));
     }
 
-    @Test void multipleDirectorNamesUseArabicCommasInRecipientOrder() {
+    @Test void multipleDepartmentHeadTitlesUseArabicCommasInRecipientOrder() {
         var recipients=List.of(
                 new DepartmentDirectoryEntry(new DepartmentCode("117"),"IT","إدارة التحول الرقمي"),
                 new DepartmentDirectoryEntry(new DepartmentCode("118"),"HR","إدارة الموارد البشرية"));
         var context=new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),
                 java.util.Map.of(new DepartmentCode("117"),"أحمد محمد",
                         new DepartmentCode("118"),"خالد عبدالله"));
-        assertEquals("أحمد محمد، خالد عبدالله",
+        assertEquals("مدير إدارة التحول الرقمي، مدير إدارة الموارد البشرية",
                 PdfBoxOfficeActionSheetRenderer.recipientHeader(recipients,context));
+    }
+
+    @Test void sourceFieldNeverOverwritesPrintedCountryDepartmentLabels() {
+        assertEquals("في الملحق", PdfBoxOfficeActionSheetRenderer.fitSourceField(
+                "Long department/country office with multiple additional source fields"));
+        assertEquals("IT", PdfBoxOfficeActionSheetRenderer.fitSourceField("IT"));
+        // A normal current department must not manufacture an annex page.
+        assertEquals("Digital Transformation", PdfBoxOfficeActionSheetRenderer.fitSourceField(
+                "Digital Transformation"));
+        assertFalse(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex("Digital Transformation"));
+        assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldFontSize(
+                "Digital Transformation") >= 7f);
+        assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldFontSize(
+                "Digital Transformation") < 9f);
+        assertTrue(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex(
+                "Long department/country office with multiple additional source fields"));
+    }
+
+    @Test void longSourceFieldIsPreservedInContinuation() throws Exception {
+        String sourceLabel = "Long department/country office with multiple additional source fields";
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261026/1", LocalDate.of(2026,10,26),
+                sourceLabel,"117","Author", null, List.of());
+        var plan = new OfficeDistributionPlan(1,1,
+                new DistributionRecipients(List.of(new DepartmentCode("117")),List.of()),
+                List.of(),"","","","","");
+        byte[] bytes = new PdfBoxOfficeActionSheetRenderer().render(source,plan,
+                List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                        "Digital Transformation","إدارة التحول الرقمي")),List.of(),printContext());
+        try (var pdf=Loader.loadPDF(bytes)) {
+            assertEquals(2, pdf.getNumberOfPages(),
+                    "Long source field must produce an annex rather than collide with template captions");
+        }
+    }
+
+    @Test void onlyNewActionSheetsCarryTheStoredPresidentialMark() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261026/1", LocalDate.of(2026,10,26),
+                "IT", "117", "Author", null, List.of());
+        var plan = new OfficeDistributionPlan(1,1,
+                new DistributionRecipients(List.of(new DepartmentCode("117")),List.of()),
+                List.of(),"","","","","");
+        var recipients = List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "IT", "إدارة التحول الرقمي"));
+        var signature = new PresidentSignatureDrawing(List.of(List.of(
+                new PresidentSignatureDrawing.Point(.1f,.2f),
+                new PresidentSignatureDrawing.Point(.3f,.8f),
+                new PresidentSignatureDrawing.Point(.6f,.1f),
+                new PresidentSignatureDrawing.Point(.85f,.7f))));
+        byte[] blank = new PdfBoxOfficeActionSheetRenderer().render(source,plan,recipients,List.of(),
+                new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),java.util.Map.of()));
+        byte[] signed = new PdfBoxOfficeActionSheetRenderer().render(source,plan,recipients,List.of(),
+                new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),java.util.Map.of(),signature));
+        assertFalse(java.util.Arrays.equals(blank,signed));
+        try (var pdf = Loader.loadPDF(signed)) {
+            assertEquals(1,pdf.getNumberOfPages());
+        }
     }
 
     @Test void generationDateIsIndependentOfOriginalDocumentDate() throws Exception {

@@ -729,6 +729,33 @@
     <constructor-arg ref="badeaCorrespondenceRepository" />
     <constructor-arg ref="badeaPresidentGeneratedDocumentStore" />
 </bean>
+<!-- Private signature is managed exclusively by authenticated President endpoints. -->
+<bean id="badeaPresidentSignatureStore"
+    class="org.badea.correspondence.infrastructure.alfresco.AlfrescoPresidentSignatureStore"
+    lazy-init="true">
+    <constructor-arg ref="nodeService" />
+    <constructor-arg ref="contentService" />
+    <constructor-arg ref="permissionService" />
+    <constructor-arg ref="badeaCorrespondenceFolderLocator" />
+    <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+    <constructor-arg ref="badeaCorrespondenceClock" />
+</bean>
+<bean id="webscript.org.badea.correspondence.president-signature.get"
+    class="org.badea.correspondence.webscript.PresidentSignatureWebScript"
+    parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaPresidentSignatureStore" />
+    <constructor-arg value="false" />
+</bean>
+<bean id="webscript.org.badea.correspondence.president-signature.put"
+    class="org.badea.correspondence.webscript.PresidentSignatureWebScript"
+    parent="webscript" lazy-init="true">
+    <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+    <constructor-arg ref="badeaPresidentSignatureStore" />
+    <constructor-arg value="true" />
+</bean>
 <bean id="badeaOfficeDistributionService"
     class="org.badea.correspondence.application.OfficeDistributionService"
     lazy-init="true">
@@ -743,6 +770,7 @@
     <constructor-arg ref="badeaOfficeActionSheetRenderer" />
     <constructor-arg ref="badeaOfficeDistributionRepository" />
     <constructor-arg ref="badeaCorrespondenceClock" />
+    <constructor-arg ref="badeaPresidentSignatureStore" />
 </bean>
 <bean id="webscript.org.badea.correspondence.office-dispatch.post"
     class="org.badea.correspondence.webscript.OfficeDispatchWebScript"
@@ -823,6 +851,25 @@
       lazy-init="true">
     <constructor-arg ref="NodeService" />
     <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+</bean>
+<!-- Optional post-commit incoming notifications. Disabled until explicitly activated.
+     Start instant prevents emailing historical workflow events at first rollout. -->
+<bean id="badeaCorrespondenceNotificationRecipients"
+      class="org.badea.correspondence.infrastructure.alfresco.AlfrescoNotificationRecipientResolver"
+      lazy-init="true">
+    <constructor-arg ref="authorityService" />
+    <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+    <constructor-arg ref="badeaCorrespondenceDepartmentDirectory" />
+</bean>
+<bean id="badeaCorrespondenceIncomingNotificationWorker"
+      class="org.badea.correspondence.infrastructure.alfresco.AlfrescoIncomingNotificationWorker"
+      init-method="start" destroy-method="stop">
+    <constructor-arg ref="NodeService" />
+    <constructor-arg ref="badeaCorrespondenceFolderLocator" />
+    <constructor-arg ref="transactionService" />
+    <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_EMAIL_NOTIFICATIONS_ENABLED']}" />
+    <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_EMAIL_START_AT']}" />
+    <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_INBOX_HTTPS_URL']}" />
 </bean>
 <bean id="badeaCorrespondenceShareService"
       class="org.badea.correspondence.application.CorrespondenceShareService"

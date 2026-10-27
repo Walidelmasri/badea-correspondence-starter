@@ -473,6 +473,27 @@
             <property name="bc:readActionSequence"><type>d:long</type><mandatory>true</mandatory></property>
         </properties>
     </type>
+        <!-- Delivery receipts never modify the official immutable workflow history. -->
+        <type name="bc:mailDeliveryReceipt">
+            <title>Incoming Email Notification Attempt</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:mailDeliveryKey"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:mailRecipientEmployeeId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:mailDeliveryStatus"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:mailDeliveryUpdatedAt"><type>d:datetime</type><mandatory>true</mandatory></property>
+            </properties>
+        </type>
+        <!-- Private system-managed reusable President drawing; not a correspondence attachment. -->
+        <type name="bc:presidentSignature">
+            <title>Private President Signature</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:signatureRevision"><type>d:long</type></property>
+                <property name="bc:signatureOwnerEmployeeId"><type>d:text</type></property>
+                <property name="bc:signatureSavedAt"><type>d:datetime</type></property>
+            </properties>
+        </type>
     </types>
 
     <!-- Optional on existing cm:content source PDFs; all new uploads get this

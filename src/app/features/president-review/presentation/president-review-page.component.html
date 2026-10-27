@@ -94,6 +94,9 @@
             }
         </div>
     </header>
+    @if (technicalId()) {
+        <app-president-signature-settings />
+    }
 
     @if (technicalId() && !correspondenceLoaded() && !correspondenceLoadError()) {
         <p role="status">{{ translation.text().presidentReview.loadingDocuments }}</p>

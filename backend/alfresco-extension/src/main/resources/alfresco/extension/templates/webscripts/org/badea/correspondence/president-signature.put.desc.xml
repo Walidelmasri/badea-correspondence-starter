@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webscript>
+    <shortname>Register President signature</shortname>
+    <description>President-only registration of a private reusable signing mark.</description>
+    <url>/badea/president-signature</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>

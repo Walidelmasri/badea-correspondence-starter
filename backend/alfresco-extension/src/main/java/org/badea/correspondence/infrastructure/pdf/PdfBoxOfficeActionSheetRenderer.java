@@ -94,13 +94,17 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 float h = base.getMediaBox().getHeight();
                 try (PDPageContentStream canvas = new PDPageContentStream(document,base,
                         PDPageContentStream.AppendMode.APPEND,true,true)) {
-                    // The supplied Word template has a hard-coded 2026 date: remove it without
-                    // changing the original source, then fill the correspondence's actual date.
-                    erase(canvas,h,397,176,79,17);
+                    // Remove the template's hard-coded date without covering its printed label.
+                    // The printed date field is x=399..474, y=177..192 (PDF top-left points).
+                    erase(canvas,h,397,176,79,18);
                     String date = source.documentDate() == null ? "" : source.documentDate().format(DATE);
-                    // Original document date stays in its printed field, clear of the table border.
-                    outline(canvas,date,470,184,9,h,true);
-                    // Keep the template's "إلى السيد/" label and print actual recipient people.
+                    // Keep the value fully within the date row; the department table starts below y=197.
+                    outline(canvas,date,470,188,9,h,true);
+                    // The printed department/country dotted field is only x=301..384.
+                    // Clear these dots before writing the value, otherwise vector glyphs
+                    // overlay the template dots/labels and spill into adjacent fields.
+                    erase(canvas,h,301,161,85,16);
+                    // Keep the official "إلى السيد/" label and address department heads by title.
                     // An overlong recipient list is detailed on the annex, not written over the table.
                     String allNames = recipientHeader(to, printContext);
                     String header = allNames;
@@ -110,7 +114,10 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     outline(canvas,header,475,131,10,h,true);
                     outline(canvas,fitHeader(source.subject(),10,430),485,158,10,h,true);
                     outline(canvas,fitHeader(source.documentNumber(),9,120),471,173,9,h,true);
-                    outline(canvas,fitHeader(source.sourceText(),9,280),380,172,9,h,true);
+                    // Source/country is on the RIGHT of its printed caption, not
+                    // across the caption or into the date/number columns.
+                    String visibleSource = fitSourceField(source.sourceText());
+                    outline(canvas,visibleSource,382,173,sourceFieldFontSize(visibleSource),h,true);
                     for (DepartmentDirectoryEntry recipient : to) {
                         String key = normalize(recipient.nameArabic());
                         for (var marker : DEPARTMENTS.entrySet()) {
@@ -126,10 +133,20 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     for (int i = 0; i < Math.min(3, copy.size()); i++) {
                         outline(canvas, recipientName(copy.get(i)), 520, 687 + 17*i, 9, h, true);
                     }
-                    // Write directions and the President's actual vector handwriting
-                    // within the original form's الشرح area. Only genuine overflow
-                    // is handled by additional official-document pages.
-                    fillExplanation(canvas,h,plan);
+                    // Replace the template's dotted signature/date placeholders with
+                    // clean blank signing lines. A real signature and its actual signing
+                    // timestamp require an authenticated signing event; never fabricate
+                    // a signature or reuse the PDF generation date as the signing date.
+                    cleanSigningLines(canvas,h);
+                    // Write directions first: this renderer clears the printed شرح area.
+                    // Stamping before it would erase the upper half of a saved signature.
+                    fillExplanation(canvas,h,plan,printContext.presidentSignature() != null);
+                    if (printContext.presidentSignature() != null) {
+                        drawRegisteredSignature(canvas,h,printContext.presidentSignature());
+                        // This is the issuance date of the automatically stamped action sheet,
+                        // not a claim that the President manually signed it on this date.
+                        outline(canvas,printContext.generatedOn().format(DATE),540,615,9,h,true);
+                    }
                     // Distinct from the document's original date above; this is when
                     // the Office generated the immutable action-sheet artifact.
                     outline(canvas,"تاريخ إعداد ورقة الإجراء: " + printContext.generatedOn().format(DATE),
@@ -138,11 +155,11 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 // The official form is a single cover page when its actual fields fit.
                 // Additional pages are produced only for real overflow or material
                 // that is not represented on the printed cover, never unconditionally.
-                if (requiresContinuation(plan, to, copy)
+                if (requiresContinuation(plan, to, copy, printContext.presidentSignature() != null)
                         || textWidth(recipientHeader(to, printContext), 10) > 395
                         || textWidth(source.subject(), 10) > 430
                         || textWidth(source.documentNumber(), 9) > 120
-                        || textWidth(source.sourceText(), 9) > 280) {
+                        || needsSourceAnnex(source.sourceText())) {
                     appendAnnex(document,source,plan,to,copy,printContext);
                 }
                 // The first ink page is already included in الشرح on the cover.
@@ -164,8 +181,44 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
      * Place the President's signed-off directions in the actual شرح field.
      * Standalone handwriting remains stored in Alfresco as independent audit evidence.
      */
+    private static void cleanSigningLines(PDPageContentStream canvas, float pageHeight)
+            throws IOException {
+        // Preserve the original labels: التوقيع at x=509..544 (y=586..601),
+        // التاريخ at x=380..418 (y=602..618).
+        erase(canvas,pageHeight,341,583,167,19);
+        erase(canvas,pageHeight,420,600,126,19);
+        canvas.setStrokingColor(0.28f,0.32f,0.32f);
+        canvas.setLineWidth(0.65f);
+        canvas.moveTo(349,pageHeight-600);
+        canvas.lineTo(496,pageHeight-600);
+        canvas.moveTo(423,pageHeight-617);
+        canvas.lineTo(541,pageHeight-617);
+        canvas.stroke();
+        canvas.setStrokingColor(0f,0f,0f);
+    }
+
+    /** Vector mark copied only into newly issued PDFs; generated artifacts remain immutable. */
+    private static void drawRegisteredSignature(PDPageContentStream canvas, float pageHeight,
+            org.badea.correspondence.application.PresidentSignatureDrawing signature) throws IOException {
+        canvas.saveGraphicsState();
+        canvas.setLineWidth(1.5f);
+        canvas.setLineCapStyle(1);
+        canvas.setStrokingColor(0.07f,0.13f,0.18f);
+        for (var stroke : signature.strokes()) {
+            boolean first = true;
+            for (var p : stroke) {
+                float x = 352 + p.x() * 142f;
+                float y = pageHeight - (559 + p.y() * 38f);
+                if (first) { canvas.moveTo(x,y); first = false; }
+                else canvas.lineTo(x,y);
+            }
+            canvas.stroke();
+        }
+        canvas.restoreGraphicsState();
+    }
+
     private static void fillExplanation(PDPageContentStream canvas, float pageHeight,
-            OfficeDistributionPlan plan) throws IOException {
+            OfficeDistributionPlan plan, boolean signed) throws IOException {
         List<List<PresidentInkReview.Stroke>> handwritten = plan.explanationInkPages();
         boolean hasInk = handwritten.stream().anyMatch(page -> !page.isEmpty());
         String typed = plan.presidentDirections();
@@ -187,21 +240,21 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
             PdfBoxPresidentPdfRenderer.draw(canvas, new PDRectangle(x,y,width,height),first);
             // Extra ink pages, if present, follow within the same action-sheet PDF.
             if (typed != null && !typed.isBlank()) {
-                outline(canvas,"شرح إضافي مكتوب في الملحق",484,579,8,pageHeight,true);
+                outline(canvas,"شرح إضافي مكتوب في الملحق",signed ? 335 : 484,579,8,pageHeight,true);
             }
         } else {
             // Respect the limited first-page field; the annex contains every
             // character of the typed text, with no silent truncation.
-            List<String> lines = wrap(typed,56);
+            List<String> lines = wrap(typed,signed ? 33 : 56);
             for (int i = 0; i < Math.min(3,lines.size()); i++) {
-                outline(canvas,lines.get(i),483,533+19*i,10,pageHeight,true);
+                outline(canvas,lines.get(i),signed ? 335 : 483,533+19*i,10,pageHeight,true);
             }
-            if (lines.size()>3) outline(canvas,"التتمة في الملحق",480,583,8,pageHeight,true);
+            if (lines.size()>3) outline(canvas,"التتمة في الملحق",signed ? 335 : 480,583,8,pageHeight,true);
         }
     }
 
     private static boolean requiresContinuation(OfficeDistributionPlan plan,
-            List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy) {
+            List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy, boolean signed) {
         if (copy.size() > 3 || copy.stream().anyMatch(entry -> recipientName(entry).length() > 60)
                 || !plan.officeDirections().isBlank()
                 || !plan.administrativeNotes().isBlank()
@@ -213,7 +266,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         }
         boolean ink = plan.explanationInkPages().stream().anyMatch(page -> !page.isEmpty());
         String typed = plan.presidentDirections();
-        return ink ? !typed.isBlank() : wrap(typed,56).size() > 3;
+        return ink ? !typed.isBlank() : wrap(typed,signed ? 33 : 56).size() > 3;
     }
 
     private static void appendHandwrittenExplanation(PDDocument document,
@@ -294,12 +347,33 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
 
     private static String recipientDisplay(DepartmentDirectoryEntry recipient,
             OfficeActionSheetPrintContext context) {
-        String name = context.directorNames().get(recipient.code());
-        // Honest fallback: a role/department title, explicitly not a personal name.
-        if (name != null && !name.isBlank()) return name;
+        // The official action sheet addresses the head of the department by title.
+        // Personal manager names are deliberately never printed here.
         String department = recipientName(recipient);
         // Not every addressed unit is formally a department headed by a Director.
         return department.startsWith("إدارة ") ? "مدير " + department : "المسؤول عن " + department;
+    }
+
+    // The original form allocates just 85pt to the source/country value.
+    // A slightly smaller font keeps normal department names on the cover,
+    // without extending into the neighbouring captions or date/table.
+    private static final float SOURCE_FIELD_WIDTH = 78f;
+    private static final float SOURCE_FIELD_FONT_MAX = 9f;
+    private static final float SOURCE_FIELD_FONT_MIN = 7f;
+
+    static boolean needsSourceAnnex(String text) {
+        return textWidth(text, SOURCE_FIELD_FONT_MIN) > SOURCE_FIELD_WIDTH;
+    }
+
+    static String fitSourceField(String text) {
+        return needsSourceAnnex(text) ? "في الملحق" : text;
+    }
+
+    static float sourceFieldFontSize(String text) {
+        float width = textWidth(text, SOURCE_FIELD_FONT_MAX);
+        if (width <= SOURCE_FIELD_WIDTH) return SOURCE_FIELD_FONT_MAX;
+        return Math.max(SOURCE_FIELD_FONT_MIN,
+                SOURCE_FIELD_FONT_MAX * SOURCE_FIELD_WIDTH / width);
     }
 
     private static String fitHeader(String text, float size, float maxWidth) {
@@ -345,8 +419,11 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         float x=p[0],y=pageHeight-p[1];
         canvas.setLineWidth(1.5f);
         // All three vertices sit within the printed checkbox boundaries.
-        canvas.moveTo(x+3,y);canvas.lineTo(x+8,y-5);
-        canvas.moveTo(x+8,y-5);canvas.lineTo(x+15,y+4);
+        // Coordinates in DEPARTMENTS/ACTIONS are at the printed checkbox's
+        // middle-left. Keep all three check vertices inside that 11-14pt box;
+        // the previous final vertex extended above some original blue borders.
+        canvas.moveTo(x+3,y-1);canvas.lineTo(x+8,y-4);
+        canvas.lineTo(x+15,y+1);
         canvas.stroke();
     }
     private static void erase(PDPageContentStream canvas,float h,float x,float y,float w,float height) throws IOException {

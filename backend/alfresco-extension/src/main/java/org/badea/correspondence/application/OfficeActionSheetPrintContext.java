@@ -7,7 +7,12 @@ import org.badea.correspondence.directory.DepartmentCode;
 
 /** Snapshot used only to generate this immutable official PDF. */
 public record OfficeActionSheetPrintContext(LocalDate generatedOn,
-        Map<DepartmentCode, String> directorNames) {
+        Map<DepartmentCode, String> directorNames,
+        PresidentSignatureDrawing presidentSignature) {
+    public OfficeActionSheetPrintContext(LocalDate generatedOn, Map<DepartmentCode, String> directorNames) {
+        this(generatedOn, directorNames, null);
+    }
+
     public OfficeActionSheetPrintContext {
         Objects.requireNonNull(generatedOn, "generatedOn");
         directorNames = Map.copyOf(Objects.requireNonNull(directorNames, "directorNames"));

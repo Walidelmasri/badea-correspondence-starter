@@ -53,6 +53,16 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
               ) = ?
         """;
 
+    private static final String FIND_ACTIVE_BY_EMPLOYEE_ID_SQL = """
+        SELECT e.EMP_ID AS EMPLOYEE_ID, e.USERID AS DIRECTORY_USER_ID,
+               e.NAME_ENG AS EMPLOYEE_NAME_ENGLISH, e.NAME_ARABIC AS EMPLOYEE_NAME_ARABIC,
+               e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE, d.DEPARTMENT_CODE AS DEPARTMENT_CODE,
+               d.NAME AS DEPARTMENT_NAME_ENGLISH, d.NAME_ARABIC AS DEPARTMENT_NAME_ARABIC
+        FROM BADEA_ADDONS.EMPLOYEES e
+        LEFT JOIN BADEA_ADDONS.COR_DEPARTMENTS d ON d.DEPARTMENT_CODE = e.DEPT_CODE
+        WHERE e.ACTIVE = 1 AND e.EMP_ID = ?
+        """;
+
     private static final String SEARCH_ACTIVE_SQL = """
         SELECT e.EMP_ID AS EMPLOYEE_ID, e.USERID AS DIRECTORY_USER_ID,
                e.NAME_ENG AS EMPLOYEE_NAME_ENGLISH, e.NAME_ARABIC AS EMPLOYEE_NAME_ARABIC,
@@ -118,6 +128,29 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
                 "Failed to query the employee directory.",
                 exception
             );
+        }
+    }
+
+    @Override
+    public Optional<EmployeeDirectoryEntry> findActiveByEmployeeId(EmployeeId employeeId) {
+        Objects.requireNonNull(employeeId, "employeeId");
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(FIND_ACTIVE_BY_EMPLOYEE_ID_SQL)) {
+            statement.setString(1, employeeId.value());
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next()) return Optional.empty();
+                String account = rows.getString("DIRECTORY_USER_ID");
+                if (account == null || account.isBlank()) return Optional.empty();
+                DirectoryUsername username = new DirectoryUsername(account);
+                if (!username.value().matches("[a-z0-9][a-z0-9._-]{0,63}")) return Optional.empty();
+                EmployeeDirectoryEntry entry = mapEmployee(rows, username);
+                if (!employeeId.equals(entry.employeeId()) || rows.next()) {
+                    throw new EmployeeDirectoryException("Ambiguous employee ID in Oracle directory");
+                }
+                return Optional.of(entry);
+            }
+        } catch (SQLException failure) {
+            throw new EmployeeDirectoryException("Failed to resolve active employee by ID", failure);
         }
     }
 

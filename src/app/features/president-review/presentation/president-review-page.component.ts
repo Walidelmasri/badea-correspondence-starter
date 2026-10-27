@@ -69,6 +69,8 @@ import {
   PresidentReviewRequiredActionCode,
 } from '../domain/president-review-state.model';
 
+import { PresidentSignatureSettingsComponent } from './president-signature-settings/president-signature-settings.component';
+
 import {
   PresidentExplanationInkComponent,
 } from './president-explanation-ink/president-explanation-ink.component';
@@ -94,6 +96,7 @@ interface RequiredActionOption {
   imports: [
     PdfWorkspaceComponent,
     PresidentExplanationInkComponent,
+    PresidentSignatureSettingsComponent,
     CorrespondenceSummaryComponent,
   ],
   templateUrl: './president-review-page.component.html',

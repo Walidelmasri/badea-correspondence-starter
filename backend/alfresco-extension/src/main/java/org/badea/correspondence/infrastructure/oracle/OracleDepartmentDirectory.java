@@ -37,6 +37,37 @@ public final class OracleDepartmentDirectory
             WHERE DEPARTMENT_CODE = ?
             """;
 
+    private static final String SELECT_ACTIVE_HEAD_SQL = """
+            SELECT DEPT_MANAGER_ID
+            FROM BADEA_ADDONS.COR_DEPARTMENTS
+            WHERE DEPARTMENT_CODE = ? AND STATUS = 'A'
+            """;
+
+    @Override
+    public java.util.Optional<org.badea.correspondence.directory.EmployeeId> findActiveManagerEmployeeId(
+            DepartmentCode code) {
+        Objects.requireNonNull(code, "code");
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_ACTIVE_HEAD_SQL)) {
+            statement.setString(1, code.value());
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next()) return java.util.Optional.empty();
+                String rawId = rows.getString("DEPT_MANAGER_ID");
+                if (rows.next()) {
+                    throw new DepartmentDirectoryException("Multiple active managers for department " + code.value());
+                }
+                if (rawId == null || rawId.isBlank()) return java.util.Optional.empty();
+                try {
+                    return java.util.Optional.of(new org.badea.correspondence.directory.EmployeeId(rawId.trim()));
+                } catch (IllegalArgumentException invalid) {
+                    throw new DepartmentDirectoryException("Invalid active manager ID for department " + code.value(), invalid);
+                }
+            }
+        } catch (SQLException failure) {
+            throw new DepartmentDirectoryException("Failed to resolve active department manager", failure);
+        }
+    }
+
     private final DataSource dataSource;
 
     public OracleDepartmentDirectory(

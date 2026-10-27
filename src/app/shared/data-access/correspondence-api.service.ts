@@ -221,6 +221,24 @@ export class CorrespondenceApiService {
     inject(HttpClient);
 
 
+  getPresidentSignatureStatus(): Observable<{
+    readonly configured: boolean; readonly revision: number; readonly updatedAt: string | null;
+  }> {
+    return this.http.get<{configured: boolean; revision: number; updatedAt: string | null}>(
+      '/alfresco/service/badea/president-signature',
+    );
+  }
+
+  registerPresidentSignature(payload: {
+    readonly expectedRevision: number;
+    readonly authorizeReuse: boolean;
+    readonly drawing: { readonly schemaVersion: 1; readonly strokes: readonly (readonly (readonly number[])[])[] };
+  }): Observable<{configured: boolean; revision: number; updatedAt: string | null}> {
+    return this.http.put<{configured: boolean; revision: number; updatedAt: string | null}>(
+      '/alfresco/service/badea/president-signature', payload,
+    );
+  }
+
   searchShareRecipients(query: string): Observable<{ readonly employees: readonly ShareEmployeeResult[] }> {
     return this.http.get<{ readonly employees: readonly ShareEmployeeResult[] }>(
       `/alfresco/service/badea/correspondence-share/recipients?q=${encodeURIComponent(query)}`,

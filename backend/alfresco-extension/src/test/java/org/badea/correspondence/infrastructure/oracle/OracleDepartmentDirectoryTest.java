@@ -204,6 +204,27 @@ class OracleDepartmentDirectoryTest {
     }
 
     @Test
+    void resolvesActiveManagerByCorrespondenceDepartment() throws SQLException {
+        when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getString("DEPT_MANAGER_ID")).thenReturn("17258");
+        var manager = directory.findActiveManagerEmployeeId(new DepartmentCode("117"));
+        assertEquals("17258", manager.orElseThrow().value());
+        verify(statement).setString(1, "117");
+    }
+
+    @Test
+    void refusesAmbiguousManagerMappings() throws SQLException {
+        when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true, true);
+        when(resultSet.getString("DEPT_MANAGER_ID")).thenReturn("17258");
+        assertThrows(DepartmentDirectoryException.class,
+                () -> directory.findActiveManagerEmployeeId(new DepartmentCode("117")));
+    }
+
+    @Test
     void convertsSqlFailureToDepartmentDirectoryException()
             throws SQLException {
 

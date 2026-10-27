@@ -269,6 +269,29 @@ class OracleEmployeeDirectoryTest {
     }
 
     @Test
+    void resolvesActiveManagerByEmployeeIdUsingCanonicalDirectoryAccount() throws SQLException {
+        JdbcFixture jdbc = createJdbcFixture();
+        when(jdbc.resultSet().next()).thenReturn(true, false);
+        when(jdbc.resultSet().getString("DIRECTORY_USER_ID")).thenReturn("manager.117@badea.org");
+        stubEmployee(jdbc.resultSet(), "17258", "Manager", "المدير", "117", "117",
+                "Digital Transformation", "إدارة التحول الرقمي");
+        var found = new OracleEmployeeDirectory(jdbc.dataSource())
+                .findActiveByEmployeeId(new org.badea.correspondence.directory.EmployeeId("17258"));
+        assertTrue(found.isPresent());
+        assertEquals("manager.117", found.orElseThrow().username().value());
+        verify(jdbc.statement()).setString(1, "17258");
+    }
+
+    @Test
+    void missingOrInactiveManagerLookupDoesNotGuessIdentity() throws SQLException {
+        JdbcFixture jdbc = createJdbcFixture();
+        when(jdbc.resultSet().next()).thenReturn(false);
+        assertTrue(new OracleEmployeeDirectory(jdbc.dataSource())
+                .findActiveByEmployeeId(new org.badea.correspondence.directory.EmployeeId("17258"))
+                .isEmpty());
+    }
+
+    @Test
     void rejectsNullDataSource() {
         assertThrows(
                 NullPointerException.class,
