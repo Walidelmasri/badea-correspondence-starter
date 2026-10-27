@@ -48,6 +48,11 @@ class PdfBoxOfficeActionSheetRendererTest {
         assertEquals("Digital Transformation", PdfBoxOfficeActionSheetRenderer.fitSourceField(
                 "Digital Transformation"));
         assertFalse(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex("Digital Transformation"));
+        assertEquals("Digital Transformation", String.join(" ",
+                PdfBoxOfficeActionSheetRenderer.sourceFieldLines("Digital Transformation")));
+        assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldLines(
+                "Digital Transformation").size() <= 2);
+        assertFalse(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex("إدارة التحول الرقمي"));
         assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldFontSize(
                 "Digital Transformation") >= 7f);
         assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldFontSize(

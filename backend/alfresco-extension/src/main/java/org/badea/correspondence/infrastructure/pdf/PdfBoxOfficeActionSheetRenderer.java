@@ -103,7 +103,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     // The printed department/country dotted field is only x=301..384.
                     // Clear these dots before writing the value, otherwise vector glyphs
                     // overlay the template dots/labels and spill into adjacent fields.
-                    erase(canvas,h,301,161,85,16);
+                    erase(canvas,h,301,158,85,21);
                     // Keep the official "إلى السيد/" label and address department heads by title.
                     // An overlong recipient list is detailed on the annex, not written over the table.
                     String allNames = recipientHeader(to, printContext);
@@ -116,8 +116,15 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     outline(canvas,fitHeader(source.documentNumber(),9,120),471,173,9,h,true);
                     // Source/country is on the RIGHT of its printed caption, not
                     // across the caption or into the date/number columns.
-                    String visibleSource = fitSourceField(source.sourceText());
-                    outline(canvas,visibleSource,382,173,sourceFieldFontSize(visibleSource),h,true);
+                    SourceFieldLayout sourceField = layoutSourceField(source.sourceText());
+                    if (sourceField.lines().size() == 1) {
+                        outline(canvas,sourceField.lines().get(0),382,173,sourceField.fontSize(),h,true);
+                    } else {
+                        // Two compact lines fit inside the existing country/department value
+                        // rectangle; neither can cross the neighbouring printed captions.
+                        outline(canvas,sourceField.lines().get(0),382,166,sourceField.fontSize(),h,true);
+                        outline(canvas,sourceField.lines().get(1),382,175,sourceField.fontSize(),h,true);
+                    }
                     for (DepartmentDirectoryEntry recipient : to) {
                         String key = normalize(recipient.nameArabic());
                         for (var marker : DEPARTMENTS.entrySet()) {
@@ -354,26 +361,68 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         return department.startsWith("إدارة ") ? "مدير " + department : "المسؤول عن " + department;
     }
 
-    // The original form allocates just 85pt to the source/country value.
-    // A slightly smaller font keeps normal department names on the cover,
-    // without extending into the neighbouring captions or date/table.
+    // The preprinted value box is x=301..384 and y=158..179. Adapt to the
+    // actual JVM font metrics: one line when possible, otherwise two short
+    // lines; generate an annex only when neither bounded layout fits.
     private static final float SOURCE_FIELD_WIDTH = 78f;
     private static final float SOURCE_FIELD_FONT_MAX = 9f;
     private static final float SOURCE_FIELD_FONT_MIN = 7f;
+    private static final String SOURCE_FIELD_ANNEX = "في الملحق";
+
+    private record SourceFieldLayout(List<String> lines, float fontSize, boolean annex) {}
+
+    private static SourceFieldLayout layoutSourceField(String text) {
+        String value = text == null ? "" : text.strip();
+        if (value.isEmpty()) return new SourceFieldLayout(List.of(""),SOURCE_FIELD_FONT_MAX,false);
+        float width = textWidth(value,SOURCE_FIELD_FONT_MAX);
+        if (width <= SOURCE_FIELD_WIDTH) {
+            return new SourceFieldLayout(List.of(value),SOURCE_FIELD_FONT_MAX,false);
+        }
+        // Leave a small margin so font rounding does not cross the value box.
+        float singleSize = SOURCE_FIELD_FONT_MAX * (SOURCE_FIELD_WIDTH - 1f) / width;
+        if (singleSize >= SOURCE_FIELD_FONT_MIN) {
+            return new SourceFieldLayout(List.of(value),singleSize,false);
+        }
+        for (float size : new float[] {8f, SOURCE_FIELD_FONT_MIN}) {
+            List<String> lines = sourceFieldWrap(value,size);
+            if (!lines.isEmpty()) return new SourceFieldLayout(lines,size,false);
+        }
+        return new SourceFieldLayout(List.of(SOURCE_FIELD_ANNEX),SOURCE_FIELD_FONT_MAX,true);
+    }
+
+    private static List<String> sourceFieldWrap(String value, float fontSize) {
+        var lines = new java.util.ArrayList<String>();
+        StringBuilder line = new StringBuilder();
+        for (String word : value.split("\\s+")) {
+            if (textWidth(word,fontSize) > SOURCE_FIELD_WIDTH - 1f) return List.of();
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (textWidth(candidate,fontSize) > SOURCE_FIELD_WIDTH - 1f) {
+                if (line.isEmpty()) return List.of();
+                lines.add(line.toString());
+                if (lines.size() >= 2) return List.of();
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(candidate);
+            }
+        }
+        if (!line.isEmpty()) lines.add(line.toString());
+        return List.copyOf(lines);
+    }
 
     static boolean needsSourceAnnex(String text) {
-        return textWidth(text, SOURCE_FIELD_FONT_MIN) > SOURCE_FIELD_WIDTH;
+        return layoutSourceField(text).annex();
     }
 
     static String fitSourceField(String text) {
-        return needsSourceAnnex(text) ? "في الملحق" : text;
+        return needsSourceAnnex(text) ? SOURCE_FIELD_ANNEX : text;
     }
 
     static float sourceFieldFontSize(String text) {
-        float width = textWidth(text, SOURCE_FIELD_FONT_MAX);
-        if (width <= SOURCE_FIELD_WIDTH) return SOURCE_FIELD_FONT_MAX;
-        return Math.max(SOURCE_FIELD_FONT_MIN,
-                SOURCE_FIELD_FONT_MAX * SOURCE_FIELD_WIDTH / width);
+        return layoutSourceField(text).fontSize();
+    }
+
+    static List<String> sourceFieldLines(String text) {
+        return layoutSourceField(text).lines();
     }
 
     private static String fitHeader(String text, float size, float maxWidth) {
