@@ -350,6 +350,53 @@ describe('AuthService', () => {
     expect(session.ticket()).toBeNull();
   });
 
+  it('bounds a stalled employee profile without treating it as forbidden', () => {
+    vi.useFakeTimers();
+    try {
+      const error = vi.fn();
+      service.login({ userId: 'test.user', password: 'password' })
+        .subscribe({ error });
+
+      http.expectOne(ALFRESCO_TICKETS_URL).flush({
+        entry: { id: 'TICKET_stalled', userId: 'test.user' },
+      });
+      http.expectOne(ALFRESCO_CURRENT_USER_URL).flush({ entry: currentUser });
+      const pending = http.expectOne(BADEA_CURRENT_EMPLOYEE_URL);
+
+      vi.advanceTimersByTime(18_000);
+
+      expect(pending.cancelled).toBe(true);
+      expect(error).toHaveBeenCalledOnce();
+      expect(error.mock.calls[0][0]).toMatchObject({ status: 503 });
+      expect(service.accessDenied()).toBe(false);
+      expect(session.currentUser()).toBeNull();
+      expect(session.ticket()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops restoring an old ticket if the employee profile stalls', () => {
+    vi.useFakeTimers();
+    try {
+      const next = vi.fn();
+      session.setTicket('TICKET_previous');
+      service.ensureAuthenticated().subscribe(next);
+      http.expectOne(ALFRESCO_CURRENT_USER_URL).flush({ entry: currentUser });
+      const pending = http.expectOne(BADEA_CURRENT_EMPLOYEE_URL);
+
+      vi.advanceTimersByTime(18_000);
+
+      expect(pending.cancelled).toBe(true);
+      expect(next).toHaveBeenCalledWith(false);
+      expect(service.accessDenied()).toBe(false);
+      expect(session.ticket()).toBeNull();
+      expect(session.isAuthenticated()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('invalidates the Alfresco ticket and clears the local session on logout', () => {
     const complete = vi.fn();
 

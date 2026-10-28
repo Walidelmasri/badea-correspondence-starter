@@ -1,6 +1,7 @@
 package org.badea.correspondence.infrastructure.oracle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import oracle.ucp.jdbc.PoolDataSource;
@@ -32,6 +33,14 @@ class OracleEmployeeDirectoryDataSourceFactoryTest {
             "STRATEGYKPI",
             dataSource.getUser()
         );
+
+        assertEquals("5000ms", dataSource.getConnectionProperty(
+            "oracle.net.CONNECT_TIMEOUT"));
+        assertEquals("10000", dataSource.getConnectionProperty(
+            "oracle.jdbc.ReadTimeout"));
+        assertTrue(dataSource.getValidateConnectionOnBorrow());
+        assertEquals(3, dataSource.getConnectionValidationTimeout());
+        assertEquals(5, dataSource.getConnectionWaitTimeout());
     }
 
     @Test

@@ -44,6 +44,7 @@ class OracleEmployeeDirectoryTest {
 
         verify(jdbc.statement())
                 .setString(1, "adil.amin");
+        verify(jdbc.statement()).setQueryTimeout(8);
     }
 
     @Test

@@ -19,6 +19,8 @@ import {
   switchMap,
   tap,
   throwError,
+  timeout,
+  TimeoutError,
 } from 'rxjs';
 
 import {
@@ -230,7 +232,21 @@ export class AuthService {
 
   private loadEmployeeProfile(): Observable<EmployeeProfile> {
     // A directory or role-lookup failure is never a successful login.
-    return this.http.get<EmployeeProfile>(BADEA_CURRENT_EMPLOYEE_URL);
+    // Unsubscribe from a stalled request instead of waiting for Nginx's 504.
+    // Alfresco group authorization is still mandatory on the backend.
+    return this.http.get<EmployeeProfile>(BADEA_CURRENT_EMPLOYEE_URL).pipe(
+      timeout({ first: 18_000 }),
+      catchError((error: unknown) => {
+        if (error instanceof TimeoutError) {
+          return throwError(() => new HttpErrorResponse({
+            status: 503,
+            statusText: 'Employee directory timed out',
+            url: BADEA_CURRENT_EMPLOYEE_URL,
+          }));
+        }
+        return throwError(() => error);
+      }),
+    );
   }
 }
 

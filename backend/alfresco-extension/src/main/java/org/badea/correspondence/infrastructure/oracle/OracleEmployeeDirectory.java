@@ -6,8 +6,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
@@ -25,6 +29,12 @@ import org.badea.correspondence.directory.EmployeeId;
  * directory and returns the canonical EMP_ID and employee metadata.</p>
  */
 public final class OracleEmployeeDirectory implements EmployeeDirectory {
+
+    private static final Log LOGGER =
+        LogFactory.getLog(OracleEmployeeDirectory.class);
+
+    private static final int LOOKUP_QUERY_TIMEOUT_SECONDS = 8;
+    private static final long SLOW_LOOKUP_MILLIS = 2_000;
 
     private static final String FIND_ACTIVE_BY_USERNAME_SQL = """
         SELECT
@@ -98,36 +108,56 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
             "Directory username must not be null."
         );
 
+        long startedNanos = System.nanoTime();
+        long connectionAcquiredNanos = 0;
+
         try (
-            Connection connection = dataSource.getConnection();
-            PreparedStatement statement =
-                connection.prepareStatement(FIND_ACTIVE_BY_USERNAME_SQL)
+            Connection connection = dataSource.getConnection()
         ) {
-            statement.setString(1, username.value());
+            connectionAcquiredNanos = System.nanoTime();
 
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (!resultSet.next()) {
-                    return Optional.empty();
+            try (PreparedStatement statement =
+                    connection.prepareStatement(FIND_ACTIVE_BY_USERNAME_SQL)) {
+                statement.setQueryTimeout(LOOKUP_QUERY_TIMEOUT_SECONDS);
+                statement.setString(1, username.value());
+
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (!resultSet.next()) {
+                        return Optional.empty();
+                    }
+
+                    EmployeeDirectoryEntry employee =
+                        mapEmployee(resultSet, username);
+
+                    if (resultSet.next()) {
+                        throw new EmployeeDirectoryException(
+                            "Multiple active employee directory entries were "
+                                + "found for username: "
+                                + username.value()
+                        );
+                    }
+
+                    return Optional.of(employee);
                 }
-
-                EmployeeDirectoryEntry employee =
-                    mapEmployee(resultSet, username);
-
-                if (resultSet.next()) {
-                    throw new EmployeeDirectoryException(
-                        "Multiple active employee directory entries were "
-                            + "found for username: "
-                            + username.value()
-                    );
-                }
-
-                return Optional.of(employee);
             }
         } catch (SQLException exception) {
             throw new EmployeeDirectoryException(
                 "Failed to query the employee directory.",
                 exception
             );
+        } finally {
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(
+                System.nanoTime() - startedNanos
+            );
+            if (elapsedMillis >= SLOW_LOOKUP_MILLIS) {
+                long borrowMillis = connectionAcquiredNanos == 0
+                    ? elapsedMillis
+                    : TimeUnit.NANOSECONDS.toMillis(
+                        connectionAcquiredNanos - startedNanos
+                    );
+                LOGGER.warn("Oracle employee lookup was slow; totalMs="
+                    + elapsedMillis + ", connectionBorrowMs=" + borrowMillis);
+            }
         }
     }
 

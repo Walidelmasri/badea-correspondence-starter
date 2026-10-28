@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.sql.SQLTimeoutException;
 import java.util.Optional;
 
 import org.badea.correspondence.application.CurrentEmployeeService;
@@ -13,6 +14,7 @@ import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
+import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
@@ -125,6 +127,22 @@ class CurrentEmployeeWebScriptTest {
         verify(response).setStatus(Status.STATUS_FORBIDDEN);
         assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
         verify(employeeService, never()).getCurrentEmployee();
+    }
+
+    @Test
+    void treatsOracleTimeoutAsTemporaryFailureInsteadOfForbidden()
+            throws IOException {
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.DIRECTOR);
+        when(employeeService.getCurrentEmployee())
+                .thenThrow(new EmployeeDirectoryException(
+                        "Database read timed out.",
+                        new SQLTimeoutException("Read timed out.")));
+
+        JSONObject result = execute();
+
+        verify(response).setStatus(Status.STATUS_SERVICE_UNAVAILABLE);
+        assertEquals("EMPLOYEE_DIRECTORY_UNAVAILABLE", result.getString("code"));
     }
 
     private JSONObject execute() throws IOException {

@@ -62,6 +62,19 @@ public final class OracleEmployeeDirectoryDataSourceFactory {
              */
             dataSource.setPassword(validatedPassword);
 
+            // Avoid indefinitely blocked Oracle Thin socket reads, including
+            // stale pooled connections after a network interruption.
+            dataSource.setConnectionProperty(
+                "oracle.net.CONNECT_TIMEOUT", "5000ms"
+            );
+            dataSource.setConnectionProperty(
+                "oracle.jdbc.ReadTimeout", "10000"
+            );
+
+            dataSource.setValidateConnectionOnBorrow(true);
+            dataSource.setConnectionValidationTimeout(3);
+            dataSource.setConnectionWaitTimeout(5);
+
             return dataSource;
         } catch (SQLException exception) {
             throw new IllegalStateException(
