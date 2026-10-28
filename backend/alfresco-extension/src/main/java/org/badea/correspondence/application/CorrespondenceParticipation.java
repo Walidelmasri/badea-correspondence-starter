@@ -20,7 +20,7 @@ public record CorrespondenceParticipation(
         Objects.requireNonNull(actedAt);
     }
 
-    /** Office and President are institutional roles; Director deliveries are departmental. */
+    /** Incoming Office and President deliveries are shared by role; Director deliveries are departmental. */
     public boolean receivedBy(CorrespondenceActorRole role, DepartmentCode department) {
         return role == targetRole && (role != CorrespondenceActorRole.DIRECTOR
                 || (department != null && department.equals(targetDepartment)));
@@ -28,8 +28,8 @@ public record CorrespondenceParticipation(
 
     public boolean sentBy(CorrespondenceActorRole role, String employeeId) {
         if (actorRole != role) return false;
-        // The President's Office is an institutional mailbox shared by authorized Office members.
-        if (role == CorrespondenceActorRole.PRESIDENT_OFFICE) return true;
+        // Sent is personal for every role, including President's Office.
+        // The shared Office Inbox is determined by the target role, not by sent ownership.
         return employeeId != null && employeeId.equals(actorEmployeeId);
     }
 }

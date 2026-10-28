@@ -69,8 +69,10 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
-    void directorSentContainsSubmittedCorrespondenceFromOwnDepartment() {
-        var page = lister.list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, 0, 25);
+    void directorSentContainsOnlyTheirOwnSubmittedCorrespondence() {
+        action("10001", "DIRECTOR", "PRESIDENT_OFFICE", null);
+        var page = lister.list("sent", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "10001", "all", 0, 25);
         assertEquals(1, page.total());
         assertEquals("Subject", page.items().getFirst().subject());
         assertEquals("WITH_PRESIDENT_OFFICE", page.items().getFirst().state());
@@ -84,15 +86,36 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
-    void directorSentExcludesAnotherDepartment() {
-        prop("originDepartmentCode", "118");
-        assertEquals(0, lister.list("sent", CorrespondenceActorRole.DIRECTOR, DEPARTMENT, 0, 25).total());
+    void directorSentExcludesAnotherEmployeeEvenInSameDepartment() {
+        action("10002", "DIRECTOR", "PRESIDENT_OFFICE", null);
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "10001", "all", 0, 25).total());
+        assertEquals(1, lister.list("sent", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "10002", "all", 0, 25).total());
     }
 
     @Test
-    void officeInboxShowsAssignedOfficeCorrespondence() {
-        var page = lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE, null, 0, 25);
-        assertEquals(1, page.total());
+    void officeInboxIsSharedAcrossAuthorizedOfficeEmployees() {
+        prop("createdByCorrespondenceRole", "PRESIDENT_OFFICE");
+        prop("createdByEmployeeId", "10001");
+        for (String employeeId : List.of("10001", "10002")) {
+            assertEquals(1, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                    null, employeeId, "all", 0, 25).total());
+        }
+    }
+
+    @Test
+    void officeSentIsPersonalEvenThoughInboxIsShared() {
+        prop("createdByCorrespondenceRole", "PRESIDENT_OFFICE");
+        prop("createdByEmployeeId", "10001");
+        action("10001", "PRESIDENT_OFFICE", "PRESIDENT_OFFICE", null);
+        assertEquals(1, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10002", "all", 0, 25).total());
+        // The same item still appears in the shared Office Inbox for both.
+        assertEquals(1, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10002", "all", 0, 25).total());
     }
 
     @Test
@@ -203,8 +226,10 @@ class AlfrescoCorrespondenceMailboxListerTest {
                 null, "10001", "handled", 0, 25).total());
         assertEquals(1, all.total());
         assertFalse(all.items().getFirst().needsAction());
-        assertEquals(1, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
                 null, "10002", "all", 0, 25).total());
+        assertEquals(1, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "all", 0, 25).total());
     }
 
     @Test

@@ -11,8 +11,9 @@ class CorrespondenceParticipationTest {
         "10001", CorrespondenceActorRole.PRESIDENT_OFFICE,
         CorrespondenceActorRole.PRESIDENT, null, Instant.parse("2026-10-20T08:00:00Z"));
 
-    @Test void officeSentRemainsInstitutionallyVisible() {
-        assertTrue(officeToPresident.sentBy(CorrespondenceActorRole.PRESIDENT_OFFICE,"20002"));
+    @Test void officeSentIsPersonalWhileInboxDeliveryRemainsInstitutional() {
+        assertTrue(officeToPresident.sentBy(CorrespondenceActorRole.PRESIDENT_OFFICE,"10001"));
+        assertFalse(officeToPresident.sentBy(CorrespondenceActorRole.PRESIDENT_OFFICE,"20002"));
         assertTrue(officeToPresident.receivedBy(CorrespondenceActorRole.PRESIDENT,null));
         assertFalse(officeToPresident.receivedBy(CorrespondenceActorRole.DIRECTOR,
                 new DepartmentCode("117")));

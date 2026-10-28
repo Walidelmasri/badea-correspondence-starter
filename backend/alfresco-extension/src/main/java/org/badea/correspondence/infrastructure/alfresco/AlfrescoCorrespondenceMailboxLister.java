@@ -145,10 +145,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
             List<CorrespondenceParticipation> actions = participationReader.read(node);
             boolean received = directorReceived || actions.stream().anyMatch(a -> a.receivedBy(role, department));
             boolean sent = actions.stream().anyMatch(a -> a.sentBy(role, employeeId));
-            // Director Sent has historically been departmental; retain that scope.
-            if (role == CorrespondenceActorRole.DIRECTOR && department != null
-                    && department.value().equals(origin) && state != CorrespondenceState.DRAFT)
-                sent = true;
+            // Sent is based on actual authenticated employee participation for every
+            // role. Institutional/departmental delivery remains shared in Inbox only.
 
             boolean included = switch (box) {
                 case "inbox" -> active || received;

@@ -13,6 +13,22 @@ const returned: CorrespondenceHistoryEntry = {
 };
 
 describe('Office first-handoff eligibility', () => {
+  it('allows any authorized Office member to forward Office-created Inbox correspondence', () => {
+    const officeOrigin: CorrespondenceHistoryEntry = {
+      ...initial, actorRole: 'PRESIDENT_OFFICE',
+    };
+    expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE', [officeOrigin])).toBe(true);
+    // Only the actual sender can see the item in personal Sent (server-enforced).
+    expect(eligible('sent', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE', [officeOrigin])).toBe(true);
+    expect(eligible('inbox', 'DIRECTOR', 'WITH_PRESIDENT_OFFICE', [officeOrigin])).toBe(false);
+    expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT', [officeOrigin])).toBe(false);
+  });
+  it('rejects an unrelated Office-origin event', () => {
+    const officeOrigin: CorrespondenceHistoryEntry = {
+      ...initial, actorRole: 'PRESIDENT_OFFICE', fromState: 'WITH_DIRECTOR',
+    };
+    expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE', [officeOrigin])).toBe(false);
+  });
   it('allows Office Inbox after Director sends it', () => {
     expect(eligible('inbox', 'PRESIDENT_OFFICE', 'WITH_PRESIDENT_OFFICE', [initial])).toBe(true);
   });
