@@ -12,6 +12,8 @@ import java.util.Set;
 import java.util.List;
 
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
+import org.alfresco.service.cmr.security.AuthorityService;
+import org.badea.correspondence.security.AuthenticatedUserProvider;
 
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentCode;
@@ -131,6 +133,108 @@ class CurrentEmployeeWebScriptTest {
                         new DepartmentCode("101"), "Office of President", null, "MANAGER")));
         webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
         assertEquals(0, execute().getJSONArray("managerWorkspaces").length());
+    }
+
+    @Test
+    void tarasolCustomAdminGroupIsVisibleWithoutAlfrescoAdministratorFlag() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of("GROUP_BADEA_TARASOL_ADMINS", "GROUP_BADEA_CORRESPONDENCE_DIRECTORS"));
+        when(roleResolver.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.DIRECTOR);
+        webScript = new CurrentEmployeeWebScript(
+            employeeService, roleResolver, null, authority, identity);
+        assertTrue(execute().getBoolean("tarasolAdministrator"));
+    }
+
+    @Test
+    void ordinaryDirectorCannotSeeOrganizationAdminNavigation() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of("GROUP_BADEA_CORRESPONDENCE_DIRECTORS"));
+        when(roleResolver.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.DIRECTOR);
+        webScript = new CurrentEmployeeWebScript(
+            employeeService, roleResolver, null, authority, identity);
+        assertFalse(execute().getBoolean("tarasolAdministrator"));
+    }
+
+    @Test
+    void secretaryWithoutDirectorGroupReceivesOnlySecretaryWorkspace() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user")).thenReturn(Set.of());
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No workflow group"));
+        when(access.findCurrentSecretaryUnits(new EmployeeId("10001")))
+            .thenReturn(List.of(new org.badea.correspondence.organization.TarasolEffectiveAccessReader.SecretaryUnit(
+                "118", "Human Resources", null)));
+        webScript = new CurrentEmployeeWebScript(
+            employeeService, roleResolver, null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("SECRETARY", result.getString("correspondenceRole"));
+        assertEquals(1, result.getJSONArray("secretaryUnits").length());
+        assertEquals(0, result.getJSONArray("managerWorkspaces").length());
+    }
+
+    @Test
+    void delegateWithoutDirectorGroupOnlyReceivesScopedCaseNavigation() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user")).thenReturn(Set.of());
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No workflow group"));
+        when(access.findCurrentSecretaryUnits(new EmployeeId("10001"))).thenReturn(List.of());
+        when(access.findCurrentDelegationUnits(new EmployeeId("10001")))
+            .thenReturn(List.of(new org.badea.correspondence.organization.TarasolEffectiveAccessReader.SecretaryUnit(
+                "118", "Human Resources", null)));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("TARASOL_DELEGATE", result.getString("correspondenceRole"));
+        assertEquals(1, result.getJSONArray("delegationUnits").length());
+        assertEquals(0, result.getJSONArray("managerWorkspaces").length());
+        assertEquals(0, result.getJSONArray("secretaryUnits").length());
+    }
+
+    @Test
+    void adminOnlyGroupCanAccessOrganizationalAdminButNotMailboxes() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of("GROUP_BADEA_TARASOL_ADMINS"));
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No workflow group"));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, null);
+        JSONObject result = execute();
+        assertEquals("TARASOL_ADMIN", result.getString("correspondenceRole"));
+        assertTrue(result.getBoolean("tarasolAdministrator"));
+        assertEquals(0, result.getJSONArray("managerWorkspaces").length());
+    }
+
+    @Test
+    void ambiguousPresidentAndDirectorGroupsCannotBeRelabeledSecretary() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of("GROUP_BADEA_CORRESPONDENCE_PRESIDENT", "GROUP_BADEA_CORRESPONDENCE_DIRECTORS"));
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("Ambiguous workflow group"));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
+        verify(access, never()).findCurrentSecretaryUnits(any());
     }
 
     @Test

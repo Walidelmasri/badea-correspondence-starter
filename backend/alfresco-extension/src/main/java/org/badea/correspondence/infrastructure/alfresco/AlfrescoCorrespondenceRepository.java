@@ -1,9 +1,13 @@
 package org.badea.correspondence.infrastructure.alfresco;
 
-import java.io.Serializable;
 import java.sql.Date;
+
+import java.io.Serializable;
 import java.time.Clock;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -65,6 +69,9 @@ public final class AlfrescoCorrespondenceRepository
     private static final QName PROP_STATE =
             qname("state");
 
+    private static final QName PROP_SECRETARY_STATUS = qname("secretaryApprovalStatus");
+    private static final QName PROP_SECRETARY_OWNER = qname("secretaryOwnerEmployeeId");
+
     private static final QName PROP_ASSIGNED_ROLE =
             qname("assignedRole");
 
@@ -100,6 +107,7 @@ public final class AlfrescoCorrespondenceRepository
 
     private static final QName PROP_TARGET_DEPARTMENT_CODE =
             qname("targetDepartmentCode");
+    private static final QName PROP_TARGET_EMPLOYEE_ID = qname("targetEmployeeId");
 
     private static final QName PROP_ACTOR_EMPLOYEE_ID =
             qname("actorEmployeeId");
@@ -380,8 +388,11 @@ public final class AlfrescoCorrespondenceRepository
          */
         boolean directInitialSubmission = fromState == CorrespondenceState.DRAFT
                 && toState == CorrespondenceState.WITH_PRESIDENT
-                && command.actorRole() == CorrespondenceActorRole.DIRECTOR
-                && command.action() == CorrespondenceAction.SEND_TO_PRESIDENT;
+                && command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
+                && (command.actorRole() == CorrespondenceActorRole.DIRECTOR
+                    || (command.actorRole() == CorrespondenceActorRole.PRESIDENT_OFFICE
+                        && "PENDING".equals(nodeService.getProperty(correspondence, PROP_SECRETARY_STATUS))
+                        && "101".equals(nodeService.getProperty(correspondence, PROP_ORIGIN_DEPARTMENT_CODE))));
         if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
                 && !directInitialSubmission
                 && !lastActionWasForwardableOfficeArrival(correspondence, currentSequence)) {
@@ -427,6 +438,136 @@ public final class AlfrescoCorrespondenceRepository
                 correspondence,
                 PROP_LAST_ACTION_SEQUENCE,
                 nextSequence);
+    }
+
+    /**
+     * Secretary drafts retain the existing DRAFT workflow state. The separate
+     * creator-bound marker keeps them out of the normal departmental Drafts
+     * list and blocks the ordinary Director/executive submission endpoint.
+     * Called only after active Oracle secretary authorization.
+     */
+    public String createSecretaryDraft(CreateCorrespondenceCommand command) {
+        if (command.createdByRole() != CorrespondenceActorRole.DIRECTOR) {
+            throw new IllegalArgumentException("Secretary drafts use a departmental origin");
+        }
+        String technicalId = createDraft(command);
+        NodeRef node = nodeLocator.locate(technicalId);
+        nodeService.setProperty(node, PROP_CREATION_ROLE, CorrespondenceActorRole.DIRECTOR.name());
+        nodeService.setProperty(node, PROP_SECRETARY_OWNER, command.createdByEmployeeId().value());
+        nodeService.setProperty(node, PROP_SECRETARY_STATUS, "DRAFT");
+        return technicalId;
+    }
+
+    public record SecretaryDraft(String technicalId, String unitCode, String subject,
+            String bodyText, String ownerEmployeeId, String approvalStatus) { }
+
+    /** This method never authorizes a user; call the scoped service first. */
+    public SecretaryDraft readSecretaryDraft(String technicalId) {
+        NodeRef node = nodeLocator.locate(technicalId);
+        if (!TYPE_CORRESPONDENCE.equals(nodeService.getType(node))
+                || !CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))) {
+            throw new CorrespondenceRepositoryException("Not an active secretary draft");
+        }
+        String status = (String) nodeService.getProperty(node, PROP_SECRETARY_STATUS);
+        String owner = (String) nodeService.getProperty(node, PROP_SECRETARY_OWNER);
+        if (!java.util.Set.of("DRAFT", "PENDING", "RETURNED").contains(status == null ? "" : status)
+                || owner == null || owner.isBlank()) {
+            throw new CorrespondenceRepositoryException("Not a secretary draft");
+        }
+        return new SecretaryDraft(
+            requiredSecretaryString(node, PROP_TECHNICAL_ID),
+            requiredSecretaryString(node, PROP_ORIGIN_DEPARTMENT_CODE),
+            requiredSecretaryString(node, PROP_SUBJECT),
+            (String) nodeService.getProperty(node, PROP_BODY_TEXT), owner, status);
+    }
+
+    public List<SecretaryDraft> listSecretaryDrafts(
+            DepartmentCode unit, String ownerEmployeeId, boolean pendingOnly) {
+        NodeRef folder = folderLocator.locateDepartmentFolder(unit);
+        List<SecretaryDraft> drafts = new ArrayList<>();
+        for (ChildAssociationRef association : nodeService.getChildAssocs(folder)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
+            NodeRef child = association.getChildRef();
+            if (!TYPE_CORRESPONDENCE.equals(nodeService.getType(child))
+                    || !CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(child, PROP_STATE))) continue;
+            String owner = (String) nodeService.getProperty(child, PROP_SECRETARY_OWNER);
+            String status = (String) nodeService.getProperty(child, PROP_SECRETARY_STATUS);
+            if (owner == null || owner.isBlank()
+                    || !unit.value().equals(nodeService.getProperty(child, PROP_ORIGIN_DEPARTMENT_CODE))
+                    || (pendingOnly && !"PENDING".equals(status))
+                    || (!pendingOnly && !owner.equals(ownerEmployeeId))) continue;
+            drafts.add(new SecretaryDraft(
+                requiredSecretaryString(child, PROP_TECHNICAL_ID), unit.value(),
+                requiredSecretaryString(child, PROP_SUBJECT),
+                (String) nodeService.getProperty(child, PROP_BODY_TEXT), owner, status));
+        }
+        drafts.sort(Comparator.comparing(SecretaryDraft::technicalId));
+        // Avoid an unbounded payload; introduce pagination before broad rollout.
+        return List.copyOf(drafts.subList(0, Math.min(drafts.size(), 100)));
+    }
+
+    public void reviseSecretaryDraft(TransitionCorrespondenceCommand command,
+            String subject, String bodyText) {
+        NodeRef node = nodeLocator.locate(command.technicalId());
+        if (!CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))
+                || !java.util.Set.of("DRAFT", "RETURNED").contains(
+                    nodeService.getProperty(node, PROP_SECRETARY_STATUS))
+                || !command.actorEmployeeId().value().equals(nodeService.getProperty(node, PROP_SECRETARY_OWNER))) {
+            throw new CorrespondenceRepositoryException("Secretary draft is not editable");
+        }
+        if (subject == null || subject.isBlank()) throw new IllegalArgumentException("Subject required");
+        nodeService.setProperty(node, PROP_SUBJECT, subject.trim());
+        if (bodyText == null || bodyText.isBlank()) nodeService.removeProperty(node, PROP_BODY_TEXT);
+        else nodeService.setProperty(node, PROP_BODY_TEXT, bodyText.trim());
+        String previousStatus = (String) nodeService.getProperty(node, PROP_SECRETARY_STATUS);
+        changeSecretaryStatus(command, previousStatus, "DRAFT", CorrespondenceActorRole.DIRECTOR);
+    }
+
+    /** Same REQUIRED Alfresco transaction for state and append-only history. */
+    public void changeSecretaryStatus(TransitionCorrespondenceCommand command,
+            String expectedStatus, String nextStatus, CorrespondenceActorRole targetRole) {
+        NodeRef node = nodeLocator.locate(command.technicalId());
+        if (!CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))
+                || !expectedStatus.equals(nodeService.getProperty(node, PROP_SECRETARY_STATUS))) {
+            throw new CorrespondenceRepositoryException("Secretary approval was already changed");
+        }
+        long sequence = readLastActionSequence(node) + 1L;
+        createWorkflowAction(node, sequence, command, CorrespondenceState.DRAFT,
+                CorrespondenceState.DRAFT, targetRole);
+        if (command.action() == CorrespondenceAction.RETURN_TO_SECRETARY) {
+            String owner = requiredSecretaryString(node, PROP_SECRETARY_OWNER);
+            String actionName = String.format("action-%06d", sequence);
+            for (ChildAssociationRef association : nodeService.getChildAssocs(node)) {
+                if (qname(actionName).equals(association.getQName())) {
+                    nodeService.setProperty(association.getChildRef(), PROP_TARGET_EMPLOYEE_ID, owner);
+                    break;
+                }
+            }
+        }
+        nodeService.setProperty(node, PROP_SECRETARY_STATUS, nextStatus);
+        nodeService.setProperty(node, PROP_LAST_ACTION_SEQUENCE, sequence);
+    }
+
+    public void approveSecretaryDraft(TransitionCorrespondenceCommand command,
+            CorrespondenceState nextState, CorrespondenceActorRole targetRole) {
+        NodeRef node = nodeLocator.locate(command.technicalId());
+        if (!CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))
+                || !"PENDING".equals(nodeService.getProperty(node, PROP_SECRETARY_STATUS))
+                || nodeService.getProperty(node, PROP_SECRETARY_OWNER) == null) {
+            throw new CorrespondenceRepositoryException("Secretary approval no longer pending");
+        }
+        // applyTransition reserves the reference, writes audited history, and
+        // changes the assignment atomically with this status in REQUIRED txn.
+        applyTransition(command, CorrespondenceState.DRAFT, nextState, targetRole);
+        nodeService.setProperty(node, PROP_SECRETARY_STATUS, "APPROVED");
+    }
+
+    private String requiredSecretaryString(NodeRef node, QName key) {
+        Object raw = nodeService.getProperty(node, key);
+        if (!(raw instanceof String text) || text.isBlank()) {
+            throw new CorrespondenceRepositoryException("Incomplete secretary draft metadata");
+        }
+        return text;
     }
 
     /** Append-only completion event; does not change parent assignment or state. */

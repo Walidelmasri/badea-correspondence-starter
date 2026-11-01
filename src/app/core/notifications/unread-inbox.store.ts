@@ -24,14 +24,15 @@ export class UnreadInboxStore {
       // Read the active unit here so switching capacity invalidates pending
       // notifications even when the signed-in employee has not changed.
       this.session.workspaceUnit();
+      this.session.effectiveRole();
       this.invalidateForWorkspaceChange();
-      if (employeeId && this.session.isAuthenticated()) {
+      if (employeeId && this.session.isAuthenticated() && this.supportsMailbox()) {
         void this.refresh();
       }
     });
     // Modest polling for new deliveries; no notification transport or push server.
     interval(90_000).pipe(takeUntilDestroyed()).subscribe(() => {
-      if (this.session.isAuthenticated() &&
+      if (this.session.isAuthenticated() && this.supportsMailbox() &&
           (typeof document === 'undefined' || document.visibilityState === 'visible')) {
         void this.refresh();
       }
@@ -39,7 +40,7 @@ export class UnreadInboxStore {
   }
 
   async refresh(): Promise<void> {
-    if (!this.session.isAuthenticated()) return;
+    if (!this.session.isAuthenticated() || !this.supportsMailbox()) return;
     const employeeId = this.session.currentUser()?.employeeProfile?.employeeId;
     if (!employeeId) return;
     const workspaceUnit = this.session.workspaceUnit();
@@ -60,6 +61,11 @@ export class UnreadInboxStore {
         this.totalState.set(0);
       }
     }
+  }
+
+  private supportsMailbox(): boolean {
+    const role = this.session.effectiveRole();
+    return role !== 'SECRETARY' && role !== 'TARASOL_ADMIN' && role !== 'TARASOL_DELEGATE';
   }
 
   // Also called synchronously from the selector to prevent one frame of

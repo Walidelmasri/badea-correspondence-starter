@@ -243,6 +243,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
                     && department.value().equals(optional(node, PROP_ASSIGNED_DEPARTMENT));
             case PRESIDENT_OFFICE -> state == CorrespondenceState.WITH_PRESIDENT_OFFICE;
             case PRESIDENT -> state == CorrespondenceState.WITH_PRESIDENT;
+            case SECRETARY, TARASOL_ADMIN, TARASOL_DELEGATE -> false; // Personal draft inbox is separate.
         };
     }
 

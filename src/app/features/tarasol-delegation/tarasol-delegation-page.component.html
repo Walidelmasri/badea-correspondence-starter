@@ -1,0 +1,41 @@
+<section class="delegation">
+  <h1>Delegated correspondence</h1>
+  <p>Access is limited to cases covered by an active Tarasol grant. Previous cases are not automatically available.</p>
+  <label for="delegate-unit">Unit</label>
+  <select id="delegate-unit" [(ngModel)]="unitCode" (ngModelChange)="reset()">
+    @for (unit of units; track unit.code) {
+      <option [value]="unit.code">{{ unit.nameEnglish }} ({{ unit.code }})</option>
+    }
+  </select>
+  <label for="delegate-case">Correspondence technical ID</label>
+  <input id="delegate-case" type="text" [(ngModel)]="technicalId" (ngModelChange)="reset()" />
+  <button type="button" [disabled]="busy()" (click)="lookup()">Open delegated case</button>
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+  @if (info()) { <p role="status">{{ info() }}</p> }
+  @if (current(); as item) {
+    <article>
+      <h2>{{ item.subject }}</h2>
+      <p><strong>Reference:</strong> {{ item.documentNumber || 'Not assigned' }}</p>
+      <p><strong>Status:</strong> {{ item.state }}</p>
+      <p>{{ item.bodyText }}</p>
+      <h3>PDF documents</h3>
+      @for (file of item.documents; track file.nodeId) {
+        <button type="button" [disabled]="busy()" (click)="preview(file.nodeId)">View {{ file.filename }}</button>
+      } @empty { <p>No source PDFs in this case.</p> }
+      @if (previewUrl()) {
+        <button type="button" (click)="closePreview()">Close preview</button>
+        <iframe title="Delegated correspondence PDF" [src]="previewUrl()" style="width:100%;height:60vh;border:1px solid #bbb"></iframe>
+      }
+      @if (item.state === 'WITH_DIRECTOR') {
+        <h3>Delegated Director action</h3>
+        <button type="button" [disabled]="busy()" (click)="confirm('SEND_TO_OFFICE')">Send to President's Office</button>
+        <button type="button" [disabled]="busy()" (click)="confirm('MARK_DONE')">Mark done</button>
+      }
+      @if (pendingConfirmation(); as action) {
+        <p role="alert">Confirm {{ action === 'SEND_TO_OFFICE' ? 'sending to the Office' : 'marking this correspondence done' }}. This is audited under your employee identity.</p>
+        <button type="button" [disabled]="busy()" (click)="act()">Confirm action</button>
+        <button type="button" (click)="pendingConfirmation.set(null)">Cancel</button>
+      }
+    </article>
+  }
+</section>

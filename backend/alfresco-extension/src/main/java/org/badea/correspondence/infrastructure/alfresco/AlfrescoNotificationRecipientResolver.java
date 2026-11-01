@@ -45,6 +45,19 @@ public final class AlfrescoNotificationRecipientResolver {
     public record Recipient(String employeeId, String username, String email,
             String nameEnglish, String nameArabic) { }
 
+    /** A secretary return or approval alert has exactly one persisted recipient. */
+    public List<Recipient> resolveSpecificEmployee(String targetEmployeeId, String actorEmployeeId) {
+        if (targetEmployeeId == null || !targetEmployeeId.matches("[0-9A-Za-z_-]{1,64}")
+                || targetEmployeeId.equals(actorEmployeeId)) return List.of();
+        var found = employees.findActiveByEmployeeId(new EmployeeId(targetEmployeeId));
+        if (found.isEmpty()) return List.of();
+        var employee = found.get();
+        String username = employee.username().value();
+        if (!username.matches("[a-z0-9][a-z0-9._-]{0,63}")) return List.of();
+        return List.of(new Recipient(employee.employeeId().value(), username,
+                username + "@badea.org", employee.nameEnglish(), employee.nameArabic()));
+    }
+
     public List<Recipient> resolve(CorrespondenceActorRole targetRole,
             DepartmentCode targetDepartment, String actorEmployeeId) {
         Objects.requireNonNull(targetRole, "Notification target role required");
@@ -58,6 +71,8 @@ public final class AlfrescoNotificationRecipientResolver {
             case PRESIDENT -> PRESIDENT;
             case PRESIDENT_OFFICE -> OFFICE;
             case DIRECTOR -> DIRECTORS;
+            case SECRETARY, TARASOL_ADMIN, TARASOL_DELEGATE -> throw new IllegalArgumentException(
+                "Secretary notifications use specific employee IDs, not a workflow group");
         };
         Set<String> members = authorities.getContainedAuthorities(AuthorityType.USER, group, false);
         if (members == null || members.isEmpty()) return List.of();

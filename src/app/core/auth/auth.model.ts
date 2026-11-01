@@ -27,7 +27,10 @@ export interface EmployeeDepartment {
 export type CorrespondenceRole =
   | 'DIRECTOR'
   | 'PRESIDENT_OFFICE'
-  | 'PRESIDENT';
+  | 'PRESIDENT'
+  | 'SECRETARY'
+  | 'TARASOL_ADMIN'
+  | 'TARASOL_DELEGATE';
 
 export interface ManagerWorkspace {
   readonly code: string;
@@ -35,6 +38,12 @@ export interface ManagerWorkspace {
   readonly nameArabic: string | null;
   readonly capacity: 'MANAGER' | 'ACTING_MANAGER';
   readonly role: 'DIRECTOR' | 'PRESIDENT_OFFICE';
+}
+
+export interface SecretaryUnit {
+  readonly code: string;
+  readonly nameEnglish: string;
+  readonly nameArabic: string | null;
 }
 
 export interface EmployeeProfile {
@@ -46,6 +55,9 @@ export interface EmployeeProfile {
   readonly correspondenceRole?: CorrespondenceRole | null;
   readonly correspondenceRoles?: readonly CorrespondenceRole[];
   readonly managerWorkspaces?: readonly ManagerWorkspace[];
+  readonly tarasolAdministrator?: boolean;
+  readonly secretaryUnits?: readonly SecretaryUnit[];
+  readonly delegationUnits?: readonly SecretaryUnit[];
 }
 
 export interface CurrentUser {

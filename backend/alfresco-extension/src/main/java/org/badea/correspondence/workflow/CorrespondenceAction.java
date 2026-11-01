@@ -14,6 +14,15 @@ public enum CorrespondenceAction {
      */
     SEND_TO_OFFICE,
 
+    /** Secretary submits a personal draft for a unit manager's approval. */
+    SUBMIT_FOR_MANAGER_APPROVAL,
+
+    /** The original secretary revises a draft after manager feedback. */
+    REVISE_SECRETARY_DRAFT,
+
+    /** Manager returns a pending secretary draft to its owner for revision. */
+    RETURN_TO_SECRETARY,
+
     /**
      * President Office routes the correspondence to the President.
      */

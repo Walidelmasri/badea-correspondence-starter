@@ -9,6 +9,7 @@ import {
 import {
   composeRoleGuard,
   directorRoleGuard,
+  secretaryDashboardGuard,
 } from './core/auth/correspondence-role.guard';
 
 export const routes: Routes = [
@@ -47,6 +48,7 @@ export const routes: Routes = [
 
       {
         path: 'dashboard',
+        canActivate: [secretaryDashboardGuard],
         loadComponent: () =>
           import('./features/dashboard/presentation/dashboard-page.component')
             .then(module => module.DashboardPageComponent),
@@ -141,6 +143,23 @@ export const routes: Routes = [
           ).then(
             (module) => module.DirectorNewPageComponent,
           ),
+      },
+      {
+        path: 'tarasol/delegated',
+        loadComponent: () => import('./features/tarasol-delegation/tarasol-delegation-page.component')
+          .then(module => module.TarasolDelegationPageComponent),
+      },
+      {
+        path: 'tarasol/secretary',
+        loadComponent: () => import('./features/tarasol-secretary/tarasol-secretary-page.component')
+          .then(module => module.TarasolSecretaryPageComponent),
+        data: { mode: 'secretary' },
+      },
+      {
+        path: 'tarasol/approvals',
+        loadComponent: () => import('./features/tarasol-secretary/tarasol-secretary-page.component')
+          .then(module => module.TarasolSecretaryPageComponent),
+        data: { mode: 'manager' },
       },
       {
         path: 'tarasol/admin/access',

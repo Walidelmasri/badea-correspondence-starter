@@ -1,0 +1,8 @@
+
+.delegation { max-width: 1000px; margin: 2rem auto; padding: 1.25rem; }
+.delegation label { display: block; margin-top: 1rem; font-weight: 600; }
+.delegation input, .delegation select { width: 100%; max-width: 560px; padding: .65rem; margin: .3rem 0 .8rem; border: 1px solid #a7b7b2; border-radius: 5px; }
+.delegation button { padding: .7rem 1rem; margin: .4rem .4rem .4rem 0; border: 1px solid #145749; border-radius: 5px; cursor: pointer; }
+.delegation button:disabled { cursor: wait; opacity: .5; }
+.delegation article { border: 1px solid #cfdbd5; padding: 1.3rem; margin-top: 1rem; border-radius: 6px; }
+.delegation .error { color: #a12323; }

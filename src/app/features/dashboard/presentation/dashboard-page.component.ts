@@ -38,6 +38,9 @@ export class DashboardPageComponent implements OnInit {
 
   readonly roleLabel = computed(() => {
     const role = this.role();
+    if (role === 'SECRETARY') return 'Secretary';
+    if (role === 'TARASOL_ADMIN') return 'Organization Admin';
+    if (role === 'TARASOL_DELEGATE') return 'Delegated Cases';
     return role ? this.labels().role[role] : '';
   });
 

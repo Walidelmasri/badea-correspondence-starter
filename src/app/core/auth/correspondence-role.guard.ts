@@ -62,3 +62,17 @@ export const directorRoleGuard: CanActivateFn = () => {
 
   return router.createUrlTree(['/inbox']);
 };
+/** A secretary has only the dedicated personal-draft/approval workspace. */
+export const secretaryDashboardGuard: CanActivateFn = () => {
+  const session = inject(AuthSessionStore);
+  if (session.currentUser()?.employeeProfile?.correspondenceRole === 'SECRETARY') {
+    return inject(Router).createUrlTree(['/tarasol/secretary']);
+  }
+  if (session.currentUser()?.employeeProfile?.correspondenceRole === 'TARASOL_DELEGATE') {
+    return inject(Router).createUrlTree(['/tarasol/delegated']);
+  }
+  if (session.currentUser()?.employeeProfile?.correspondenceRole === 'TARASOL_ADMIN') {
+    return inject(Router).createUrlTree(['/tarasol/admin/access']);
+  }
+  return true;
+};

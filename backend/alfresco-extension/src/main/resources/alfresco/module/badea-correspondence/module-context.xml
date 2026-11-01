@@ -136,6 +136,9 @@
 
     <constructor-arg
         ref="badeaCorrespondenceOrganizationReader" />
+    <constructor-arg ref="authorityService" />
+    <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+    <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
 </bean>
 
     <!--
@@ -946,6 +949,13 @@
 </bean>
 
     <!-- Tarasol-owned appointment and scoped team access, never legacy COR_DEPARTMENTS. -->
+    <!-- Fail-closed, scoped read checks. Does not grant Alfresco workflow roles. -->
+    <bean id="badeaTarasolEffectiveAccessReader"
+          class="org.badea.correspondence.organization.TarasolEffectiveAccessReader" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
+        <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+    </bean>
+
     <bean id="badeaTarasolAccessService"
           class="org.badea.correspondence.organization.TarasolAccessService" lazy-init="true">
         <constructor-arg ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
@@ -1002,5 +1012,90 @@
         <constructor-arg ref="badeaCorrespondenceRepository" />
         <constructor-arg value="false" />
         <constructor-arg value="true" />
+    </bean>
+    <!-- Independent secretary approval lifecycle. Fail-closed through Oracle
+         grants and authenticated manager workspaces. -->
+    <bean id="badeaTarasolSecretaryWorkflowService"
+          class="org.badea.correspondence.organization.TarasolSecretaryWorkflowService" lazy-init="true">
+        <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
+        <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaCorrespondenceRepository" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-workflow.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryWorkflowWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryWorkflowService" />
+        <constructor-arg value="false" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-workflow.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryWorkflowWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryWorkflowService" />
+        <constructor-arg value="true" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-upload.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryUploadWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryWorkflowService" />
+        <constructor-arg ref="badeaCorrespondenceDraftDocumentUploader" />
+    </bean>
+    <bean id="badeaTarasolSecretaryDocumentService"
+          class="org.badea.correspondence.organization.TarasolSecretaryDocumentService" lazy-init="true">
+        <constructor-arg ref="badeaTarasolSecretaryWorkflowService" />
+        <constructor-arg ref="badeaCorrespondenceDetailsRepository" />
+        <constructor-arg ref="badeaCorrespondenceDocumentContentRepository" />
+        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+        <constructor-arg ref="permissionService" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-documents.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryDocumentWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryDocumentService" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-document.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryDocumentWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryDocumentService" />
+    </bean>
+    <!-- Delegated case access is isolated from normal Director/Office APIs.
+         Do not assign delegates the Directors group or expose a broad mailbox. -->
+    <bean id="badeaTarasolDelegatedCaseService"
+          class="org.badea.correspondence.organization.TarasolDelegatedCaseService"
+          lazy-init="true">
+        <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
+        <constructor-arg ref="badeaCorrespondenceRepository" />
+        <constructor-arg ref="badeaCorrespondenceDetailsRepository" />
+        <constructor-arg ref="badeaCorrespondenceDocumentContentRepository" />
+        <constructor-arg ref="badeaCorrespondenceTransitionService" />
+        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+        <constructor-arg ref="nodeService" />
+        <constructor-arg ref="permissionService" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-delegated-case.get"
+          class="org.badea.correspondence.webscript.TarasolDelegatedCaseWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolDelegatedCaseService" />
+        <constructor-arg value="false" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-delegated-case.post"
+          class="org.badea.correspondence.webscript.TarasolDelegatedCaseWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolDelegatedCaseService" />
+        <constructor-arg value="true" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-delegated-document.get"
+          class="org.badea.correspondence.webscript.TarasolDelegatedCaseWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolDelegatedCaseService" />
+        <constructor-arg value="false" />
     </bean>
 </beans>

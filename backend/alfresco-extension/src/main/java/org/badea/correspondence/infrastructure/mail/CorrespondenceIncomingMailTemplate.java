@@ -55,6 +55,32 @@ public final class CorrespondenceIncomingMailTemplate {
         return new Rendered(emailSubject, plain, html);
     }
 
+    /** Confidential secretary status alert; no document contents or public links. */
+    public static Rendered renderSecretaryStatus(boolean returned, String correspondenceSubject) {
+        String topic = shorten(correspondenceSubject, 180, "Secretary correspondence");
+        String en = returned
+            ? "Your draft was returned by the manager for revision. Sign in to Tarasol and review the manager's feedback."
+            : "Your draft was approved and sent onward. Sign in to Tarasol to view its status.";
+        String ar = returned
+            ? "أعاد المدير المسودة للتعديل. يرجى مراجعة ملاحظاته في تراسل."
+            : "تم اعتماد المسودة وإرسالها للجهة التالية. يمكنك مراجعة الحالة في تراسل.";
+        String subject = returned ? "Tarasol | Draft returned for revision"
+            : "Tarasol | Draft approved and sent";
+        String plain = "تراسل | " + ar + "\nالموضوع: " + topic
+            + "\n\nTarasol | " + en + "\nSubject: " + topic
+            + "\nSign in with your BADEA account. Do not forward this message.\n";
+        String html = "<!doctype html><html><head><meta charset=\"UTF-8\"></head>"
+            + "<body style=\"font-family:Arial,Tahoma,sans-serif;background:#f3f6f5;color:#19352f\">"
+            + "<table role=\"presentation\" width=\"100%\"><tr><td align=\"center\">"
+            + "<table role=\"presentation\" width=\"600\" style=\"max-width:100%;background:white\">"
+            + "<tr><td style=\"padding:24px;background:#145749;color:white;font-size:20px\">BADEA | تراسل · Tarasol</td></tr>"
+            + "<tr><td style=\"padding:25px\"><p dir=\"rtl\">" + escape(ar) + "</p>"
+            + "<p>" + escape(en) + "</p><p><b>Subject:</b> " + escape(topic) + "</p>"
+            + "<p>Sign in with your BADEA account. Do not forward.</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+        return new Rendered(subject, plain, html);
+    }
+
     private static String shorten(String value, int maximum, String fallback) {
         if (value == null || value.isBlank()) return fallback;
         String cleaned = value.strip().replaceAll("[\\p{Cntrl}]", " ");

@@ -12,5 +12,14 @@ public enum CorrespondenceActorRole {
 
     PRESIDENT_OFFICE,
 
-    DIRECTOR
+    DIRECTOR,
+
+    /** Initiates personal drafts; never inherits manager or Office authority. */
+    SECRETARY,
+
+    /** Organizational administration is not a correspondence workflow authority. */
+    TARASOL_ADMIN,
+
+    /** Scoped case grants only; this role never authorizes ordinary workflow endpoints. */
+    TARASOL_DELEGATE
 }

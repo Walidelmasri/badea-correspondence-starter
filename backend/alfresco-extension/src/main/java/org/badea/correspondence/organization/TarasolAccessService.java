@@ -93,8 +93,14 @@ public final class TarasolAccessService {
         String sql = "SELECT d." + id + " AS ID, d.MANAGER_ASSIGNMENT_ID, d." + target
             + " AS TARGET_EMP_ID, " + extra + ", d.STARTS_AT, d.ENDS_AT, d.REVOKED_AT,"
             + " CASE WHEN d.REVOKED_AT IS NULL AND d.STARTS_AT <= SYSTIMESTAMP"
-            + " AND (d.ENDS_AT IS NULL OR d.ENDS_AT > SYSTIMESTAMP) THEN 1 ELSE 0 END AS IS_ACTIVE FROM "
+            + " AND (d.ENDS_AT IS NULL OR d.ENDS_AT > SYSTIMESTAMP)"
+            + " AND a.REVOKED_AT IS NULL AND a.STARTS_AT <= SYSTIMESTAMP"
+            + " AND (a.ENDS_AT IS NULL OR a.ENDS_AT > SYSTIMESTAMP)"
+            + " AND a.CAPACITY IN ('MANAGER','ACTING_MANAGER')"
+            + " AND u.STATUS = 'A' THEN 1 ELSE 0 END AS IS_ACTIVE FROM "
             + table + " d JOIN TARASOL_UNIT_ASSIGNMENTS a ON a.ASSIGNMENT_ID = d.MANAGER_ASSIGNMENT_ID "
+            + "AND a.UNIT_CODE = d.UNIT_CODE "
+            + "JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = d.UNIT_CODE "
             + "WHERE d.UNIT_CODE = ?" + (actor == null ? "" : " AND a.EMP_ID = ?") +
             " ORDER BY d." + id + " DESC";
         List<TeamEntry> result = new ArrayList<>();

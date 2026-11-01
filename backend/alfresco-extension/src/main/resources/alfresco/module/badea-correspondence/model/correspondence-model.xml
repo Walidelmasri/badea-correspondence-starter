@@ -113,6 +113,20 @@
                     <mandatory>false</mandatory>
                 </property>
 
+                <!-- Secretary approvals are a DRAFT sub-lifecycle, never a
+                     new routing state for existing correspondence. -->
+                <property name="bc:secretaryApprovalStatus">
+                    <title>Secretary Approval Status</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
+                <property name="bc:secretaryOwnerEmployeeId">
+                    <title>Secretary Draft Owner</title>
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
                 <!-- Origin -->
 
                 <property name="bc:originDepartmentCode">

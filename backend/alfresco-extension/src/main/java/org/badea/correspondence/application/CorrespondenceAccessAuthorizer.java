@@ -102,6 +102,8 @@ public final class CorrespondenceAccessAuthorizer {
             case PRESIDENT_OFFICE ->
                 authorizePresidentOffice(correspondence);
 
+            case SECRETARY, TARASOL_ADMIN, TARASOL_DELEGATE -> throw forbidden();
+
             case DIRECTOR ->
                 authorizeDirector(
                         correspondence,

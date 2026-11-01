@@ -48,6 +48,24 @@ class AlfrescoNotificationRecipientResolverTest {
                         username, "الاسم العربي", Optional.empty())));
     }
 
+    @Test void privateSecretaryReturnUsesOnlyTheTargetEmployee() {
+        when(directory.findActiveByEmployeeId(new EmployeeId("24428")))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("24428"),
+                new DirectoryUsername("secretary.one"), "Secretary One", null, Optional.empty())));
+        var recipient = resolver.resolveSpecificEmployee("24428", "18284");
+        assertEquals(List.of("secretary.one@badea.org"),
+            recipient.stream().map(AlfrescoNotificationRecipientResolver.Recipient::email).toList());
+        assertTrue(resolver.resolveSpecificEmployee("24428", "24428").isEmpty());
+        assertTrue(resolver.resolveSpecificEmployee("../admin", "18284").isEmpty());
+        verifyNoInteractions(groups);
+    }
+
+    @Test void inactiveSecretaryCannotBeNotified() {
+        when(directory.findActiveByEmployeeId(new EmployeeId("24428"))).thenReturn(Optional.empty());
+        assertTrue(resolver.resolveSpecificEmployee("24428", "18284").isEmpty());
+        verifyNoInteractions(groups);
+    }
+
     @Test void directorUsesOnlyActiveOfficialManagerAndNotAnotherDepartmentEmployee() {
         group("DIRECTORS", "director.one", "director.other");
         manager("117", "17258", "director.one");

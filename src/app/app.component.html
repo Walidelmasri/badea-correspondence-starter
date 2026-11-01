@@ -21,13 +21,35 @@
     </a>
 
     <nav class="app-navigation" aria-label="Main navigation">
+      @if (auth.currentUser()?.employeeProfile?.correspondenceRole !== 'SECRETARY'
+        && auth.currentUser()?.employeeProfile?.correspondenceRole !== 'TARASOL_ADMIN'
+        && auth.currentUser()?.employeeProfile?.correspondenceRole !== 'TARASOL_DELEGATE') {
       @for (item of navigation; track item.key) {
       <a class="app-navigation__item" [routerLink]="item.route" routerLinkActive="app-navigation__item--active"
         [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
         {{ translation.text().navigation[item.key] }}
       </a>
       }
-      @if (auth.currentUser()?.capabilities.isAdmin) {
+      }
+      @if (auth.currentUser()?.employeeProfile?.delegationUnits?.length) {
+        <a class="app-navigation__item" routerLink="/tarasol/delegated"
+          routerLinkActive="app-navigation__item--active">
+          {{ translation.language() === 'ar' ? 'التفويضات' : 'My Delegated Cases' }}
+        </a>
+      }
+      @if (auth.currentUser()?.employeeProfile?.secretaryUnits?.length) {
+        <a class="app-navigation__item" routerLink="/tarasol/secretary"
+          routerLinkActive="app-navigation__item--active">
+          {{ translation.language() === 'ar' ? 'مسودات السكرتارية' : 'My Secretary Drafts' }}
+        </a>
+      }
+      @if (session.activeWorkspace()) {
+        <a class="app-navigation__item" routerLink="/tarasol/approvals"
+          routerLinkActive="app-navigation__item--active">
+          {{ translation.language() === 'ar' ? 'اعتمادات المدير' : 'Manager Approvals' }}
+        </a>
+      }
+      @if ((auth.currentUser()?.employeeProfile?.tarasolAdministrator || auth.currentUser()?.capabilities.isAdmin)) {
         <a class="app-navigation__item" routerLink="/tarasol/admin/access"
           routerLinkActive="app-navigation__item--active">
           {{ translation.language() === 'ar' ? 'إدارة التنظيم' : 'Organization Admin' }}

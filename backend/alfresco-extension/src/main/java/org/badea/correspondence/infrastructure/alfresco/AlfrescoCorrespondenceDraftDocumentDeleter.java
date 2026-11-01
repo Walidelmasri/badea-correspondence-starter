@@ -167,6 +167,11 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
             throw forbidden();
         }
 
+        // A Director cannot edit/delete a secretary's personal draft.
+        if (nodeService.getProperty(correspondence, qname("secretaryOwnerEmployeeId")) != null) {
+            throw forbidden();
+        }
+
         Serializable originDepartment =
                 nodeService.getProperty(
                         correspondence,

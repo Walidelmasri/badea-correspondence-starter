@@ -253,5 +253,8 @@ export class AuthService {
 function isTarasolRole(role: string | null | undefined): boolean {
   return role === 'PRESIDENT' ||
     role === 'PRESIDENT_OFFICE' ||
-    role === 'DIRECTOR';
+    role === 'DIRECTOR' ||
+    role === 'SECRETARY' ||
+    role === 'TARASOL_ADMIN' ||
+    role === 'TARASOL_DELEGATE';
 }

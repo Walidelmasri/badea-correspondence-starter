@@ -8,12 +8,15 @@ import java.util.ArrayList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.alfresco.service.cmr.security.AuthorityService;
+import org.badea.correspondence.security.AuthenticatedUserProvider;
 
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 import org.badea.correspondence.directory.DepartmentDirectoryException;
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
+import org.badea.correspondence.organization.TarasolEffectiveAccessReader;
 import org.json.JSONArray;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
@@ -48,21 +51,47 @@ public final class CurrentEmployeeWebScript
 
     private final CorrespondenceActorRoleResolver roleResolver;
     private final TarasolOrganizationReader organizationReader;
+    private final AuthorityService authorityService;
+    private final AuthenticatedUserProvider userProvider;
+    private final TarasolEffectiveAccessReader effectiveAccess;
 
     public CurrentEmployeeWebScript(
             CurrentEmployeeService currentEmployeeService,
             CorrespondenceActorRoleResolver roleResolver) {
 
-        this(currentEmployeeService, roleResolver, null);
+        this(currentEmployeeService, roleResolver, null, null, null, null);
     }
 
     public CurrentEmployeeWebScript(
             CurrentEmployeeService currentEmployeeService,
             CorrespondenceActorRoleResolver roleResolver,
             TarasolOrganizationReader organizationReader) {
+        this(currentEmployeeService, roleResolver, organizationReader, null, null, null);
+    }
+
+    public CurrentEmployeeWebScript(
+            CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver roleResolver,
+            TarasolOrganizationReader organizationReader,
+            AuthorityService authorityService,
+            AuthenticatedUserProvider userProvider) {
+        this(currentEmployeeService, roleResolver, organizationReader,
+            authorityService, userProvider, null);
+    }
+
+    public CurrentEmployeeWebScript(
+            CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver roleResolver,
+            TarasolOrganizationReader organizationReader,
+            AuthorityService authorityService,
+            AuthenticatedUserProvider userProvider,
+            TarasolEffectiveAccessReader effectiveAccess) {
         this.currentEmployeeService = Objects.requireNonNull(currentEmployeeService);
         this.roleResolver = Objects.requireNonNull(roleResolver);
         this.organizationReader = organizationReader;
+        this.authorityService = authorityService;
+        this.userProvider = userProvider;
+        this.effectiveAccess = effectiveAccess;
     }
 
     @Override
@@ -72,16 +101,63 @@ public final class CurrentEmployeeWebScript
             throws IOException {
 
         try {
-            // Check Alfresco workflow group membership before returning any
-            // application profile. Valid AD credentials alone are insufficient.
-            CorrespondenceActorRole role =
-                    roleResolver.resolveCurrentUserRole();
-
-            EmployeeDirectoryEntry employee =
-                    currentEmployeeService.getCurrentEmployee();
-
-            Set<CorrespondenceActorRole> groups = roleResolver.resolveCurrentUserRoles();
-            if (groups == null || groups.isEmpty()) groups = Set.of(role);
+            // Ordinary workflow roles still come from Alfresco groups. A
+            // secretary without any such group may enter ONLY through a
+            // current Oracle secretary assignment, never as a Director.
+            CorrespondenceActorRole role;
+            EmployeeDirectoryEntry employee;
+            List<TarasolEffectiveAccessReader.SecretaryUnit> secretaryUnits = List.of();
+            List<TarasolEffectiveAccessReader.SecretaryUnit> delegationUnits = List.of();
+            Set<CorrespondenceActorRole> groups;
+            try {
+                role = roleResolver.resolveCurrentUserRole();
+                employee = currentEmployeeService.getCurrentEmployee();
+                groups = roleResolver.resolveCurrentUserRoles();
+                if (groups == null || groups.isEmpty()) groups = Set.of(role);
+            } catch (CorrespondenceAuthorizationException denied) {
+                if (authorityService == null || userProvider == null) throw denied;
+                Set<String> authorities = authorityService.getAuthoritiesForUser(userProvider.getUsername());
+                if (authorities == null) throw denied;
+                // Never disguise conflicting President/Office/Director groups as
+                // a secretary login. Preserve President-role exclusivity.
+                if (authorities.contains("GROUP_BADEA_CORRESPONDENCE_PRESIDENT")
+                        || authorities.contains("GROUP_BADEA_CORRESPONDENCE_PRESIDENT_OFFICE")
+                        || authorities.contains("GROUP_BADEA_CORRESPONDENCE_DIRECTORS")) throw denied;
+                employee = currentEmployeeService.getCurrentEmployee();
+                if (authorities.contains("GROUP_BADEA_TARASOL_ADMINS")
+                        || authorities.contains("GROUP_ALFRESCO_ADMINISTRATORS")) {
+                    role = CorrespondenceActorRole.TARASOL_ADMIN;
+                } else {
+                    if (effectiveAccess == null) throw denied;
+                    secretaryUnits = effectiveAccess.findCurrentSecretaryUnits(employee.employeeId());
+                    if (secretaryUnits.isEmpty()) {
+                        delegationUnits = effectiveAccess.findCurrentDelegationUnits(employee.employeeId());
+                        if (delegationUnits.isEmpty()) throw denied;
+                        role = CorrespondenceActorRole.TARASOL_DELEGATE;
+                    } else {
+                        role = CorrespondenceActorRole.SECRETARY;
+                    }
+                }
+                groups = Set.of();
+            }
+            if (effectiveAccess != null && secretaryUnits.isEmpty()
+                    && role != CorrespondenceActorRole.SECRETARY) {
+                // Optional secretary workspaces must not prevent established
+                // Director/Office/President logins when the new grant read fails.
+                try {
+                    secretaryUnits = effectiveAccess.findCurrentSecretaryUnits(employee.employeeId());
+                } catch (IllegalStateException temporaryDirectoryFailure) {
+                    LOGGER.warn("Optional Tarasol secretary workspaces are unavailable");
+                }
+            }
+            if (effectiveAccess != null && delegationUnits.isEmpty()) {
+                try {
+                    delegationUnits = effectiveAccess.findCurrentDelegationUnits(employee.employeeId());
+                } catch (IllegalStateException unavailable) {
+                    if (role == CorrespondenceActorRole.TARASOL_DELEGATE) throw unavailable;
+                    LOGGER.warn("Optional Tarasol delegation workspaces unavailable");
+                }
+            }
             List<ManagerWorkspaceView> workspaces = new ArrayList<>();
             if (organizationReader != null && role != CorrespondenceActorRole.PRESIDENT) {
                 for (var assignment : organizationReader.findCurrentManagerWorkspaces(employee.employeeId())) {
@@ -101,12 +177,26 @@ public final class CurrentEmployeeWebScript
                 }
             }
 
+            boolean tarasolAdministrator = false;
+            if (authorityService != null && userProvider != null) {
+                Set<String> authorities = authorityService.getAuthoritiesForUser(userProvider.getUsername());
+                tarasolAdministrator = authorities != null &&
+                    (authorities.contains("GROUP_BADEA_TARASOL_ADMINS")
+                        || authorities.contains("GROUP_ALFRESCO_ADMINISTRATORS"));
+            }
             response.setHeader("Cache-Control", "no-store");
 
             writeJson(
                     response,
                     Status.STATUS_OK,
-                    toJson(employee, role, groups, workspaces));
+                    toJson(employee, role, groups, workspaces, secretaryUnits,
+                        delegationUnits, tarasolAdministrator));
+
+        } catch (IllegalStateException temporaryGrantFailure) {
+
+            LOGGER.error("Failed to evaluate required Tarasol secretary grants", temporaryGrantFailure);
+            writeError(response, Status.STATUS_SERVICE_UNAVAILABLE,
+                    "TARASOL_ACCESS_UNAVAILABLE", "Access verification is temporarily unavailable.");
 
         } catch (CorrespondenceAuthorizationException exception) {
 
@@ -155,7 +245,10 @@ public final class CurrentEmployeeWebScript
             EmployeeDirectoryEntry employee,
             CorrespondenceActorRole role,
             Set<CorrespondenceActorRole> roles,
-            List<ManagerWorkspaceView> workspaces) {
+            List<ManagerWorkspaceView> workspaces,
+            List<TarasolEffectiveAccessReader.SecretaryUnit> secretaryUnits,
+            List<TarasolEffectiveAccessReader.SecretaryUnit> delegationUnits,
+            boolean tarasolAdministrator) {
 
         try {
             JSONObject json = new JSONObject();
@@ -197,6 +290,23 @@ public final class CurrentEmployeeWebScript
                 assignments.put(item);
             }
             json.put("managerWorkspaces", assignments);
+            JSONArray secretaryWorkspaceList = new JSONArray();
+            for (var unit : secretaryUnits) {
+                secretaryWorkspaceList.put(new JSONObject()
+                    .put("code", unit.code())
+                    .put("nameEnglish", unit.nameEnglish())
+                    .put("nameArabic", nullableJsonValue(unit.nameArabic())));
+            }
+            json.put("secretaryUnits", secretaryWorkspaceList);
+            JSONArray delegateWorkspaceList = new JSONArray();
+            for (var unit : delegationUnits) {
+                delegateWorkspaceList.put(new JSONObject()
+                    .put("code", unit.code())
+                    .put("nameEnglish", unit.nameEnglish())
+                    .put("nameArabic", nullableJsonValue(unit.nameArabic())));
+            }
+            json.put("delegationUnits", delegateWorkspaceList);
+            json.put("tarasolAdministrator", tarasolAdministrator);
 
             json.put(
                     "department",

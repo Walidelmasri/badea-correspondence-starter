@@ -61,6 +61,8 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
 
     private static final QName PROP_CREATION_ROLE =
             qname("createdByCorrespondenceRole");
+    private static final QName PROP_SECRETARY_OWNER = qname("secretaryOwnerEmployeeId");
+    private static final QName PROP_SECRETARY_STATUS = qname("secretaryApprovalStatus");
 
     private static final QName SOURCE_DOCUMENT_CYCLE_ASPECT =
             qname("sourceDocumentCycleMetadata");
@@ -221,6 +223,20 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
             throw forbidden();
         }
 
+        // Dedicated secretary endpoint has already checked a current Oracle
+        // grant. Recheck persisted owner, status and unit before writing.
+        if (actorRole == CorrespondenceActorRole.SECRETARY) {
+            if (!CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(correspondence, PROP_STATE))
+                    || !actorDepartmentCode.value().equals(nodeService.getProperty(correspondence, PROP_ORIGIN_DEPARTMENT_CODE))
+                    || !actorEmployeeId.value().equals(nodeService.getProperty(correspondence, PROP_SECRETARY_OWNER))
+                    || !java.util.Set.of("DRAFT", "RETURNED").contains(
+                        nodeService.getProperty(correspondence, PROP_SECRETARY_STATUS))
+                    || permissionService.hasPermission(correspondence, PermissionService.WRITE) != AccessStatus.ALLOWED) {
+                throw forbidden();
+            }
+            return;
+        }
+
         // Executive drafts are writable only by their recorded creator.
         // Keep the existing Director department/assignment policy unchanged.
         if (actorRole == CorrespondenceActorRole.PRESIDENT
@@ -252,6 +268,10 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
             return;
         }
         if (!CorrespondenceState.DRAFT.name().equals(state)) {
+            throw forbidden();
+        }
+        // Do not let an ordinary Director bypass the secretary approval queue.
+        if (nodeService.getProperty(correspondence, PROP_SECRETARY_OWNER) != null) {
             throw forbidden();
         }
 

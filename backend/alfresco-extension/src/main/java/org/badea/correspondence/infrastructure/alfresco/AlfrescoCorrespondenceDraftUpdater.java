@@ -123,6 +123,11 @@ public final class AlfrescoCorrespondenceDraftUpdater {
             throw forbidden();
         }
 
+        // Secretary drafts use a separate, owner-bound approval lifecycle.
+        if (nodeService.getProperty(correspondence, qname("secretaryOwnerEmployeeId")) != null) {
+            throw forbidden();
+        }
+
         Serializable originDepartment = nodeService.getProperty(
                 correspondence,
                 PROP_ORIGIN_DEPARTMENT);

@@ -118,7 +118,11 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
         for (Event event : events) {
             if (submitted >= MAX_SENDS_PER_SWEEP) break;
             List<AlfrescoNotificationRecipientResolver.Recipient> matching;
-            try { matching = recipients.resolve(event.role(), event.department(), event.actorEmployeeId()); }
+            try {
+                matching = event.role() == CorrespondenceActorRole.SECRETARY
+                    ? recipients.resolveSpecificEmployee(event.targetEmployeeId(), event.actorEmployeeId())
+                    : recipients.resolve(event.role(), event.department(), event.actorEmployeeId());
+            }
             catch (RuntimeException unresolved) {
                 LOG.log(Level.WARNING, "Could not resolve incoming notification recipients", unresolved);
                 continue;
@@ -128,7 +132,10 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                 if (!inTransaction(false, () -> claim(event, recipient.employeeId()))) continue;
                 submitted++;
                 try {
-                    var message = CorrespondenceIncomingMailTemplate.render(event.reference(),
+                    var message = event.role() == CorrespondenceActorRole.SECRETARY
+                        ? CorrespondenceIncomingMailTemplate.renderSecretaryStatus(
+                            "RETURN".equals(event.secretaryStatus()), event.subject())
+                        : CorrespondenceIncomingMailTemplate.render(event.reference(),
                             event.subject(), inboxUrl);
                     smtp.send(recipient.email(), message.subject(), message.plainText(), message.html());
                     inTransaction(false, () -> { update(event, recipient.employeeId(), "SENT"); return null; });
@@ -172,11 +179,37 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                         catch (IllegalArgumentException invalid) { continue; }
                         if (role == null) continue;
                         String rawDepartment = text(child, "targetDepartmentCode");
-                        if (role == CorrespondenceActorRole.DIRECTOR && rawDepartment == null) continue;
-                        if (role != CorrespondenceActorRole.DIRECTOR && rawDepartment != null) continue;
+                        String targetedEmployee = null;
+                        if (role == CorrespondenceActorRole.SECRETARY) {
+                            // Only a persisted manager return can trigger a private
+                            // secretary notification; never infer a recipient from a role.
+                            if (!"RETURN_TO_SECRETARY".equals(text(child, "actionType"))) continue;
+                            targetedEmployee = text(child, "targetEmployeeId");
+                            if (targetedEmployee == null || rawDepartment != null) continue;
+                        } else {
+                            if (role == CorrespondenceActorRole.DIRECTOR && rawDepartment == null) continue;
+                            if (role != CorrespondenceActorRole.DIRECTOR && rawDepartment != null) continue;
+                        }
                         found.add(new Event(correspondence, "ACTION-" + child.getId(), role,
                                 rawDepartment == null ? null : new DepartmentCode(rawDepartment),
-                                text(child, "actorEmployeeId"), reference, subject));
+                                text(child, "actorEmployeeId"), targetedEmployee,
+                                role == CorrespondenceActorRole.SECRETARY ? "RETURN" : null,
+                                reference, subject));
+                        // A completed approval already has an immutable SEND action.
+                        // Generate one additional targeted email event without
+                        // creating any new workflow action or changing history.
+                        if ("DRAFT".equals(text(child, "fromState"))
+                                && "APPROVED".equals(text(correspondence, "secretaryApprovalStatus"))
+                                && ("SEND_TO_PRESIDENT".equals(text(child, "actionType"))
+                                    || "SEND_TO_OFFICE".equals(text(child, "actionType")))) {
+                            String secretaryOwner = text(correspondence, "secretaryOwnerEmployeeId");
+                            if (secretaryOwner != null) {
+                                found.add(new Event(correspondence,
+                                    "SECRETARY-APPROVED-" + child.getId(), CorrespondenceActorRole.SECRETARY,
+                                    null, text(child, "actorEmployeeId"), secretaryOwner,
+                                    "APPROVED", reference, subject));
+                            }
+                        }
                     } else if (TYPE_ASSIGNMENT.equals(type)) {
                         Instant time = instant(child, "assignmentAt");
                         if (time == null || time.isBefore(activatedAt)) continue;
@@ -185,7 +218,7 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                         if (department == null || !("TO".equals(typeName) || "COPY".equals(typeName))) continue;
                         found.add(new Event(correspondence, "ASSIGNMENT-" + child.getId(),
                                 CorrespondenceActorRole.DIRECTOR, new DepartmentCode(department),
-                                text(child, "assignmentByEmployeeId"), reference, subject));
+                                text(child, "assignmentByEmployeeId"), null, null, reference, subject));
                     }
                 }
             }
@@ -252,5 +285,6 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
     private static QName q(String name) { return QName.createQName(NS, name); }
 
     private record Event(NodeRef correspondence, String eventKey, CorrespondenceActorRole role,
-            DepartmentCode department, String actorEmployeeId, String reference, String subject) { }
+            DepartmentCode department, String actorEmployeeId, String targetEmployeeId,
+            String secretaryStatus, String reference, String subject) { }
 }
