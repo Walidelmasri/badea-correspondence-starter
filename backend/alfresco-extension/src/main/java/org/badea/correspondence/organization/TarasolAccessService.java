@@ -7,6 +7,9 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -32,6 +35,42 @@ public final class TarasolAccessService {
     public TarasolAccessService(DataSource dataSource, EmployeeDirectory employees) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.employees = Objects.requireNonNull(employees, "employees");
+    }
+
+    public record EmployeeLabel(String employeeId, String nameEnglish, String nameArabic) { }
+
+    /** Active-only employee selector; the caller's Tarasol scope is checked by the Web Script. */
+    public List<EmployeeLabel> searchActiveEmployees(String query) {
+        if (query == null || query.trim().length() < 2 || query.trim().length() > 60) {
+            throw new IllegalArgumentException("Search requires 2-60 characters");
+        }
+        String text = query.trim();
+        if (text.matches("[0-9]{1,20}")) {
+            return employees.findActiveByEmployeeId(new EmployeeId(text))
+                .map(TarasolAccessService::label).stream().toList();
+        }
+        return employees.searchActive(text).stream().map(TarasolAccessService::label).toList();
+    }
+
+    /** Resolve names for an authorized unit snapshot, without altering stored assignment records. */
+    public Map<String, EmployeeLabel> employeeLabels(AccessSnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        var ids = new LinkedHashSet<String>();
+        for (var entry : snapshot.appointments()) ids.add(entry.employeeId());
+        for (var entry : snapshot.secretaries()) ids.add(entry.employeeId());
+        for (var entry : snapshot.delegations()) ids.add(entry.employeeId());
+        var result = new LinkedHashMap<String, EmployeeLabel>();
+        for (var id : ids) {
+            // Historical/inactive employees may not resolve in the active directory;
+            // keep the original ID visible rather than fabricating a name.
+            employees.findActiveByEmployeeId(new EmployeeId(id))
+                .ifPresent(person -> result.put(id, label(person)));
+        }
+        return Map.copyOf(result);
+    }
+
+    private static EmployeeLabel label(org.badea.correspondence.directory.EmployeeDirectoryEntry person) {
+        return new EmployeeLabel(person.employeeId().value(), person.nameEnglish(), person.nameArabic());
     }
 
     public record Assignment(long id, String unitCode, String employeeId,

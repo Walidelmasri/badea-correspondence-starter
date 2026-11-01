@@ -80,7 +80,22 @@ public final class TarasolAccessWebScript extends AbstractWebScript {
             }
             JSONObject result;
             if (!writing) {
-                result = serialize(service.read(unit, employeeId, adminMode));
+                String query = request.getParameter("q");
+                if (query != null) {
+                    JSONArray matches = new JSONArray();
+                    for (var match : service.searchActiveEmployees(query)) {
+                        matches.put(employeeJson(match));
+                    }
+                    result = new JSONObject().put("employees", matches);
+                } else {
+                    var snapshot = service.read(unit, employeeId, adminMode);
+                    result = serialize(snapshot);
+                    JSONObject names = new JSONObject();
+                    for (var entry : service.employeeLabels(snapshot).entrySet()) {
+                        names.put(entry.getKey(), employeeJson(entry.getValue()));
+                    }
+                    result.put("employeesById", names);
+                }
             } else if (adminMode) {
                 var change = new TarasolAccessService.AppointmentChange(
                     required(input,"action"), unit, input.optLong("assignmentId"),
@@ -153,6 +168,12 @@ public final class TarasolAccessWebScript extends AbstractWebScript {
         String text = optional(input, field);
         return text == null ? null : OffsetDateTime.parse(text);
     }
+    private static JSONObject employeeJson(TarasolAccessService.EmployeeLabel employee) {
+        return new JSONObject().put("employeeId", employee.employeeId())
+            .put("nameEnglish", employee.nameEnglish())
+            .put("nameArabic", employee.nameArabic() == null ? JSONObject.NULL : employee.nameArabic());
+    }
+
     private static JSONObject serialize(TarasolAccessService.AccessSnapshot access) {
         JSONObject result = new JSONObject();
         JSONArray appointments = new JSONArray();

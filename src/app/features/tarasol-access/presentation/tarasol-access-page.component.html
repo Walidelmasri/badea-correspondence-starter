@@ -1,123 +1,249 @@
 <section class="tarasol-access">
-  <header>
-    <span class="tarasol-access__eyebrow">TARASOL · {{ isAdmin ? 'ADMINISTRATION' : 'DEPARTMENT ACCESS' }}</span>
-    <h1>{{ isAdmin ? (arabic() ? 'الإدارة التنظيمية' : 'Organization administration')
-                   : (arabic() ? 'صلاحيات فريق المدير' : 'Director team access') }}</h1>
-    <p>{{ isAdmin
-      ? (arabic() ? 'إدارة التعيينات الرسمية والتكليفات من سجل تراسل.'
-                  : 'Manage official and acting appointments from Tarasol’s own Oracle records.')
-      : (arabic() ? 'إدارة السكرتارية والتفويض المؤقت لوحدتك.'
-                  : 'Manage secretaries and temporary coverage for your active managerial assignment.') }}</p>
+  <header class="tarasol-access__intro">
+    <div>
+      <span class="tarasol-access__eyebrow">TARASOL · {{ isAdmin ? 'ORGANIZATION' : 'TEAM ACCESS' }}</span>
+      <h1>{{ isAdmin ? label('الإدارة التنظيمية', 'Organization administration') : label('صلاحيات فريق المدير', 'Director team access') }}</h1>
+      <p>{{ isAdmin
+        ? label('إدارة مديري الوحدات والتكليفات الرسمية مع الاحتفاظ بسجل التغييرات.', 'Manage official and acting appointments with a complete change history.')
+        : label('إدارة السكرتارية والتفويض المؤقت للوحدة المحددة.', 'Manage secretaries and temporary delegation for your department.') }}</p>
+    </div>
+    <button type="button" class="tarasol-access__refresh" (click)="reload()" [disabled]="saving() || loading()">
+      {{ label('تحديث السجلات', 'Refresh records') }}
+    </button>
   </header>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" class="tarasol-access__form">
-    <label><span>{{ arabic() ? 'الوحدة التنظيمية' : 'Organizational unit' }}</span>
-      @if (isAdmin) {
-        <select formControlName="unitCode" (change)="reload()">
-          @for (unit of units(); track unit.code) {
-            <option [value]="unit.code">{{ unit.code }} — {{ arabic() ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}</option>
+  <div class="tarasol-access__overview" aria-label="Current organizational access summary">
+    <div class="tarasol-access__metric">
+      <span>{{ label('المديرون النشطون', 'Active managers') }}</span>
+      <strong>{{ activeManagerAppointments().length }}</strong>
+    </div>
+    <div class="tarasol-access__metric">
+      <span>{{ label('تعيينات الوحدة', 'Unit appointments') }}</span>
+      <strong>{{ snapshot()?.appointments?.length ?? 0 }}</strong>
+    </div>
+    <div class="tarasol-access__metric">
+      <span>{{ label('السكرتارية النشطة', 'Active secretaries') }}</span>
+      <strong>{{ activeSecretaries().length }}</strong>
+    </div>
+    <div class="tarasol-access__metric">
+      <span>{{ label('التفويضات النشطة', 'Active delegations') }}</span>
+      <strong>{{ activeDelegations().length }}</strong>
+    </div>
+  </div>
+
+  <div class="tarasol-access__layout">
+    <section class="tarasol-access__panel tarasol-access__editor">
+      <div class="tarasol-access__panel-heading">
+        <span class="tarasol-access__step">01</span>
+        <div>
+          <h2>{{ isAdmin ? label('إضافة تعيين تنظيمي', 'Create an appointment') : label('منح صلاحية للفريق', 'Grant team access') }}</h2>
+          <p>{{ label('اختر الوحدة والموظف ثم حدد الصلاحية وتاريخ سريانها.', 'Choose a unit and employee, then set the role and effective dates.') }}</p>
+        </div>
+      </div>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="tarasol-access__form">
+        <label class="tarasol-access__field">
+          <span>{{ label('الوحدة التنظيمية', 'Organizational unit') }}</span>
+          @if (isAdmin) {
+            <select formControlName="unitCode" (change)="onUnitChange()">
+              @for (unit of units(); track unit.code) {
+                <option [value]="unit.code">{{ unit.code }} — {{ arabic() ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}</option>
+              }
+            </select>
+          } @else {
+            <input formControlName="unitCode" readonly dir="ltr" />
           }
-        </select>
-      } @else {
-        <input formControlName="unitCode" readonly />
-      }
-    </label>
-    <label><span>{{ arabic() ? 'الرقم الوظيفي' : 'Active employee ID' }}</span>
-      <input type="text" formControlName="employeeId" maxlength="20" autocomplete="off" inputmode="numeric" />
-    </label>
-    @if (isAdmin) {
-      <label><span>{{ arabic() ? 'نوع التعيين' : 'Appointment capacity' }}</span>
-        <select formControlName="capacity">
-          <option value="MANAGER">Official manager</option>
-          <option value="ACTING_MANAGER">Acting manager (vacant manager position)</option>
-          <option value="OFFICE_MEMBER">Office member</option>
-          <option value="CONSULTANT">Consultant</option>
-        </select>
-      </label>
-      <label><span>Appointment reference</span><input formControlName="appointmentRef" maxlength="120" /></label>
-    } @else {
-      <label><span>{{ arabic() ? 'تعيين المدير' : 'Your manager appointment' }}</span>
-        <select formControlName="managerAssignmentId">
-          <option value="">Select appointment</option>
-          @for (appointment of activeAppointments(); track appointment.id) {
-            @if (appointment.capacity === 'MANAGER' || appointment.capacity === 'ACTING_MANAGER') {
-              <option [value]="appointment.id">#{{ appointment.id }} · {{ appointment.capacity }}</option>
+        </label>
+
+        <div class="tarasol-access__field tarasol-access__employee-field">
+          <label for="tarasol-employee-search">{{ label('الموظف', 'Employee') }}</label>
+          @if (selectedEmployee(); as employee) {
+            <div class="tarasol-access__selected-employee">
+              <span class="tarasol-access__person-name">{{ employeeName(employee) }}<small dir="ltr">ID {{ employee.employeeId }}</small></span>
+              <button type="button" class="tarasol-access__clear" (click)="clearEmployee()" [disabled]="saving()" [attr.aria-label]="label('إزالة الموظف المختار', 'Clear selected employee')">×</button>
+            </div>
+          } @else {
+            <input id="tarasol-employee-search" type="search" autocomplete="off" maxlength="60"
+              [value]="employeeQuery()" [disabled]="saving()" (input)="onEmployeeQuery($event)"
+              role="combobox" aria-autocomplete="list" aria-controls="tarasol-employee-results"
+              [attr.aria-expanded]="employeeOptions().length > 0"
+              [placeholder]="label('ابحث بالاسم أو الرقم الوظيفي', 'Search by name or employee ID')" />
+            @if (employeeSearching()) {
+              <small role="status">{{ label('جارٍ البحث…', 'Searching employees…') }}</small>
+            }
+            @if (employeeSearchFailed()) {
+              <small class="tarasol-access__error" role="status">{{ label('تعذر البحث في دليل الموظفين.', 'Employee lookup is unavailable.') }}</small>
+            }
+            @if (employeeOptions().length > 0) {
+              <ul id="tarasol-employee-results" class="tarasol-access__results" role="listbox">
+                @for (employee of employeeOptions(); track employee.employeeId) {
+                  <li role="presentation">
+                    <button type="button" role="option" [attr.aria-selected]="false" (click)="selectEmployee(employee)">
+                      <strong>{{ employeeName(employee) }}</strong>
+                      <small dir="ltr">ID {{ employee.employeeId }}</small>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else if (employeeQuery().trim().length >= 2 && !employeeSearching() && !employeeSearchFailed()) {
+              <small>{{ label('لا توجد نتائج مطابقة.', 'No matching active employees.') }}</small>
             }
           }
-        </select>
-      </label>
-      <label><span>{{ arabic() ? 'العملية' : 'Team access' }}</span>
-        <select formControlName="teamAction">
-          <option value="ASSIGN_SECRETARY">Assign secretary for approval workflow</option>
-          <option value="GRANT_DELEGATION">Grant temporary delegation</option>
-        </select>
-      </label>
-      @if (form.controls.teamAction.value === 'GRANT_DELEGATION') {
-        <label><span>Delegation scope</span>
-          <select formControlName="delegationType">
-            <option value="LEAVE_COVER">Temporary leave coverage</option>
-            <option value="CASE_HANDOFF">One correspondence case</option>
-          </select>
-        </label>
-        @if (form.controls.delegationType.value === 'CASE_HANDOFF') {
-          <label><span>Case technical ID</span><input formControlName="caseTechnicalId" maxlength="80" /></label>
+          <small class="tarasol-access__help">{{ label('تأتي الأسماء من دليل الموظفين النشطين في BADEA.', 'Only active employees from the BADEA directory can be selected.') }}</small>
+        </div>
+
+        @if (isAdmin) {
+          <label class="tarasol-access__field">
+            <span>{{ label('نوع التعيين', 'Appointment type') }}</span>
+            <select formControlName="capacity">
+              <option value="MANAGER">{{ label('مدير رسمي', 'Official manager') }}</option>
+              <option value="ACTING_MANAGER">{{ label('مدير مكلف (شاغر)', 'Acting manager (vacant position)') }}</option>
+              <option value="OFFICE_MEMBER">{{ label('عضو مكتب', 'Office member') }}</option>
+              <option value="CONSULTANT">{{ label('مستشار', 'Consultant') }}</option>
+            </select>
+          </label>
+          <label class="tarasol-access__field">
+            <span>{{ label('مرجع التعيين', 'Appointment reference') }}</span>
+            <input formControlName="appointmentRef" maxlength="120" [placeholder]="label('رقم القرار (اختياري)', 'Decision reference (optional)')" />
+          </label>
+        } @else {
+          <label class="tarasol-access__field">
+            <span>{{ label('تعيين المدير الحالي', 'Your manager appointment') }}</span>
+            <select formControlName="managerAssignmentId">
+              <option value="">{{ label('اختر التعيين', 'Select an appointment') }}</option>
+              @for (appointment of activeAppointments(); track appointment.id) {
+                @if (appointment.capacity === 'MANAGER' || appointment.capacity === 'ACTING_MANAGER') {
+                  <option [value]="appointment.id">#{{ appointment.id }} · {{ capacityName(appointment.capacity) }}</option>
+                }
+              }
+            </select>
+          </label>
+          <label class="tarasol-access__field">
+            <span>{{ label('نوع الصلاحية', 'Access type') }}</span>
+            <select formControlName="teamAction">
+              <option value="ASSIGN_SECRETARY">{{ label('تعيين سكرتارية', 'Assign secretary') }}</option>
+              <option value="GRANT_DELEGATION">{{ label('تفويض مؤقت', 'Temporary delegation') }}</option>
+            </select>
+          </label>
+          @if (form.controls.teamAction.value === 'GRANT_DELEGATION') {
+            <label class="tarasol-access__field">
+              <span>{{ label('نطاق التفويض', 'Delegation scope') }}</span>
+              <select formControlName="delegationType">
+                <option value="LEAVE_COVER">{{ label('تغطية غياب مؤقت', 'Temporary leave cover') }}</option>
+                <option value="CASE_HANDOFF">{{ label('معاملة واحدة', 'One correspondence case') }}</option>
+              </select>
+            </label>
+            @if (form.controls.delegationType.value === 'CASE_HANDOFF') {
+              <label class="tarasol-access__field">
+                <span>{{ label('الرقم التقني للمعاملة', 'Correspondence case ID') }}</span>
+                <input formControlName="caseTechnicalId" maxlength="80" dir="ltr" />
+              </label>
+            }
+          }
         }
+
+        <fieldset class="tarasol-access__dates">
+          <legend>{{ label('فترة السريان', 'Effective period') }}</legend>
+          <div class="tarasol-access__date-grid">
+            <label class="tarasol-access__field"><span>{{ label('من (فارغ = الآن)', 'Starts (blank = now)') }}</span>
+              <input type="datetime-local" formControlName="startAt" dir="ltr" />
+            </label>
+            <label class="tarasol-access__field"><span>{{ label('حتى', 'Expires') }}</span>
+              <input type="datetime-local" formControlName="endAt" dir="ltr" />
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="tarasol-access__actions">
+          <button type="submit" class="tarasol-access__primary" [disabled]="saving() || loading() || !selectedEmployee()">
+            {{ saving() ? label('جارٍ الحفظ…', 'Saving…') : label('تأكيد التعيين', 'Confirm assignment') }}
+          </button>
+          <p>{{ label('كل تغيير يخضع للتحقق والتدقيق على الخادم.', 'Every change is authorized and audited on the server.') }}</p>
+        </div>
+      </form>
+    </section>
+
+    <section class="tarasol-access__panel tarasol-access__records">
+      <div class="tarasol-access__panel-heading">
+        <span class="tarasol-access__step">02</span>
+        <div>
+          <h2>{{ label('التعيينات الحالية', 'Current appointments') }}</h2>
+          <p>{{ selectedUnitName() }}</p>
+        </div>
+      </div>
+      @if (loading()) { <p class="tarasol-access__empty" role="status">{{ label('جارٍ تحميل التعيينات…', 'Loading appointments…') }}</p> }
+      @if (snapshot()) {
+        <div class="tarasol-access__table-wrap">
+          <table>
+            <thead><tr>
+              <th>{{ label('الموظف', 'Employee') }}</th>
+              <th>{{ label('الصفة', 'Role') }}</th>
+              <th>{{ label('الفترة', 'Effective period') }}</th>
+              <th>{{ label('الحالة', 'Status') }}</th>
+              @if (isAdmin) { <th>{{ label('إجراء', 'Action') }}</th> }
+            </tr></thead>
+            <tbody>
+              @for (entry of (isAdmin ? snapshot()!.appointments : activeAppointments()); track entry.id) {
+                <tr>
+                  <td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }} · #{{ entry.id }}</small></td>
+                  <td>{{ capacityName(entry.capacity) }}</td>
+                  <td><time dir="ltr" [title]="entry.startsAt">{{ dateLabel(entry.startsAt) }}</time>
+                    <small><time dir="ltr" [title]="entry.endsAt || ''">{{ dateLabel(entry.endsAt) }}</time></small></td>
+                  <td><span class="tarasol-access__status" [class.tarasol-access__status--active]="entry.active">
+                    {{ entry.active ? label('نشط', 'Active') : entry.revokedAt ? label('ملغى', 'Revoked') : label('مجدول / منتهي', 'Scheduled / expired') }}
+                  </span></td>
+                  @if (isAdmin) {
+                    <td>@if (entry.active) {
+                      <button type="button" class="tarasol-access__revoke" [disabled]="saving()" (click)="revoke('appointment',entry)">{{ label('إلغاء', 'Revoke') }}</button>
+                    }</td>
+                  }
+                </tr>
+              } @empty {
+                <tr><td [attr.colspan]="isAdmin ? 5 : 4" class="tarasol-access__empty">{{ label('لا توجد تعيينات لهذه الوحدة.', 'No appointments for this unit.') }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
-    }
-    <label><span>{{ arabic() ? 'يبدأ في' : 'Starts at (blank = now)' }}</span>
-      <input type="datetime-local" formControlName="startAt" />
-    </label>
-    <label><span>{{ arabic() ? 'ينتهي في' : 'Ends at' }}</span>
-      <input type="datetime-local" formControlName="endAt" />
-    </label>
-    <div class="tarasol-access__actions">
-      <button type="submit" [disabled]="saving() || loading()">{{ saving() ? 'Saving…' : 'Confirm assignment' }}</button>
-      <button type="button" (click)="reload()" [disabled]="saving()">Refresh</button>
-    </div>
-  </form>
+    </section>
+  </div>
 
   @if (feedback(); as message) {
-    <p [class.tarasol-access__error]="message.kind === 'error'" role="status">{{ message.message }}</p>
+    <p class="tarasol-access__notice" [class.tarasol-access__error]="message.kind === 'error'" role="status">{{ message.message }}</p>
   }
-  @if (loading()) { <p role="status">Loading current Tarasol assignments…</p> }
-  @if (snapshot()) {
-    <section class="tarasol-access__records">
-      <h2>Organizational appointments</h2>
-      <table>
-        <thead><tr><th>ID</th><th>Employee</th><th>Capacity</th><th>Valid from</th><th>Valid until</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody>
-          @for (entry of (isAdmin ? snapshot()!.appointments : activeAppointments()); track entry.id) {
-            <tr><td>{{ entry.id }}</td><td>{{ entry.employeeId }}</td><td>{{ entry.capacity }}</td>
-              <td>{{ entry.startsAt }}</td><td>{{ entry.endsAt || '—' }}</td>
-              <td>{{ entry.active ? 'Active' : entry.revokedAt ? 'Revoked' : 'Scheduled / expired' }}</td>
-              <td>@if (isAdmin) {
-                <button type="button" [disabled]="saving()" (click)="revoke('appointment',entry)">Revoke</button>
-              }</td></tr>
-          } @empty { <tr><td colspan="7">No appointments</td></tr> }
-        </tbody>
-      </table>
-    </section>
-    @if (!isAdmin) {
-      <section class="tarasol-access__records">
-        <h2>Secretary assignments</h2>
-        <table><thead><tr><th>ID</th><th>Employee</th><th>Manager</th><th>Until</th><th>Action</th></tr></thead>
-          <tbody>
-            @for (entry of activeSecretaries(); track entry.id) {
-              <tr><td>{{ entry.id }}</td><td>{{ entry.employeeId }}</td><td>{{ entry.managerAssignmentId }}</td><td>{{ entry.endsAt || '—' }}</td>
-                <td><button type="button" (click)="revoke('secretary',entry)" [disabled]="saving()">Revoke</button></td></tr>
-            } @empty { <tr><td colspan="5">No active secretaries</td></tr> }
-          </tbody></table>
+
+  @if (!isAdmin && snapshot()) {
+    <div class="tarasol-access__team-grid">
+      <section class="tarasol-access__panel tarasol-access__records">
+        <div class="tarasol-access__panel-heading">
+          <h2>{{ label('السكرتارية النشطة', 'Active secretaries') }}</h2>
+        </div>
+        <div class="tarasol-access__table-wrap">
+          <table>
+            <thead><tr><th>{{ label('الموظف', 'Employee') }}</th><th>{{ label('التعيين', 'Manager appointment') }}</th><th>{{ label('حتى', 'Until') }}</th><th>{{ label('إجراء', 'Action') }}</th></tr></thead>
+            <tbody>
+              @for (entry of activeSecretaries(); track entry.id) {
+                <tr><td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
+                  <td>#{{ entry.managerAssignmentId }}</td><td><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
+                  <td><button type="button" class="tarasol-access__revoke" (click)="revoke('secretary',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
+              } @empty { <tr><td colspan="4" class="tarasol-access__empty">{{ label('لا توجد سكرتارية نشطة.', 'No active secretaries.') }}</td></tr> }
+            </tbody>
+          </table>
+        </div>
       </section>
-      <section class="tarasol-access__records">
-        <h2>Temporary delegations</h2>
-        <table><thead><tr><th>ID</th><th>Employee</th><th>Scope</th><th>Until</th><th>Action</th></tr></thead>
+      <section class="tarasol-access__panel tarasol-access__records">
+        <div class="tarasol-access__panel-heading"><h2>{{ label('التفويضات النشطة', 'Active delegations') }}</h2></div>
+        <div class="tarasol-access__table-wrap"><table>
+          <thead><tr><th>{{ label('الموظف', 'Employee') }}</th><th>{{ label('النطاق', 'Scope') }}</th><th>{{ label('حتى', 'Until') }}</th><th>{{ label('إجراء', 'Action') }}</th></tr></thead>
           <tbody>
             @for (entry of activeDelegations(); track entry.id) {
-              <tr><td>{{ entry.id }}</td><td>{{ entry.employeeId }}</td><td>{{ entry.type }}</td><td>{{ entry.endsAt }}</td>
-                <td><button type="button" (click)="revoke('delegation',entry)" [disabled]="saving()">Revoke</button></td></tr>
-            } @empty { <tr><td colspan="5">No active delegations</td></tr> }
-          </tbody></table>
+              <tr><td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
+                <td>{{ entry.type === 'CASE_HANDOFF' ? label('معاملة واحدة', 'One case') : label('تغطية غياب', 'Leave cover') }}</td>
+                <td><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
+                <td><button type="button" class="tarasol-access__revoke" (click)="revoke('delegation',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
+            } @empty { <tr><td colspan="4" class="tarasol-access__empty">{{ label('لا توجد تفويضات نشطة.', 'No active delegations.') }}</td></tr> }
+          </tbody>
+        </table></div>
       </section>
-    }
+    </div>
   }
 </section>

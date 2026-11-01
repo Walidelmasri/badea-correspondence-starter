@@ -50,6 +50,40 @@ class TarasolAccessServiceTest {
     }
 
     @Test
+    void employeeSelectorUsesActiveDirectoryAndKeepsCanonicalEmployeeId() throws SQLException {
+        var person = new EmployeeDirectoryEntry(new EmployeeId("018284"),
+            new DirectoryUsername("ndjack"), "Mohamed N'Diack", "محمد", Optional.empty());
+        when(employees.searchActive("Mohamed")).thenReturn(java.util.List.of(person));
+        when(employees.findActiveByEmployeeId(new EmployeeId("018284"))).thenReturn(Optional.of(person));
+
+        var byName = service.searchActiveEmployees("  Mohamed  ");
+        var byId = service.searchActiveEmployees("018284");
+
+        assertEquals("018284", byName.get(0).employeeId());
+        assertEquals("Mohamed N'Diack", byName.get(0).nameEnglish());
+        assertEquals("018284", byId.get(0).employeeId());
+        verify(dataSource, never()).getConnection();
+    }
+
+    @Test
+    void existingAppointmentNamesUseDirectoryWithoutChangingHistoricalEmployeeIds() {
+        var person = new EmployeeDirectoryEntry(new EmployeeId("18284"),
+            new DirectoryUsername("ndjack"), "Mohamed N'Diack", null, Optional.empty());
+        when(employees.findActiveByEmployeeId(new EmployeeId("18284"))).thenReturn(Optional.of(person));
+        var snapshot = new TarasolAccessService.AccessSnapshot(java.util.List.of(
+            new TarasolAccessService.Assignment(2, "118", "18284", "ACTING_MANAGER",
+                "2026-11-01", null, null, true),
+            new TarasolAccessService.Assignment(1, "118", "99999", "MANAGER",
+                "2025-01-01", "2025-07-01", null, false)),
+            java.util.List.of(), java.util.List.of());
+
+        var names = service.employeeLabels(snapshot);
+        assertEquals("Mohamed N'Diack", names.get("18284").nameEnglish());
+        org.junit.jupiter.api.Assertions.assertFalse(names.containsKey("99999"));
+        assertEquals("99999", snapshot.appointments().get(1).employeeId());
+    }
+
+    @Test
     void anotherActingManagerIsAllowedWhenOfficialPositionIsVacant() throws SQLException {
         activeEmployee("18284");
         lockedUnit();

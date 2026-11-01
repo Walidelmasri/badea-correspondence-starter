@@ -1,16 +1,112 @@
-.tarasol-access { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-.tarasol-access header { margin-bottom: 1.5rem; }
-.tarasol-access h1 { margin: 0.6rem 0; font-size: 1.8rem; }
-.tarasol-access h2 { font-size: 1.1rem; }
-.tarasol-access header p { color: var(--color-text-secondary); }
-.tarasol-access__eyebrow { font-size: 0.72rem; letter-spacing: 0.12em; font-weight: 700; }
-.tarasol-access__form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 1rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
-.tarasol-access__form label { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; font-size: 0.85rem; }
-.tarasol-access__form input, .tarasol-access__form select { width: 100%; min-height: 2.5rem; padding: 0.4rem 0.65rem; border: 1px solid var(--color-border); border-radius: 0.45rem; background: var(--color-surface); color: inherit; }
-.tarasol-access__actions { display: flex; gap: 0.65rem; align-items: end; }
-.tarasol-access button { padding: 0.6rem 0.9rem; border: 1px solid var(--color-border); border-radius: 0.45rem; background: var(--color-primary-050); color: var(--color-primary-800); cursor: pointer; }
-.tarasol-access button:disabled { opacity: 0.5; cursor: not-allowed; }
-.tarasol-access__records { margin-top: 2rem; overflow-x: auto; }
-.tarasol-access table { width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: start; }
-.tarasol-access th, .tarasol-access td { text-align: start; padding: 0.75rem; border-bottom: 1px solid var(--color-border); }
-.tarasol-access__error { color: #b42318; }
+.tarasol-access {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: clamp(1rem, 2.5vw, 2rem) clamp(1rem, 3vw, 2.5rem) 4rem;
+  color: var(--color-text-primary, #172522);
+}
+
+.tarasol-access__intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.6rem;
+}
+.tarasol-access__eyebrow { color: var(--color-primary-800, #245e52); font-size: .68rem; letter-spacing: .14em; font-weight: 700; }
+.tarasol-access h1 { margin: .4rem 0 .35rem; font-size: clamp(1.55rem, 2.4vw, 2.1rem); }
+.tarasol-access p { margin: 0; line-height: 1.55; color: var(--color-text-secondary, #65736f); }
+.tarasol-access h2 { margin: 0; font-size: 1.06rem; }
+.tarasol-access button { cursor: pointer; font: inherit; }
+.tarasol-access button:disabled { opacity: .5; cursor: not-allowed; }
+
+.tarasol-access__refresh, .tarasol-access__revoke, .tarasol-access__clear {
+  border: 1px solid var(--color-border, #dce6e0);
+  border-radius: .55rem;
+  color: var(--color-primary-800, #275c50);
+  background: var(--color-surface, #fff);
+  padding: .55rem .85rem;
+}
+.tarasol-access__revoke { padding: .42rem .6rem; font-size: .78rem; }
+.tarasol-access__refresh:hover, .tarasol-access__revoke:hover { background: var(--color-primary-050, #eff6f2); }
+
+.tarasol-access__overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .8rem;
+  margin-bottom: 1.1rem;
+}
+.tarasol-access__metric, .tarasol-access__panel {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e0e8e3);
+  border-radius: .9rem;
+  box-shadow: 0 2px 14px rgb(20 49 40 / 3%);
+}
+.tarasol-access__metric { display: flex; flex-direction: column; gap: .5rem; padding: .9rem 1.2rem; }
+.tarasol-access__metric span { font-size: .75rem; color: var(--color-text-secondary, #64716c); }
+.tarasol-access__metric strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+
+.tarasol-access__layout { display: grid; grid-template-columns: minmax(320px, .9fr) minmax(0, 1.55fr); gap: 1.1rem; align-items: start; }
+.tarasol-access__panel { min-width: 0; overflow: visible; }
+.tarasol-access__panel-heading {
+  display: flex; align-items: flex-start; gap: .8rem; padding: 1.15rem 1.2rem;
+  border-bottom: 1px solid var(--color-border, #e5eae6);
+}
+.tarasol-access__panel-heading p { font-size: .77rem; margin-top: .25rem; }
+.tarasol-access__step {
+  flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem;
+  border-radius: .6rem; background: var(--color-primary-050, #e8f3ee);
+  color: var(--color-primary-800, #235648); font-size: .73rem; font-weight: 700;
+}
+.tarasol-access__form { display: grid; gap: 1rem; padding: 1.15rem 1.2rem 1.25rem; }
+.tarasol-access__field, .tarasol-access__employee-field { display: flex; flex-direction: column; min-width: 0; gap: .4rem; }
+.tarasol-access__field > span, .tarasol-access__employee-field > label { font-weight: 600; font-size: .8rem; }
+.tarasol-access input, .tarasol-access select {
+  width: 100%; min-width: 0; min-height: 2.65rem; box-sizing: border-box;
+  padding: .52rem .75rem; border: 1px solid var(--color-border, #d2dfd7);
+  border-radius: .58rem; background: var(--color-surface, #fff); color: inherit;
+  font: inherit; font-size: .87rem;
+}
+.tarasol-access input:focus-visible, .tarasol-access select:focus-visible, .tarasol-access button:focus-visible {
+  outline: 2px solid var(--color-primary-800, #25705c); outline-offset: 2px;
+}
+.tarasol-access input[readonly] { background: var(--color-primary-050, #f1f5f3); }
+.tarasol-access__help, .tarasol-access__employee-field > small { font-size: .73rem; color: var(--color-text-secondary, #67746e); }
+.tarasol-access__employee-field { position: relative; }
+.tarasol-access__selected-employee { display: flex; align-items: center; justify-content: space-between; gap: .4rem; border: 1px solid var(--color-primary-800, #367c66); padding: .5rem .75rem; border-radius: .65rem; }
+.tarasol-access__selected-employee small, .tarasol-access td small { display: block; font-size: .72rem; color: var(--color-text-secondary, #65746e); margin-top: .25rem; }
+.tarasol-access__person-name { font-weight: 700; font-size: .87rem; }
+.tarasol-access__clear { padding: .2rem .55rem; font-size: 1.2rem !important; }
+.tarasol-access__results { position: absolute; z-index: 15; inset-inline: 0; top: calc(100% - 1.2rem); margin: 0; padding: .3rem; list-style: none; max-height: 240px; overflow-y: auto; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #dce5df); border-radius: .6rem; box-shadow: 0 12px 30px rgb(14 31 25 / 17%); }
+.tarasol-access__results li + li { border-top: 1px solid var(--color-border, #ecf0ec); }
+.tarasol-access__results button { display: flex; flex-direction: column; align-items: start; gap: .25rem; border: 0; background: transparent; width: 100%; padding: .65rem; border-radius: .4rem; text-align: start; }
+.tarasol-access__results button:hover, .tarasol-access__results button:focus-visible { background: var(--color-primary-050, #eff6f2); }
+.tarasol-access__results small { color: var(--color-text-secondary, #64746b); }
+.tarasol-access__dates { border: 1px solid var(--color-border, #dce5e0); border-radius: .65rem; padding: .8rem; min-width: 0; margin: 0; }
+.tarasol-access__dates legend { padding: 0 .4rem; font-weight: 600; font-size: .8rem; }
+.tarasol-access__date-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.tarasol-access__actions { border-top: 1px solid var(--color-border, #e5eae6); padding-top: 1rem; display: grid; gap: .6rem; }
+.tarasol-access__actions p { font-size: .71rem; }
+.tarasol-access__primary { background: var(--color-primary-800, #20604e); color: white; border: 0; border-radius: .55rem; padding: .85rem 1rem; font-weight: 700 !important; }
+.tarasol-access__primary:hover:not(:disabled) { filter: brightness(1.1); }
+.tarasol-access__table-wrap { overflow-x: auto; }
+.tarasol-access table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.tarasol-access th { color: var(--color-text-secondary, #6b7871); background: var(--color-primary-050, #f6f9f7); font-size: .72rem; white-space: nowrap; }
+.tarasol-access td, .tarasol-access th { text-align: start; padding: .78rem .8rem; border-bottom: 1px solid var(--color-border, #e5ece7); vertical-align: middle; }
+.tarasol-access td strong { font-size: .8rem; font-weight: 650; }
+.tarasol-access tr:last-child td { border-bottom: 0; }
+.tarasol-access__status { display: inline-flex; padding: .27rem .55rem; border-radius: 100px; white-space: nowrap; background: var(--color-primary-050, #f2f3f2); font-size: .72rem; }
+.tarasol-access__status--active { background: #e5f6ed; color: #206348; }
+.tarasol-access__empty { color: var(--color-text-secondary, #718077); text-align: center !important; padding: 2rem !important; }
+.tarasol-access__notice { margin: 1rem 0 !important; padding: .85rem 1rem; background: var(--color-primary-050, #e8f4ed); border-radius: .6rem; }
+.tarasol-access__error { color: #b42318 !important; }
+.tarasol-access__team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; margin-top: 1.1rem; }
+
+@media (max-width: 1100px) {
+  .tarasol-access__layout, .tarasol-access__team-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 650px) {
+  .tarasol-access__intro { align-items: start; flex-direction: column; }
+  .tarasol-access__overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tarasol-access__date-grid { grid-template-columns: 1fr; }
+  .tarasol-access td, .tarasol-access th { padding: .65rem; }
+}
