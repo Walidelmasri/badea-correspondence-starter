@@ -67,6 +67,43 @@ public final class TarasolOrganizationReader {
         ORDER BY a.UNIT_CODE, a.ASSIGNMENT_ID
         """;
 
+    // Only the President's Office (101) can have ordinary Office members.
+    // This deliberately excludes OFFICE_MEMBER rows in other departments.
+    private static final String OFFICE_MEMBERSHIP_SQL = """
+        SELECT a.ASSIGNMENT_ID, u.NAME_EN, u.NAME_AR
+        FROM TARASOL_UNIT_ASSIGNMENTS a
+        JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = a.UNIT_CODE
+        WHERE a.EMP_ID = ? AND a.UNIT_CODE = '101'
+          AND a.CAPACITY = 'OFFICE_MEMBER' AND u.STATUS = 'A'
+          AND a.REVOKED_AT IS NULL AND a.STARTS_AT <= SYSTIMESTAMP
+          AND (a.ENDS_AT IS NULL OR a.ENDS_AT > SYSTIMESTAMP)
+        ORDER BY a.ASSIGNMENT_ID
+        """;
+
+    public record OfficeMembership(long assignmentId, DepartmentCode code,
+            String nameEnglish, String nameArabic) { }
+
+    /** Ordinary Office membership is never equivalent to a manager appointment. */
+    public java.util.Optional<OfficeMembership> findCurrentOfficeMembership(EmployeeId employeeId) {
+        Objects.requireNonNull(employeeId, "employeeId");
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement query = connection.prepareStatement(OFFICE_MEMBERSHIP_SQL)) {
+            query.setQueryTimeout(8);
+            query.setString(1, employeeId.value());
+            try (ResultSet rows = query.executeQuery()) {
+                if (!rows.next()) return java.util.Optional.empty();
+                OfficeMembership result = new OfficeMembership(rows.getLong("ASSIGNMENT_ID"),
+                    new DepartmentCode("101"), rows.getString("NAME_EN"), rows.getString("NAME_AR"));
+                if (rows.next()) {
+                    throw new DepartmentDirectoryException("Duplicate active Office membership");
+                }
+                return java.util.Optional.of(result);
+            }
+        } catch (SQLException failure) {
+            throw new DepartmentDirectoryException("Failed to load President Office membership", failure);
+        }
+    }
+
     private final DataSource dataSource;
 
     public TarasolOrganizationReader(DataSource dataSource) {

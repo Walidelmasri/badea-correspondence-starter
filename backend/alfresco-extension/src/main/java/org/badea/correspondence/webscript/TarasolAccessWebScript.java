@@ -73,8 +73,9 @@ public final class TarasolAccessWebScript extends AbstractWebScript {
                 // The caller may manage only their currently appointed unit;
                 // never trust the client-side workspace selection or manager ID.
                 var workspace = roles.resolveWorkspace(unit, employee);
-                if (workspace.role() != CorrespondenceActorRole.DIRECTOR
-                        && workspace.role() != CorrespondenceActorRole.PRESIDENT_OFFICE) {
+                if ((workspace.role() != CorrespondenceActorRole.DIRECTOR
+                        && workspace.role() != CorrespondenceActorRole.PRESIDENT_OFFICE)
+                        || !service.isCurrentManager(unit, employee.employeeId())) {
                     throw new CorrespondenceAuthorizationException("Active manager workspace required");
                 }
             }

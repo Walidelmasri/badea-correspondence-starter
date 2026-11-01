@@ -89,6 +89,39 @@ class TarasolOrganizationReaderTest {
     }
 
     @Test
+    void readsOnlyActivePresidentOfficeMembersFromTarasolNotLegacyDepartments() throws SQLException {
+        when(rows.next()).thenReturn(true, false);
+        when(rows.getLong("ASSIGNMENT_ID")).thenReturn(19L);
+        when(rows.getString("NAME_EN")).thenReturn("Office of the President");
+        when(rows.getString("NAME_AR")).thenReturn("مكتب الرئيس");
+        var membership = reader.findCurrentOfficeMembership(new EmployeeId("99999")).orElseThrow();
+        assertEquals("101", membership.code().value());
+        assertEquals(19L, membership.assignmentId());
+        verify(statement).setString(1, "99999");
+        var sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(connection).prepareStatement(sql.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(sql.getValue().contains("a.UNIT_CODE = '101'"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.getValue().contains("a.CAPACITY = 'OFFICE_MEMBER'"));
+        org.junit.jupiter.api.Assertions.assertFalse(sql.getValue().contains("COR_DEPARTMENTS"));
+    }
+
+    @Test
+    void refusesDuplicateActiveOfficeMemberships() throws SQLException {
+        when(rows.next()).thenReturn(true, true);
+        when(rows.getLong("ASSIGNMENT_ID")).thenReturn(19L);
+        when(rows.getString("NAME_EN")).thenReturn("Office");
+        assertThrows(DepartmentDirectoryException.class,
+            () -> reader.findCurrentOfficeMembership(new EmployeeId("99999")));
+    }
+
+    @Test
+    void officeMembershipDoesNotRequireAnExistingManager() throws SQLException {
+        when(rows.next()).thenReturn(false);
+        org.junit.jupiter.api.Assertions.assertTrue(
+            reader.findCurrentOfficeMembership(new EmployeeId("99999")).isEmpty());
+    }
+
+    @Test
     void returnsEveryConcurrentActingManagerForOneUnit() throws SQLException {
         when(rows.next()).thenReturn(true, true, false);
         when(rows.getLong("ASSIGNMENT_ID")).thenReturn(17L, 18L);

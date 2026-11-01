@@ -157,6 +157,37 @@ class TarasolAccessServiceTest {
     }
 
     @Test
+    void teamAccessRequiresLiveManagerNotOfficeMembership() throws SQLException {
+        when(dataSource.getConnection()).thenReturn(connection);
+        PreparedStatement query = mock(PreparedStatement.class);
+        ResultSet rows = mock(ResultSet.class);
+        when(connection.prepareStatement(contains("SELECT 1 FROM TARASOL_UNIT_ASSIGNMENTS a")))
+            .thenReturn(query);
+        when(query.executeQuery()).thenReturn(rows);
+        when(rows.next()).thenReturn(false, true);
+        assertEquals(false, service.isCurrentManager("101", ADMIN));
+        assertEquals(true, service.isCurrentManager("101", ADMIN));
+        verify(query, org.mockito.Mockito.times(2)).setString(1, "101");
+        verify(query, org.mockito.Mockito.times(2)).setString(2, ADMIN.value());
+    }
+
+    @Test
+    void refusesUndefinedConsultantAppointmentBeforeAnyDatabaseWrite() throws SQLException {
+        assertThrows(IllegalArgumentException.class, () -> service.changeAppointment(
+            new TarasolAccessService.AppointmentChange("APPOINT", "101", 0, "99999",
+                "CONSULTANT", START, null, null, null), ADMIN));
+        verify(dataSource, never()).getConnection();
+    }
+
+    @Test
+    void officeMemberAppointmentIsOnlyValidForPresidentOffice101() throws SQLException {
+        assertThrows(IllegalArgumentException.class, () -> service.changeAppointment(
+            new TarasolAccessService.AppointmentChange("APPOINT", "117", 0, "99999",
+                "OFFICE_MEMBER", START, null, null, null), ADMIN));
+        verify(dataSource, never()).getConnection();
+    }
+
+    @Test
     void rejectsTemporaryDelegationWithoutExpiration() throws SQLException {
         activeEmployee("24428");
         assertThrows(IllegalArgumentException.class,

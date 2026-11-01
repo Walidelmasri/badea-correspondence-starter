@@ -97,8 +97,9 @@
             <select formControlName="capacity">
               <option value="MANAGER">{{ label('مدير رسمي', 'Official manager') }}</option>
               <option value="ACTING_MANAGER">{{ label('مدير مكلف (شاغر)', 'Acting manager (vacant position)') }}</option>
-              <option value="OFFICE_MEMBER">{{ label('عضو مكتب', 'Office member') }}</option>
-              <option value="CONSULTANT">{{ label('مستشار', 'Consultant') }}</option>
+              @if (form.controls.unitCode.value === '101') {
+                <option value="OFFICE_MEMBER">{{ label('عضو مكتب الرئيس', "President's Office member") }}</option>
+              }
             </select>
           </label>
           <label class="tarasol-access__field">

@@ -162,6 +162,56 @@ class AlfrescoCorrespondenceActorRoleResolverTest {
     }
 
     @Test
+    void officeMemberOf101CanUseOfficeWorkspaceWithoutManagerAuthority() {
+        var directory = mock(TarasolOrganizationReader.class);
+        var employee = actingEmployee();
+        when(authorityService.getAuthoritiesForUser(USERNAME)).thenReturn(Set.of(
+            "GROUP_BADEA_CORRESPONDENCE_DIRECTORS",
+            "GROUP_BADEA_CORRESPONDENCE_PRESIDENT_OFFICE"));
+        when(directory.findCurrentManagerWorkspaces(employee.employeeId())).thenReturn(List.of(
+            new ManagerWorkspace(9, new DepartmentCode("117"), "Digital Transformation", null, "MANAGER")));
+        when(directory.findCurrentOfficeMembership(employee.employeeId())).thenReturn(Optional.of(
+            new TarasolOrganizationReader.OfficeMembership(10, new DepartmentCode("101"),
+                "Office of President", null)));
+        var scoped = new AlfrescoCorrespondenceActorRoleResolver(authorityService,
+            authenticatedUserProvider, directory);
+        assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE,
+            scoped.resolveWorkspace("101", employee).role());
+        assertEquals(CorrespondenceActorRole.DIRECTOR,
+            scoped.resolveWorkspace("117", employee).role());
+    }
+
+    @Test
+    void officeMemberWithoutOfficeGroupCannotSwitchOrGainDirectorRights() {
+        var directory = mock(TarasolOrganizationReader.class);
+        var employee = actingEmployee();
+        when(authorityService.getAuthoritiesForUser(USERNAME)).thenReturn(Set.of(
+            "GROUP_BADEA_CORRESPONDENCE_DIRECTORS"));
+        when(directory.findCurrentOfficeMembership(employee.employeeId())).thenReturn(Optional.of(
+            new TarasolOrganizationReader.OfficeMembership(10, new DepartmentCode("101"),
+                "Office", null)));
+        var scoped = new AlfrescoCorrespondenceActorRoleResolver(authorityService,
+            authenticatedUserProvider, directory);
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> scoped.resolveWorkspace("101", employee));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> scoped.resolveWorkspace("117", employee));
+    }
+
+    @Test
+    void officeMembershipIn117CannotBecomeDirectorWorkspace() {
+        var directory = mock(TarasolOrganizationReader.class);
+        var employee = actingEmployee();
+        when(authorityService.getAuthoritiesForUser(USERNAME)).thenReturn(Set.of(
+            "GROUP_BADEA_CORRESPONDENCE_PRESIDENT_OFFICE",
+            "GROUP_BADEA_CORRESPONDENCE_DIRECTORS"));
+        var scoped = new AlfrescoCorrespondenceActorRoleResolver(authorityService,
+            authenticatedUserProvider, directory);
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> scoped.resolveWorkspace("117", employee));
+    }
+
+    @Test
     void refusesDirectorWorkspaceForOfficeOnlyGroupEvenWhenAssigned() {
         var directory = mock(TarasolOrganizationReader.class);
         var employee = actingEmployee();

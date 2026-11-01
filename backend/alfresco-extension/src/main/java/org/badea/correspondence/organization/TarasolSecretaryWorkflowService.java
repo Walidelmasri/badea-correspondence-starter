@@ -181,7 +181,11 @@ public final class TarasolSecretaryWorkflowService {
         var workspace = roles.resolveWorkspace(unit.value(), actor);
         if (!unit.equals(workspace.unit())
                 || (workspace.role() != CorrespondenceActorRole.DIRECTOR
-                    && workspace.role() != CorrespondenceActorRole.PRESIDENT_OFFICE)) throw denied();
+                    && workspace.role() != CorrespondenceActorRole.PRESIDENT_OFFICE)
+                || organization.findCurrentManagerWorkspaces(actor.employeeId()).stream()
+                    .noneMatch(appointment -> unit.equals(appointment.code()))) throw denied();
+        // Office members have an Office workspace, but they cannot approve
+        // secretary submissions. Manager approval always needs a live appointment.
         return workspace;
     }
 

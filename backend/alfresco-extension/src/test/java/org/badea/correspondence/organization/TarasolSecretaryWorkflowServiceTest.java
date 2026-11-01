@@ -47,6 +47,8 @@ class TarasolSecretaryWorkflowServiceTest {
     private void manager(DepartmentCode unit, EmployeeDirectoryEntry actor, CorrespondenceActorRole role) {
         when(roles.resolveWorkspace(unit.value(), actor))
             .thenReturn(new CorrespondenceActorRoleResolver.Workspace(role, unit));
+        when(organization.findCurrentManagerWorkspaces(actor.employeeId()))
+            .thenReturn(List.of(workspace(unit)));
     }
 
     private TarasolOrganizationReader.ManagerWorkspace workspace(DepartmentCode unit) {
@@ -98,6 +100,19 @@ class TarasolSecretaryWorkflowServiceTest {
                 c.actorRole() == CorrespondenceActorRole.PRESIDENT_OFFICE &&
                 c.action() == CorrespondenceAction.SEND_TO_PRESIDENT),
             eq(CorrespondenceState.WITH_PRESIDENT), eq(CorrespondenceActorRole.PRESIDENT));
+    }
+
+    @Test
+    void ordinaryOfficeMemberCannotApproveSecretaryDraftOrSeeManagerQueue() {
+        var actor = employee("300");
+        manager(office, actor, CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(organization.findCurrentManagerWorkspaces(actor.employeeId()))
+            .thenReturn(List.of());
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.pending(actor, office));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.approveAndSend(actor, office, CASE));
+        verifyNoInteractions(repo);
     }
 
     @Test

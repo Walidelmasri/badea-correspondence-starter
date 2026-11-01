@@ -76,8 +76,16 @@ public final class AlfrescoCorrespondenceActorRoleResolver
             }
             resolved = new Workspace(target, assignment.code());
         }
+        if (resolved == null && "101".equals(requestedUnit)
+                && groups.contains(CorrespondenceActorRole.PRESIDENT_OFFICE)
+                && organizationReader.findCurrentOfficeMembership(employee.employeeId()).isPresent()) {
+            // An Office member may use the Office workflow, but cannot become
+            // an Office manager or obtain a departmental Director workspace.
+            return new Workspace(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                new org.badea.correspondence.directory.DepartmentCode("101"));
+        }
         if (resolved == null) {
-            throw new CorrespondenceAuthorizationException("No active managerial appointment for workspace");
+            throw new CorrespondenceAuthorizationException("No active Tarasol appointment for workspace");
         }
         return resolved;
     }

@@ -177,6 +177,16 @@ public final class CurrentEmployeeWebScript
                 }
             }
 
+            List<ManagerWorkspaceView> officeWorkspaces = new ArrayList<>();
+            if (organizationReader != null && role != CorrespondenceActorRole.PRESIDENT
+                    && groups.contains(CorrespondenceActorRole.PRESIDENT_OFFICE)
+                    && workspaces.stream().noneMatch(w -> "101".equals(w.code()))) {
+                organizationReader.findCurrentOfficeMembership(employee.employeeId())
+                    .ifPresent(office -> officeWorkspaces.add(new ManagerWorkspaceView(
+                        office.code().value(), office.nameEnglish(), office.nameArabic(),
+                        "OFFICE_MEMBER", CorrespondenceActorRole.PRESIDENT_OFFICE)));
+            }
+
             boolean tarasolAdministrator = false;
             if (authorityService != null && userProvider != null) {
                 Set<String> authorities = authorityService.getAuthoritiesForUser(userProvider.getUsername());
@@ -189,7 +199,7 @@ public final class CurrentEmployeeWebScript
             writeJson(
                     response,
                     Status.STATUS_OK,
-                    toJson(employee, role, groups, workspaces, secretaryUnits,
+                    toJson(employee, role, groups, workspaces, officeWorkspaces, secretaryUnits,
                         delegationUnits, tarasolAdministrator));
 
         } catch (IllegalStateException temporaryGrantFailure) {
@@ -246,6 +256,7 @@ public final class CurrentEmployeeWebScript
             CorrespondenceActorRole role,
             Set<CorrespondenceActorRole> roles,
             List<ManagerWorkspaceView> workspaces,
+            List<ManagerWorkspaceView> officeWorkspaces,
             List<TarasolEffectiveAccessReader.SecretaryUnit> secretaryUnits,
             List<TarasolEffectiveAccessReader.SecretaryUnit> delegationUnits,
             boolean tarasolAdministrator) {
@@ -290,6 +301,16 @@ public final class CurrentEmployeeWebScript
                 assignments.put(item);
             }
             json.put("managerWorkspaces", assignments);
+            JSONArray officeAssignments = new JSONArray();
+            for (ManagerWorkspaceView workspace : officeWorkspaces) {
+                officeAssignments.put(new JSONObject()
+                    .put("code", workspace.code())
+                    .put("nameEnglish", workspace.nameEnglish())
+                    .put("nameArabic", nullableJsonValue(workspace.nameArabic()))
+                    .put("capacity", "OFFICE_MEMBER")
+                    .put("role", "PRESIDENT_OFFICE"));
+            }
+            json.put("officeWorkspaces", officeAssignments);
             JSONArray secretaryWorkspaceList = new JSONArray();
             for (var unit : secretaryUnits) {
                 secretaryWorkspaceList.put(new JSONObject()

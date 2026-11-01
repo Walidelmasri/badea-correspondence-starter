@@ -124,6 +124,41 @@ class CurrentEmployeeWebScriptTest {
     }
 
     @Test
+    void returnsNonManagerOffice101WorkspaceWithoutElevatingDirectorAuthority() throws IOException {
+        var organizationReader = mock(TarasolOrganizationReader.class);
+        when(roleResolver.resolveCurrentUserRole())
+            .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(
+            CorrespondenceActorRole.PRESIDENT_OFFICE, CorrespondenceActorRole.DIRECTOR));
+        when(organizationReader.findCurrentManagerWorkspaces(new EmployeeId("10001")))
+            .thenReturn(List.of(new TarasolOrganizationReader.ManagerWorkspace(7,
+                new DepartmentCode("117"), "Digital Transformation", null, "MANAGER")));
+        when(organizationReader.findCurrentOfficeMembership(new EmployeeId("10001")))
+            .thenReturn(Optional.of(new TarasolOrganizationReader.OfficeMembership(8,
+                new DepartmentCode("101"), "President's Office", null)));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
+        JSONObject result = execute();
+        assertEquals(1, result.getJSONArray("managerWorkspaces").length());
+        assertEquals("117", result.getJSONArray("managerWorkspaces").getJSONObject(0).getString("code"));
+        assertEquals(1, result.getJSONArray("officeWorkspaces").length());
+        assertEquals("OFFICE_MEMBER", result.getJSONArray("officeWorkspaces")
+            .getJSONObject(0).getString("capacity"));
+    }
+
+    @Test
+    void officeGroupAloneDoesNotConvertAnUnrelatedOfficeMemberIntoManager() throws IOException {
+        var organizationReader = mock(TarasolOrganizationReader.class);
+        when(roleResolver.resolveCurrentUserRole())
+            .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(
+            CorrespondenceActorRole.PRESIDENT_OFFICE));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
+        JSONObject result = execute();
+        assertEquals(0, result.getJSONArray("managerWorkspaces").length());
+        assertEquals(0, result.getJSONArray("officeWorkspaces").length());
+    }
+
+    @Test
     void rejectsOfficeWorkspaceWithoutOfficeGroupEvenForUnitManager() throws IOException {
         var organizationReader = mock(TarasolOrganizationReader.class);
         when(roleResolver.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.DIRECTOR);

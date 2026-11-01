@@ -69,7 +69,7 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     if (!this.isAdmin) {
-      const workspace = this.session.activeWorkspace();
+      const workspace = this.session.activeManagerWorkspace();
       if (!workspace) {
         this.feedback.set({ kind: 'error', message: this.label('اختر وحدة إدارية نشطة أولاً.', 'Select an active managerial workspace first.') });
         return;
@@ -96,6 +96,10 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
   }
 
   onUnitChange(): void {
+    if (this.form.controls.unitCode.value !== '101'
+        && this.form.controls.capacity.value === 'OFFICE_MEMBER') {
+      this.form.controls.capacity.setValue('MANAGER');
+    }
     this.clearEmployee();
     this.snapshot.set(null);
     void this.reload();

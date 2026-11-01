@@ -27,7 +27,7 @@ import org.badea.correspondence.security.CorrespondenceAuthorizationException;
  */
 public final class TarasolAccessService {
     private static final Set<String> CAPACITIES = Set.of(
-        "MANAGER", "ACTING_MANAGER", "OFFICE_MEMBER", "CONSULTANT");
+        "MANAGER", "ACTING_MANAGER", "OFFICE_MEMBER");
     private static final Set<String> DELEGATION_TYPES = Set.of("LEAVE_COVER", "CASE_HANDOFF");
     private final DataSource dataSource;
     private final EmployeeDirectory employees;
@@ -86,6 +86,32 @@ public final class TarasolAccessService {
     public record TeamChange(String action, String unitCode, long managerAssignmentId,
         long recordId, String employeeId, String delegationType, String caseTechnicalId,
         OffsetDateTime startsAt, OffsetDateTime endsAt, String reason) { }
+
+    /** Manager-only Team Access; ordinary Office membership never qualifies. */
+    public boolean isCurrentManager(String unitCode, EmployeeId actor) {
+        requireUnitCode(unitCode);
+        Objects.requireNonNull(actor, "actor");
+        String sql = """
+            SELECT 1 FROM TARASOL_UNIT_ASSIGNMENTS a
+            JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = a.UNIT_CODE
+            WHERE a.UNIT_CODE = ? AND a.EMP_ID = ?
+              AND a.CAPACITY IN ('MANAGER', 'ACTING_MANAGER')
+              AND u.STATUS = 'A' AND a.REVOKED_AT IS NULL
+              AND a.STARTS_AT <= SYSTIMESTAMP
+              AND (a.ENDS_AT IS NULL OR a.ENDS_AT > SYSTIMESTAMP)
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setQueryTimeout(8);
+            ps.setString(1, unitCode);
+            ps.setString(2, actor.value());
+            try (ResultSet rows = ps.executeQuery()) {
+                return rows.next();
+            }
+        } catch (SQLException ex) {
+            throw storageError(ex);
+        }
+    }
 
     public AccessSnapshot read(String unitCode, String managerEmployeeId, boolean administrator) {
         requireUnitCode(unitCode);
@@ -169,6 +195,9 @@ public final class TarasolAccessService {
                 throw invalid("Replacement requires a current official manager and new manager capacity");
             }
             if (!CAPACITIES.contains(change.capacity())) throw invalid("Unknown capacity");
+            if ("OFFICE_MEMBER".equals(change.capacity()) && !"101".equals(change.unitCode())) {
+                throw invalid("Office membership is only valid in President's Office (101)");
+            }
             requireActiveEmployee(change.employeeId());
             requireDates(change.startsAt(), change.endsAt(), false);
             if (change.appointmentRef() != null && change.appointmentRef().length() > 120)

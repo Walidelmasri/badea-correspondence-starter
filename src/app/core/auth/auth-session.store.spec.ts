@@ -93,6 +93,33 @@ describe('AuthSessionStore', () => {
     expect(store.workspaceUnit()).toBeNull();
   });
 
+  it('exposes Office membership separately without manager approval privileges', () => {
+    const store = new AuthSessionStore();
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '99999', username: 'walid.salem', nameEnglish: 'Walid', nameArabic: null,
+      department: null, correspondenceRole: 'PRESIDENT_OFFICE',
+      managerWorkspaces: [{ code: '117', nameEnglish: 'Digital Transformation',
+        nameArabic: null, capacity: 'MANAGER', role: 'DIRECTOR' }],
+      officeWorkspaces: [{ code: '101', nameEnglish: "President's Office",
+        nameArabic: null, capacity: 'OFFICE_MEMBER', role: 'PRESIDENT_OFFICE' }],
+    }});
+    expect(store.availableWorkspaces()).toHaveLength(2);
+    store.selectWorkspace('101');
+    expect(store.effectiveRole()).toBe('PRESIDENT_OFFICE');
+    expect(store.activeManagerWorkspace()).toBeNull();
+    store.selectWorkspace('117');
+    expect(store.effectiveRole()).toBe('DIRECTOR');
+    expect(store.activeManagerWorkspace()?.code).toBe('117');
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '99999', username: 'walid.salem', nameEnglish: 'Walid', nameArabic: null,
+      department: null, correspondenceRole: 'PRESIDENT_OFFICE', managerWorkspaces: [],
+      officeWorkspaces: [{ code: '101', nameEnglish: 'President Office', nameArabic: null,
+        capacity: 'OFFICE_MEMBER', role: 'PRESIDENT_OFFICE' }],
+    }});
+    expect(store.workspaceUnit()).toBeNull();
+    expect(() => store.selectWorkspace('117')).toThrow();
+  });
+
   it('tracks the authenticated user and clears the complete session', () => {
     const store =
       new AuthSessionStore();

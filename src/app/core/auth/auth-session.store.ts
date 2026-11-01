@@ -29,16 +29,29 @@ export class AuthSessionStore {
 
   private readonly workspaceUnitState = signal<string | null>(null);
   readonly workspaceUnit = this.workspaceUnitState.asReadonly();
-  readonly activeWorkspace = computed(() => this.currentUserState()
+  readonly activeWorkspace = computed(() => {
+    const profile = this.currentUserState()?.employeeProfile;
+    const code = this.workspaceUnitState();
+    return profile?.managerWorkspaces?.find(w => w.code === code)
+      ?? profile?.officeWorkspaces?.find(w => w.code === code)
+      ?? null;
+  });
+  // Office members can work in Office but cannot administer manager approvals,
+  // secretaries, or delegation. Only genuine manager capacities have this flag.
+  readonly activeManagerWorkspace = computed(() => this.currentUserState()
     ?.employeeProfile?.managerWorkspaces?.find(w => w.code === this.workspaceUnitState()) ?? null);
+  readonly availableWorkspaces = computed(() => {
+    const profile = this.currentUserState()?.employeeProfile;
+    return [...(profile?.managerWorkspaces ?? []), ...(profile?.officeWorkspaces ?? [])];
+  });
   readonly effectiveRole = computed(() => this.activeWorkspace()?.role
     ?? this.currentUserState()?.employeeProfile?.correspondenceRole ?? null);
   readonly effectiveDepartmentCode = computed(() => this.activeWorkspace()?.code
     ?? this.currentUserState()?.employeeProfile?.department?.code ?? null);
 
   selectWorkspace(code: string | null): void {
-    if (code && !this.currentUserState()?.employeeProfile?.managerWorkspaces
-      ?.some(workspace => workspace.code === code)) {
+    if (code && !this.availableWorkspaces()
+      .some(workspace => workspace.code === code)) {
       throw new Error('Workspace not present in authenticated profile');
     }
     this.workspaceUnitState.set(code);
@@ -99,7 +112,9 @@ export class AuthSessionStore {
     user: CurrentUser,
   ): void {
     if (this.currentUserState()?.employeeProfile?.employeeId !== user.employeeProfile?.employeeId
-      || !user.employeeProfile?.managerWorkspaces?.some(w => w.code === this.workspaceUnitState())) {
+      || ![...(user.employeeProfile?.managerWorkspaces ?? []),
+          ...(user.employeeProfile?.officeWorkspaces ?? [])]
+          .some(w => w.code === this.workspaceUnitState())) {
       this.workspaceUnitState.set(null);
     }
     this.currentUserState.set(user);
