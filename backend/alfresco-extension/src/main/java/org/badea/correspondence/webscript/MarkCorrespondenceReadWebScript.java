@@ -47,6 +47,11 @@ public final class MarkCorrespondenceReadWebScript extends AbstractWebScript {
             var employee = employees.getCurrentEmployee();
             CorrespondenceActorRole role = roles.resolveCurrentUserRole();
             DepartmentCode department = employee.department().map(d -> d.code()).orElse(null);
+            if (request.getParameter("workspaceUnit") != null) {
+                var selectedWorkspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
+                role = selectedWorkspace.role();
+                department = selectedWorkspace.unit();
+            }
             String employeeId = employee.employeeId().value();
             // Mandatory existing authorization check before any write.
             var authorized = details.getDetails(id, role, department, employeeId);

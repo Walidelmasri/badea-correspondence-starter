@@ -48,6 +48,19 @@ class OracleEmployeeDirectoryTest {
     }
 
     @Test
+    void loginEmployeeLookupUsesTarasolUnitCatalogNotSapDepartmentTable() throws SQLException {
+        JdbcFixture jdbc = createJdbcFixture();
+        when(jdbc.resultSet().next()).thenReturn(false);
+        new OracleEmployeeDirectory(jdbc.dataSource())
+                .findActiveByUsername(new DirectoryUsername("adil.amin"));
+        var query = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(jdbc.connection()).prepareStatement(query.capture());
+        assertTrue(query.getValue().contains("BADEA_ADDONS.EMPLOYEES"));
+        assertTrue(query.getValue().contains("TARASOL_ORG_UNITS"));
+        assertFalse(query.getValue().contains("COR_DEPARTMENTS"));
+    }
+
+    @Test
     void resolvesActiveEmployeeWithCurrentDepartment()
             throws SQLException {
 
@@ -157,7 +170,7 @@ class OracleEmployeeDirectoryTest {
     }
 
     @Test
-    void rejectsCurrentDepartmentWithoutMatchingDepartmentRow()
+    void preservesActiveEmployeeIdentityWhenHomeUnitIsNotRoutable()
             throws SQLException {
 
         JdbcFixture jdbc = createJdbcFixture();
@@ -177,15 +190,10 @@ class OracleEmployeeDirectoryTest {
 
         OracleEmployeeDirectory directory = new OracleEmployeeDirectory(jdbc.dataSource());
 
-        EmployeeDirectoryException exception = assertThrows(
-                EmployeeDirectoryException.class,
-                () -> directory.findActiveByUsername(
-                        new DirectoryUsername("adil.amin")));
-
-        assertEquals(
-                "Employee 17257 references current department 117 "
-                        + "but no matching department exists.",
-                exception.getMessage());
+        EmployeeDirectoryEntry employee = directory.findActiveByUsername(
+                new DirectoryUsername("adil.amin")).orElseThrow();
+        assertEquals("17257", employee.employeeId().value());
+        assertTrue(employee.department().isEmpty());
     }
 
     @Test

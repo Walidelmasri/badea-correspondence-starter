@@ -17,6 +17,8 @@ import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDr
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.DualManagerInitiationAuthorizer;
+import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
@@ -40,19 +42,24 @@ public final class UpdateCorrespondenceDraftWebScript
 
     private final AlfrescoCorrespondenceDraftUpdater updater;
 
+    private final TarasolOrganizationReader organizationReader;
+
     public UpdateCorrespondenceDraftWebScript(
             CurrentEmployeeService currentEmployeeService,
             CorrespondenceActorRoleResolver actorRoleResolver,
             AlfrescoCorrespondenceDraftUpdater updater) {
+        this(currentEmployeeService, actorRoleResolver, updater, null);
+    }
 
-        this.currentEmployeeService =
-                Objects.requireNonNull(currentEmployeeService);
-
-        this.actorRoleResolver =
-                Objects.requireNonNull(actorRoleResolver);
-
-        this.updater =
-                Objects.requireNonNull(updater);
+    public UpdateCorrespondenceDraftWebScript(
+            CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver actorRoleResolver,
+            AlfrescoCorrespondenceDraftUpdater updater,
+            TarasolOrganizationReader organizationReader) {
+        this.currentEmployeeService = Objects.requireNonNull(currentEmployeeService);
+        this.actorRoleResolver = Objects.requireNonNull(actorRoleResolver);
+        this.updater = Objects.requireNonNull(updater);
+        this.organizationReader = organizationReader;
     }
 
     @Override
@@ -82,6 +89,11 @@ public final class UpdateCorrespondenceDraftWebScript
                     employee.department()
                             .map(department -> department.code())
                             .orElse(null);
+            if (request.getParameter("workspaceUnit") != null) {
+                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
+                actorRole = selectedWorkspace.role();
+                departmentCode = selectedWorkspace.unit();
+            }
 
             if (departmentCode == null) {
                 writeError(
@@ -96,6 +108,18 @@ public final class UpdateCorrespondenceDraftWebScript
             JSONObject body =
                     readBody(request);
 
+            String executiveComposeJson = null;
+            if (actorRole == CorrespondenceActorRole.DIRECTOR && body.has("executiveCompose")) {
+                if (request.getParameter("workspaceUnit") == null) {
+                    throw new CorrespondenceAuthorizationException("Select a managerial workspace");
+                }
+                DualManagerInitiationAuthorizer.requireAuthorized(
+                    employee.employeeId(), departmentCode, actorRoleResolver, organizationReader);
+                executiveComposeJson = ExecutiveComposePayload.normalize(body);
+            } else if (actorRole != CorrespondenceActorRole.DIRECTOR) {
+                executiveComposeJson = ExecutiveComposePayload.normalize(body);
+            }
+
             UpdateCorrespondenceDraftCommand command =
                     new UpdateCorrespondenceDraftCommand(
                             technicalId,
@@ -107,8 +131,7 @@ public final class UpdateCorrespondenceDraftWebScript
                             optionalText(body, "documentNumber"),
                             optionalDate(body, "documentDate"),
                             optionalText(body, "sourceText"),
-                            actorRole == CorrespondenceActorRole.DIRECTOR
-                                    ? null : ExecutiveComposePayload.normalize(body));
+                            executiveComposeJson);
 
             updater.updateDraft(command);
 
@@ -141,6 +164,10 @@ public final class UpdateCorrespondenceDraftWebScript
                     Status.STATUS_NOT_FOUND,
                     "EMPLOYEE_NOT_FOUND",
                     "No active employee profile was found.");
+
+        } catch (org.badea.correspondence.directory.DepartmentDirectoryException exception) {
+            writeError(response, Status.STATUS_SERVICE_UNAVAILABLE,
+                    "ORGANIZATION_DIRECTORY_UNAVAILABLE", "The Tarasol directory is unavailable.");
 
         } catch (EmployeeDirectoryException exception) {
 

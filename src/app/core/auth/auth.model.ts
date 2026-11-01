@@ -29,6 +29,14 @@ export type CorrespondenceRole =
   | 'PRESIDENT_OFFICE'
   | 'PRESIDENT';
 
+export interface ManagerWorkspace {
+  readonly code: string;
+  readonly nameEnglish: string;
+  readonly nameArabic: string | null;
+  readonly capacity: 'MANAGER' | 'ACTING_MANAGER';
+  readonly role: 'DIRECTOR' | 'PRESIDENT_OFFICE';
+}
+
 export interface EmployeeProfile {
   readonly employeeId: string;
   readonly username: string;
@@ -36,6 +44,8 @@ export interface EmployeeProfile {
   readonly nameArabic: string | null;
   readonly department: EmployeeDepartment | null;
   readonly correspondenceRole?: CorrespondenceRole | null;
+  readonly correspondenceRoles?: readonly CorrespondenceRole[];
+  readonly managerWorkspaces?: readonly ManagerWorkspace[];
 }
 
 export interface CurrentUser {

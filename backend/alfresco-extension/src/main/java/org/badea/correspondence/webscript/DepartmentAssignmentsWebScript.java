@@ -37,6 +37,11 @@ public final class DepartmentAssignmentsWebScript extends AbstractWebScript {
             var employee=employees.getCurrentEmployee();
             var role=roles.resolveCurrentUserRole();
             DepartmentCode department=employee.department().map(v->v.code()).orElse(null);
+            if (req.getParameter("workspaceUnit") != null) {
+                var selectedWorkspace = roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee);
+                role = selectedWorkspace.role();
+                department = selectedWorkspace.unit();
+            }
             JSONArray items=new JSONArray();
             if (completion) {
                 String assignmentId=req.getServiceMatch().getTemplateVars().get("assignmentId");

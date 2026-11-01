@@ -22,6 +22,8 @@ import {
 } from '@angular/forms';
 
 import { firstValueFrom } from 'rxjs';
+import { CORRESPONDENCE_INSTRUCTION_LABELS } from '../../inbox/presentation/correspondence-instruction.labels';
+import { CorrespondenceInstruction } from '../../inbox/domain/correspondence-instruction.model';
 
 import {
   AuthSessionStore,
@@ -35,6 +37,7 @@ import {
   CorrespondenceApiService,
   CorrespondenceDocumentUpload,
   CreateCorrespondenceDraft,
+  ExecutiveComposeDraftFields,
 } from '../../../shared/data-access/correspondence-api.service';
 
 type UploadStatus =
@@ -79,6 +82,29 @@ export class DirectorNewPageComponent implements OnInit {
     () => this.translation.text().director,
   );
 
+  readonly directPresidentEligible = computed(() => {
+    const active = this.session.activeWorkspace();
+    const profile = this.session.currentUser()?.employeeProfile;
+    return active?.role === 'DIRECTOR'
+      && active.code !== '101'
+      && profile?.correspondenceRoles?.includes('DIRECTOR') === true
+      && profile?.correspondenceRoles?.includes('PRESIDENT_OFFICE') === true
+      && profile?.managerWorkspaces?.some(w => w.code === '101'
+        && (w.capacity === 'MANAGER' || w.capacity === 'ACTING_MANAGER')) === true;
+  });
+
+  readonly instructionLabels = CORRESPONDENCE_INSTRUCTION_LABELS;
+  readonly instructions: readonly CorrespondenceInstruction[] = [
+    'required-action', 'study-and-opinion', 'review-and-advise',
+    'discuss-directly', 'direct-response', 'prepare-summary',
+    'information-and-action', 'follow-up', 'information-and-file',
+    'act-per-phone-call', 'prepare-response', 'apology', 'return-later',
+  ];
+
+  readonly sendActionLabel = computed(() => this.directPresidentEligible()
+    ? (this.translation.language() === 'ar' ? 'إرسال مباشرة إلى الرئيس' : 'Send directly to President')
+    : this.labels().send);
+
   readonly form = new FormGroup({
     subject: new FormControl('', {
       nonNullable: true,
@@ -100,6 +126,11 @@ export class DirectorNewPageComponent implements OnInit {
     bodyText: new FormControl('', {
       nonNullable: true,
     }),
+    recipient: new FormControl('', { nonNullable: true }),
+    copyTo: new FormControl('', { nonNullable: true }),
+    entity: new FormControl('', { nonNullable: true }),
+    instruction: new FormControl('', { nonNullable: true }),
+    explanation: new FormControl('', { nonNullable: true }),
   });
 
   readonly technicalId = signal<string | null>(null);
@@ -155,17 +186,10 @@ export class DirectorNewPageComponent implements OnInit {
     this.prefillDepartmentSource();
   }
 
-  /**
-   * Set the default Source for new correspondence.
-   *
-   * The authenticated employee's department is already
-   * loaded by AuthService and stored in AuthSessionStore.
-   */
+  /** Default Source is the active Tarasol capacity, not the SAP home unit. */
   private prefillDepartmentSource(): void {
-    const department =
-      this.session.currentUser()
-        ?.employeeProfile
-        ?.department;
+    const department = this.session.activeWorkspace()
+      ?? this.session.currentUser()?.employeeProfile?.department;
 
     if (!department) {
       return;
@@ -222,6 +246,11 @@ export class DirectorNewPageComponent implements OnInit {
         documentDate: details.documentDate ?? '',
         sourceText: details.sourceText ?? '',
         bodyText: details.bodyText ?? '',
+        recipient: details.executiveCompose?.recipient ?? '',
+        copyTo: details.executiveCompose?.copyTo ?? '',
+        entity: details.executiveCompose?.entity ?? '',
+        instruction: details.executiveCompose?.instruction ?? '',
+        explanation: details.executiveCompose?.explanation ?? '',
       });
 
       this.form.markAsPristine();
@@ -532,12 +561,21 @@ export class DirectorNewPageComponent implements OnInit {
 
       const values = this.form.getRawValue();
 
-      const metadata: CreateCorrespondenceDraft = {
+      const enhanced = this.directPresidentEligible();
+      const executiveCompose: ExecutiveComposeDraftFields | undefined = enhanced ? {
+        recipient: values.recipient.trim(),
+        copyTo: values.copyTo.trim(),
+        entity: values.entity.trim(),
+        instruction: values.instruction,
+        explanation: values.explanation.trim(),
+      } : undefined;
+      const metadata: CreateCorrespondenceDraft & { executiveCompose?: ExecutiveComposeDraftFields } = {
         subject: values.subject.trim(),
         documentNumber: this.optional(values.documentNumber),
         documentDate: this.optional(values.documentDate),
         sourceText: this.optional(values.sourceText),
         bodyText: this.optional(values.bodyText),
+        ...(executiveCompose ? { executiveCompose } : {}),
       };
 
       if (!technicalId) {
@@ -677,11 +715,12 @@ export class DirectorNewPageComponent implements OnInit {
         try {
           const result = await firstValueFrom(
             this.api.transitionCorrespondence(technicalId, {
-              action: 'SEND_TO_OFFICE',
+              action: this.directPresidentEligible() ? 'SEND_TO_PRESIDENT' : 'SEND_TO_OFFICE',
             }),
           );
 
-          if (result.state !== 'WITH_PRESIDENT_OFFICE') {
+          if (result.state !== (this.directPresidentEligible()
+            ? 'WITH_PRESIDENT' : 'WITH_PRESIDENT_OFFICE')) {
             this.submissionUncertain.set(true);
             this.notice.set({
               type: 'warning',

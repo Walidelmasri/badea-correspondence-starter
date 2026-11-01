@@ -24,218 +24,239 @@ import org.junit.jupiter.api.Test;
 
 class OracleDepartmentDirectoryTest {
 
-    private DataSource dataSource;
-    private Connection connection;
-    private PreparedStatement statement;
-    private ResultSet resultSet;
+        private DataSource dataSource;
+        private Connection connection;
+        private PreparedStatement statement;
+        private ResultSet resultSet;
 
-    private OracleDepartmentDirectory directory;
+        private OracleDepartmentDirectory directory;
 
-    @BeforeEach
-    void setUp()
-            throws SQLException {
+        @BeforeEach
+        void setUp()
+                        throws SQLException {
 
-        dataSource =
-                mock(
-                        DataSource.class);
+                dataSource = mock(
+                                DataSource.class);
 
-        connection =
-                mock(
-                        Connection.class);
+                connection = mock(
+                                Connection.class);
 
-        statement =
-                mock(
-                        PreparedStatement.class);
+                statement = mock(
+                                PreparedStatement.class);
 
-        resultSet =
-                mock(
-                        ResultSet.class);
+                resultSet = mock(
+                                ResultSet.class);
 
-        when(dataSource.getConnection())
-                .thenReturn(
-                        connection);
+                when(dataSource.getConnection())
+                                .thenReturn(
+                                                connection);
 
-        directory =
-                new OracleDepartmentDirectory(
-                        dataSource);
-    }
+                directory = new OracleDepartmentDirectory(
+                                dataSource);
+        }
 
-    @Test
-    void listsNumericCorrespondenceDepartmentsAndSkipsLegacyCodes()
-            throws SQLException {
+        @Test
+        void listsNumericCorrespondenceDepartmentsAndSkipsLegacyCodes()
+                        throws SQLException {
 
-        when(connection.prepareStatement(
-                org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(
-                        statement);
+                when(connection.prepareStatement(
+                                org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(
+                                                statement);
 
-        when(statement.executeQuery())
-                .thenReturn(
-                        resultSet);
+                when(statement.executeQuery())
+                                .thenReturn(
+                                                resultSet);
 
-        when(resultSet.next())
-                .thenReturn(
-                        true,
-                        true,
-                        true,
-                        false);
+                when(resultSet.next())
+                                .thenReturn(
+                                                true,
+                                                true,
+                                                true,
+                                                false);
 
-        when(resultSet.getString(
-                "DEPARTMENT_CODE"))
-                .thenReturn(
-                        "101",
-                        "AUB",
-                        "117");
+                when(resultSet.getString(
+                                "DEPARTMENT_CODE"))
+                                .thenReturn(
+                                                "101",
+                                                "AUB",
+                                                "117");
 
-        when(resultSet.getString(
-                "NAME"))
-                .thenReturn(
-                        "Office of the President",
-                        "Digital Transformation Department");
+                when(resultSet.getString(
+                                "NAME"))
+                                .thenReturn(
+                                                "Office of the President",
+                                                "Digital Transformation Department");
 
-        when(resultSet.getString(
-                "NAME_ARABIC"))
-                .thenReturn(
-                        "مكتب الرئيس",
-                        "إدارة التحول الرقمي");
+                when(resultSet.getString(
+                                "NAME_ARABIC"))
+                                .thenReturn(
+                                                "مكتب الرئيس",
+                                                "إدارة التحول الرقمي");
 
-        List<DepartmentDirectoryEntry> departments =
-                directory
-                        .findAllCorrespondenceDepartments();
+                List<DepartmentDirectoryEntry> departments = directory
+                                .findAllCorrespondenceDepartments();
 
-        assertEquals(
-                2,
-                departments.size());
+                assertEquals(
+                                2,
+                                departments.size());
 
-        assertEquals(
-                new DepartmentCode("101"),
-                departments.get(0).code());
+                assertEquals(
+                                new DepartmentCode("101"),
+                                departments.get(0).code());
 
-        assertEquals(
-                "Office of the President",
-                departments.get(0).nameEnglish());
+                assertEquals(
+                                "Office of the President",
+                                departments.get(0).nameEnglish());
 
-        assertEquals(
-                new DepartmentCode("117"),
-                departments.get(1).code());
+                assertEquals(
+                                new DepartmentCode("117"),
+                                departments.get(1).code());
 
-        assertEquals(
-                "Digital Transformation Department",
-                departments.get(1).nameEnglish());
-    }
+                assertEquals(
+                                "Digital Transformation Department",
+                                departments.get(1).nameEnglish());
+        }
 
-    @Test
-    void findsDepartmentByCode()
-            throws SQLException {
+        @Test
+        void findsDepartmentByCode()
+                        throws SQLException {
 
-        when(connection.prepareStatement(
-                org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(
-                        statement);
+                when(connection.prepareStatement(
+                                org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(
+                                                statement);
 
-        when(statement.executeQuery())
-                .thenReturn(
-                        resultSet);
+                when(statement.executeQuery())
+                                .thenReturn(
+                                                resultSet);
 
-        when(resultSet.next())
-                .thenReturn(
-                        true,
-                        false);
+                when(resultSet.next())
+                                .thenReturn(
+                                                true,
+                                                false);
 
-        when(resultSet.getString(
-                "DEPARTMENT_CODE"))
-                .thenReturn(
-                        "117");
+                when(resultSet.getString(
+                                "DEPARTMENT_CODE"))
+                                .thenReturn(
+                                                "117");
 
-        when(resultSet.getString(
-                "NAME"))
-                .thenReturn(
-                        "Digital Transformation Department");
+                when(resultSet.getString(
+                                "NAME"))
+                                .thenReturn(
+                                                "Digital Transformation Department");
 
-        when(resultSet.getString(
-                "NAME_ARABIC"))
-                .thenReturn(
-                        "إدارة التحول الرقمي");
+                when(resultSet.getString(
+                                "NAME_ARABIC"))
+                                .thenReturn(
+                                                "إدارة التحول الرقمي");
 
-        Optional<DepartmentDirectoryEntry> department =
-                directory.findByCode(
-                        new DepartmentCode("117"));
+                Optional<DepartmentDirectoryEntry> department = directory.findByCode(
+                                new DepartmentCode("117"));
 
-        assertTrue(
-                department.isPresent());
+                assertTrue(
+                                department.isPresent());
 
-        assertEquals(
-                new DepartmentCode("117"),
-                department.get().code());
+                assertEquals(
+                                new DepartmentCode("117"),
+                                department.get().code());
 
-        assertEquals(
-                "Digital Transformation Department",
-                department.get().nameEnglish());
+                assertEquals(
+                                "Digital Transformation Department",
+                                department.get().nameEnglish());
 
-        verify(statement)
-                .setString(
-                        1,
-                        "117");
-    }
+                verify(statement)
+                                .setString(
+                                                1,
+                                                "117");
+        }
 
-    @Test
-    void returnsEmptyWhenDepartmentDoesNotExist()
-            throws SQLException {
+        @Test
+        void returnsEmptyWhenDepartmentDoesNotExist()
+                        throws SQLException {
 
-        when(connection.prepareStatement(
-                org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(
-                        statement);
+                when(connection.prepareStatement(
+                                org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(
+                                                statement);
 
-        when(statement.executeQuery())
-                .thenReturn(
-                        resultSet);
+                when(statement.executeQuery())
+                                .thenReturn(
+                                                resultSet);
 
-        when(resultSet.next())
-                .thenReturn(
-                        false);
+                when(resultSet.next())
+                                .thenReturn(
+                                                false);
 
-        Optional<DepartmentDirectoryEntry> department =
-                directory.findByCode(
-                        new DepartmentCode("999"));
+                Optional<DepartmentDirectoryEntry> department = directory.findByCode(
+                                new DepartmentCode("999"));
 
-        assertTrue(
-                department.isEmpty());
-    }
+                assertTrue(
+                                department.isEmpty());
+        }
 
-    @Test
-    void resolvesActiveManagerByCorrespondenceDepartment() throws SQLException {
-        when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
-        when(statement.executeQuery()).thenReturn(resultSet);
-        when(resultSet.next()).thenReturn(true, false);
-        when(resultSet.getString("DEPT_MANAGER_ID")).thenReturn("17258");
-        var manager = directory.findActiveManagerEmployeeId(new DepartmentCode("117"));
-        assertEquals("17258", manager.orElseThrow().value());
-        verify(statement).setString(1, "117");
-    }
+        @Test
+        void resolvesActiveManagerByCorrespondenceDepartment() throws SQLException {
+                when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+                when(statement.executeQuery()).thenReturn(resultSet);
+                when(resultSet.next()).thenReturn(true, false);
+                when(resultSet.getString("DEPT_MANAGER_ID")).thenReturn("17258");
+                var manager = directory.findActiveManagerEmployeeId(new DepartmentCode("117"));
+                assertEquals("17258", manager.orElseThrow().value());
+                verify(statement).setString(1, "117");
+        }
 
-    @Test
-    void refusesAmbiguousManagerMappings() throws SQLException {
-        when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
-        when(statement.executeQuery()).thenReturn(resultSet);
-        when(resultSet.next()).thenReturn(true, true);
-        when(resultSet.getString("DEPT_MANAGER_ID")).thenReturn("17258");
-        assertThrows(DepartmentDirectoryException.class,
-                () -> directory.findActiveManagerEmployeeId(new DepartmentCode("117")));
-    }
+        @Test
+        void refusesAmbiguousManagerMappings() throws SQLException {
+                when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(statement);
+                when(statement.executeQuery()).thenReturn(resultSet);
+                when(resultSet.next()).thenReturn(true, true, false);
+                when(resultSet.getString("DEPT_MANAGER_ID"))
+                                .thenReturn("17258", "18284");
 
-    @Test
-    void convertsSqlFailureToDepartmentDirectoryException()
-            throws SQLException {
+                assertThrows(DepartmentDirectoryException.class,
+                                () -> directory.findActiveManagerEmployeeId(new DepartmentCode("117")));
+        }
 
-        when(dataSource.getConnection())
-                .thenThrow(
-                        new SQLException(
-                                "Oracle unavailable"));
+        @Test
+        void returnsAllConcurrentActingManagersForUnit() throws SQLException {
+                when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+                when(statement.executeQuery()).thenReturn(resultSet);
+                when(resultSet.next()).thenReturn(true, true, false);
+                when(resultSet.getString("DEPT_MANAGER_ID")).thenReturn("18284", "24428");
+                var managers = directory.findActiveManagerEmployeeIds(new DepartmentCode("118"));
+                assertEquals(List.of("18284", "24428"),
+                                managers.stream().map(org.badea.correspondence.directory.EmployeeId::value).toList());
+                verify(statement).setQueryTimeout(8);
+        }
 
-        assertThrows(
-                DepartmentDirectoryException.class,
-                () -> directory
-                        .findAllCorrespondenceDepartments());
-    }
+        @Test
+        void managerLookupUsesTarasolAssignmentsNotSapDepartments() throws SQLException {
+                when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+                when(statement.executeQuery()).thenReturn(resultSet);
+                when(resultSet.next()).thenReturn(false);
+                var empty = directory.findActiveManagerEmployeeIds(new DepartmentCode("106"));
+                assertTrue(empty.isEmpty());
+                var query = org.mockito.ArgumentCaptor.forClass(String.class);
+                verify(connection).prepareStatement(query.capture());
+                assertTrue(query.getValue().contains("TARASOL_UNIT_ASSIGNMENTS"));
+                assertTrue(query.getValue().contains("SYSTIMESTAMP"));
+                assertTrue(!query.getValue().contains("COR_DEPARTMENTS"));
+        }
+
+        @Test
+        void convertsSqlFailureToDepartmentDirectoryException()
+                        throws SQLException {
+
+                when(dataSource.getConnection())
+                                .thenThrow(
+                                                new SQLException(
+                                                                "Oracle unavailable"));
+
+                assertThrows(
+                                DepartmentDirectoryException.class,
+                                () -> directory
+                                                .findAllCorrespondenceDepartments());
+        }
 }

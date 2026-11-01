@@ -31,7 +31,7 @@ export class DashboardPageComponent implements OnInit {
   readonly translation = inject(TranslationService);
   readonly labels = computed(() => this.translation.text().dashboard);
   readonly role = computed(() =>
-    this.session.currentUser()?.employeeProfile?.correspondenceRole ?? null);
+    this.session.effectiveRole());
   readonly stats = signal<DashboardSnapshot | null>(null);
   readonly loading = signal(false);
   readonly failed = signal(false);

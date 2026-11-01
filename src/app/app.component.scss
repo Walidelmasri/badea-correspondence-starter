@@ -417,3 +417,24 @@
 .app-notifications__panel li strong { font-size: .88rem; overflow-wrap: anywhere; }
 .app-notifications__panel li span { font-size: .75rem; color: var(--color-text-secondary); }
 .app-notifications__view { display: block; padding: .6rem; color: var(--color-primary-700); font-weight: 700; text-align: center; }
+
+.app-workspace-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 165px;
+  max-width: 245px;
+  font-size: 0.73rem;
+  color: var(--text-muted, #657080);
+}
+.app-workspace-picker select {
+  width: 100%;
+  max-width: 245px;
+  min-height: 33px;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #bec7d2;
+  border-radius: 7px;
+  background: #fff;
+  color: #273346;
+  font: inherit;
+}

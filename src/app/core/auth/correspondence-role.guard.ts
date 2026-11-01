@@ -20,10 +20,7 @@ export const composeRoleGuard: CanActivateFn = () => {
   const session = inject(AuthSessionStore);
   const router = inject(Router);
 
-  const role =
-    session.currentUser()
-      ?.employeeProfile
-      ?.correspondenceRole;
+  const role = session.effectiveRole?.() ?? session.currentUser()?.employeeProfile?.correspondenceRole;
 
   switch (role) {
     case 'DIRECTOR':
@@ -50,10 +47,7 @@ export const directorRoleGuard: CanActivateFn = () => {
   const session = inject(AuthSessionStore);
   const router = inject(Router);
 
-  const role =
-    session.currentUser()
-      ?.employeeProfile
-      ?.correspondenceRole;
+  const role = session.effectiveRole?.() ?? session.currentUser()?.employeeProfile?.correspondenceRole;
 
   if (role === 'DIRECTOR') {
     return true;

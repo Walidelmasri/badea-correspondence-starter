@@ -28,7 +28,10 @@ describe('Drafts navigation for executive-originated correspondence', () => {
     api.listDrafts.mockReturnValue(of({ items: [summary], total: 1, offset: 0, limit: 25 }));
     TestBed.configureTestingModule({ providers: [
       { provide: CorrespondenceApiService, useValue: api },
-      { provide: AuthSessionStore, useValue: { currentUser: () => ({ employeeProfile: { correspondenceRole: role } }) } },
+      { provide: AuthSessionStore, useValue: {
+        currentUser: () => ({ employeeProfile: { correspondenceRole: role } }),
+        effectiveRole: () => role,
+      } },
       { provide: TranslationService, useValue: { text: () => ({ drafts: {} }) } },
       { provide: Router, useValue: router },
     ] });

@@ -49,6 +49,11 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
             EmployeeDirectoryEntry employee = employees.getCurrentEmployee();
             DepartmentCode department = employee.department()
                     .map(d -> d.code()).orElse(null);
+            if (request.getParameter("workspaceUnit") != null) {
+                var selectedWorkspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
+                role = selectedWorkspace.role();
+                department = selectedWorkspace.unit();
+            }
             // This call enforces both role/department visibility and Alfresco READ.
             details.getDetails(id, role, department, employee.employeeId().value());
             List<AlfrescoCorrespondenceHistoryReader.ActionEntry> history = reader.list(id);
@@ -75,6 +80,8 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
             error(response, Status.STATUS_FORBIDDEN, "CORRESPONDENCE_FORBIDDEN");
         } catch (CurrentEmployeeNotFoundException e) {
             error(response, Status.STATUS_NOT_FOUND, "EMPLOYEE_NOT_FOUND");
+        } catch (org.badea.correspondence.directory.DepartmentDirectoryException e) {
+            error(response, Status.STATUS_SERVICE_UNAVAILABLE, "ORGANIZATION_DIRECTORY_UNAVAILABLE");
         } catch (EmployeeDirectoryException e) {
             error(response, Status.STATUS_SERVICE_UNAVAILABLE, "EMPLOYEE_DIRECTORY_UNAVAILABLE");
         } catch (CorrespondenceRepositoryException e) {

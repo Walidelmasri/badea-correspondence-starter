@@ -143,6 +143,18 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'tarasol/admin/access',
+        loadComponent: () => import('./features/tarasol-access/presentation/tarasol-access-page.component')
+          .then(module => module.TarasolAccessPageComponent),
+        data: { mode: 'admin' },
+      },
+      {
+        path: 'tarasol/team/access',
+        loadComponent: () => import('./features/tarasol-access/presentation/tarasol-access-page.component')
+          .then(module => module.TarasolAccessPageComponent),
+        data: { mode: 'team' },
+      },
+      {
         path: '**',
         redirectTo: 'dashboard',
       },

@@ -34,7 +34,7 @@ export interface ExecutiveComposeDraftFields {
   readonly explanation: string;
 }
 
-/** Executive fields are persisted together. The Director API remains unchanged. */
+/** Executive fields are persisted together. Eligible dual managers may attach these to Director-originated drafts. */
 export interface ExecutiveCorrespondenceDraft extends CreateCorrespondenceDraft {
   readonly executiveCompose: ExecutiveComposeDraftFields;
 }

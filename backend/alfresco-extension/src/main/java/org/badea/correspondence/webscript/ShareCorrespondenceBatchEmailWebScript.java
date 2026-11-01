@@ -52,6 +52,11 @@ public final class ShareCorrespondenceBatchEmailWebScript extends AbstractWebScr
             var employee = current.getCurrentEmployee();
             var role = roles.resolveCurrentUserRole();
             DepartmentCode department = employee.department().map(d -> d.code()).orElse(null);
+            if (req.getParameter("workspaceUnit") != null) {
+                var selectedWorkspace = roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee);
+                role = selectedWorkspace.role();
+                department = selectedWorkspace.unit();
+            }
             var result = shares.sendBatch(technicalId, nodeIds, role, department,
                     employee.employeeId().value(), employee.nameEnglish(),
                     body.getString("recipientUsername"),

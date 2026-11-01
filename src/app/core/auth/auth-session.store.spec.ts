@@ -75,6 +75,24 @@ describe('AuthSessionStore', () => {
     );
   });
 
+  it('selects only manager workspaces from the authenticated profile and clears selection on logout', () => {
+    const store = new AuthSessionStore();
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '18284', username: 'ndjack', nameEnglish: 'NDjack', nameArabic: null,
+      department: null, correspondenceRole: 'PRESIDENT_OFFICE',
+      managerWorkspaces: [
+        { code: '101', nameEnglish: 'Office', nameArabic: null, capacity: 'MANAGER', role: 'PRESIDENT_OFFICE' },
+        { code: '118', nameEnglish: 'HR', nameArabic: null, capacity: 'ACTING_MANAGER', role: 'DIRECTOR' },
+      ],
+    }});
+    store.selectWorkspace('118');
+    expect(store.effectiveRole()).toBe('DIRECTOR');
+    expect(store.effectiveDepartmentCode()).toBe('118');
+    expect(() => store.selectWorkspace('106')).toThrow();
+    store.clear();
+    expect(store.workspaceUnit()).toBeNull();
+  });
+
   it('tracks the authenticated user and clears the complete session', () => {
     const store =
       new AuthSessionStore();

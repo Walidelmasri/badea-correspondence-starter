@@ -101,8 +101,46 @@
         </label>
       </div>
 
+      @if (directPresidentEligible()) {
+        <section class="director-form__executive">
+          <h3>{{ translation.language() === 'ar' ? 'بيانات الإحالة للرئيس' : 'President initiation details' }}</h3>
+          <p class="director-form__hint">{{ translation.language() === 'ar'
+            ? 'تُرسل المعاملة مباشرة للرئيس بصفتك مديراً للوحدة ومكتب الرئيس.'
+            : 'Your department remains the origin. This correspondence goes directly to the President.' }}</p>
+          <div class="compose-grid compose-grid--three">
+            <label class="form-field">
+              <span class="form-field__label">{{ translation.language() === 'ar' ? 'إلى' : 'To' }}</span>
+              <input type="text" formControlName="recipient" maxlength="4000" />
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">{{ translation.language() === 'ar' ? 'نسخة إلى' : 'Copy to' }}</span>
+              <input type="text" formControlName="copyTo" maxlength="4000" />
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">{{ translation.language() === 'ar' ? 'الجهة' : 'Entity' }}</span>
+              <input type="text" formControlName="entity" maxlength="4000" />
+            </label>
+          </div>
+          <label class="form-field">
+            <span class="form-field__label">{{ translation.language() === 'ar' ? 'التوجيه' : 'Instruction' }}</span>
+            <select formControlName="instruction">
+              <option value="">{{ translation.language() === 'ar' ? 'اختر' : 'Select instruction' }}</option>
+              @for (instruction of instructions; track instruction) {
+                <option [value]="instruction">{{ instructionLabels[translation.language()][instruction] }}</option>
+              }
+            </select>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">{{ translation.language() === 'ar' ? 'التوضيح' : 'Explanation' }}</span>
+            <textarea rows="4" formControlName="explanation" maxlength="4000"></textarea>
+          </label>
+        </section>
+      }
+
       <div class="director-form__destination">
-        {{ labels().destination }}
+        {{ directPresidentEligible()
+          ? (translation.language() === 'ar' ? 'الوجهة: الرئيس' : 'Destination: President')
+          : labels().destination }}
       </div>
 
       @if (technicalId() && !readOnly()) {
@@ -309,7 +347,9 @@
 
     <footer class="compose-actions">
       <span class="director-form__footer-note">
-        {{ labels().destination }}
+        {{ directPresidentEligible()
+          ? (translation.language() === 'ar' ? 'الوجهة: الرئيس' : 'Destination: President')
+          : labels().destination }}
       </span>
 
       <div class="compose-actions__primary-group">
@@ -335,7 +375,7 @@
           "
           (click)="sendDraft()"
         >
-          {{ sending() ? labels().sending : labels().send }}
+          {{ sending() ? labels().sending : sendActionLabel() }}
         </button>
       </div>
     </footer>

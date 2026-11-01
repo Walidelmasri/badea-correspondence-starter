@@ -13,45 +13,55 @@ import org.junit.jupiter.api.Test;
 class AlfrescoDirectorRecipientDirectoryTest {
     private final AuthorityService groups = mock(AuthorityService.class);
     private final EmployeeDirectory people = mock(EmployeeDirectory.class);
+    private final DepartmentDirectory departments = mock(DepartmentDirectory.class);
     private final AlfrescoDirectorRecipientDirectory resolver =
-            new AlfrescoDirectorRecipientDirectory(groups, people);
+            new AlfrescoDirectorRecipientDirectory(groups, people, departments);
     private static final DepartmentCode IT = new DepartmentCode("117");
 
-    private void group(String... names) {
+    private void group(String... usernames) {
         when(groups.getContainedAuthorities(AuthorityType.USER,
                 "GROUP_BADEA_CORRESPONDENCE_DIRECTORS", false))
-                .thenReturn(Set.of(names));
+                .thenReturn(Set.of(usernames));
     }
 
-    private void active(String username, String department, String name) {
-        when(people.findActiveByUsername(new DirectoryUsername(username)))
-                .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("142"),
-                        new DirectoryUsername(username), "English Name", name,
-                        Optional.of(new DepartmentDirectoryEntry(new DepartmentCode(department),
-                                "Department", "الإدارة")))));
+    private void active(String id, String username, String arabicName) {
+        when(people.findActiveByEmployeeId(new EmployeeId(id)))
+                .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId(id),
+                        new DirectoryUsername(username), "English Name", arabicName,
+                        Optional.empty())));
     }
 
-    @Test void resolvesActiveDirectorInMatchingDepartment() {
+    @Test void resolvesCurrentManagerWithoutRelyingOnEmployeeHomeDepartment() {
         group("director.it", "director.other");
-        active("director.it", "117", "أحمد محمد");
-        active("director.other", "118", "شخص آخر");
+        when(departments.findActiveManagerEmployeeIds(IT))
+                .thenReturn(List.of(new EmployeeId("142")));
+        active("142", "director.it", "أحمد محمد");
         assertEquals("أحمد محمد", resolver.requireDirectorNames(List.of(IT)).get(IT));
     }
 
-    @Test void missingDirectorUsesRoleTitleInsteadOfInventingName() {
+    @Test void missingOrUnauthorizedManagerUsesRoleTitle() {
         group("director.other");
-        active("director.other", "118", "شخص آخر");
+        when(departments.findActiveManagerEmployeeIds(IT))
+                .thenReturn(List.of(new EmployeeId("142")));
+        active("142", "director.it", "أحمد محمد");
         assertTrue(resolver.requireDirectorNames(List.of(IT)).isEmpty());
     }
 
-    @Test void ambiguousDirectorReturnsNoPersonalName() {
+    @Test void twoActingManagersDoNotProduceArbitraryPersonalName() {
         group("director.one", "director.two");
-        active("director.one", "117", "أحمد محمد");
-        active("director.two", "117", "خالد محمد");
+        when(departments.findActiveManagerEmployeeIds(IT))
+                .thenReturn(List.of(new EmployeeId("142"), new EmployeeId("143")));
+        assertTrue(resolver.requireDirectorNames(List.of(IT)).isEmpty());
+        verify(people, never()).findActiveByEmployeeId(any());
+    }
+
+    @Test void groupUnavailableDoesNotBlockOfficeDispatch() {
         assertTrue(resolver.requireDirectorNames(List.of(IT)).isEmpty());
     }
 
-    @Test void groupUnavailableDoesNotBlockOfficialDispatch() {
+    @Test void vacantUnitPrintsRoleTitle() {
+        group("director.it");
+        when(departments.findActiveManagerEmployeeIds(IT)).thenReturn(List.of());
         assertTrue(resolver.requireDirectorNames(List.of(IT)).isEmpty());
     }
 }

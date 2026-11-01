@@ -168,6 +168,33 @@ class AlfrescoCorrespondenceDraftUpdaterTest {
         }
 
         @Test
+        void dualManagerCanUpdateOwnDirectorDraftWithExecutiveMetadata() {
+                when(nodeService.getProperty(correspondence, qname("executiveComposeJson")))
+                        .thenReturn("{\"recipient\":\"President\"}");
+                UpdateCorrespondenceDraftCommand command = new UpdateCorrespondenceDraftCommand(
+                        TECHNICAL_ID, CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117"), new EmployeeId("10001"),
+                        "Updated subject", null, null, null, null,
+                        "{\"recipient\":\"President\"}");
+                updater.updateDraft(command);
+                verify(nodeService).setProperty(correspondence, qname("executiveComposeJson"),
+                        "{\"recipient\":\"President\"}");
+        }
+
+        @Test
+        void anotherManagerCannotEditDualManagerDraft() {
+                when(nodeService.getProperty(correspondence, qname("executiveComposeJson")))
+                        .thenReturn("{\"recipient\":\"President\"}");
+                UpdateCorrespondenceDraftCommand command = new UpdateCorrespondenceDraftCommand(
+                        TECHNICAL_ID, CorrespondenceActorRole.DIRECTOR,
+                        new DepartmentCode("117"), new EmployeeId("99999"),
+                        "Other manager's edit", null, null, null, null);
+                assertThrows(CorrespondenceAuthorizationException.class,
+                        () -> updater.updateDraft(command));
+                verifyNoWrites();
+        }
+
+        @Test
         void executiveCreatorCanUpdateOwnDraft() {
                 when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
                         .thenReturn("PRESIDENT_OFFICE");

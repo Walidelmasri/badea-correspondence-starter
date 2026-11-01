@@ -221,6 +221,8 @@ public final class AlfrescoCorrespondenceRepository
 
         if (command.createdByRole() != CorrespondenceActorRole.DIRECTOR) {
             properties.put(PROP_CREATION_ROLE, command.createdByRole().name());
+        }
+        if (command.executiveComposeJson() != null) {
             properties.put(PROP_EXECUTIVE_COMPOSE, command.executiveComposeJson());
         }
 
@@ -297,8 +299,9 @@ public final class AlfrescoCorrespondenceRepository
 
         CorrespondenceActorRole creatorRole = readOptionalActorRole(
                 correspondence, PROP_CREATION_ROLE, "createdByCorrespondenceRole");
-        String creatorId = creatorRole == null ? null :
-                readOptionalCreatorEmployeeId(correspondence);
+        // The creator ID is also required to protect direct Director submission.
+        String creatorId = (creatorRole != null || state == CorrespondenceState.DRAFT)
+                ? readOptionalCreatorEmployeeId(correspondence) : null;
 
         return new CorrespondenceAccessContext(
                 state,
@@ -375,7 +378,12 @@ public final class AlfrescoCorrespondenceRepository
          * those visits. Fail closed unless the latest persisted action is
          * an actual Director -> Office handoff.
          */
+        boolean directInitialSubmission = fromState == CorrespondenceState.DRAFT
+                && toState == CorrespondenceState.WITH_PRESIDENT
+                && command.actorRole() == CorrespondenceActorRole.DIRECTOR
+                && command.action() == CorrespondenceAction.SEND_TO_PRESIDENT;
         if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
+                && !directInitialSubmission
                 && !lastActionWasForwardableOfficeArrival(correspondence, currentSequence)) {
             throw new InvalidCorrespondenceTransitionException(
                     fromState, command.actorRole(), command.action());
@@ -384,8 +392,9 @@ public final class AlfrescoCorrespondenceRepository
         // Allocate exactly once, at first official submission. Existing correspondence,
         // revisions, and historical document numbers are not changed.
         if (fromState == CorrespondenceState.DRAFT
-                && toState == CorrespondenceState.WITH_PRESIDENT_OFFICE
-                && command.action() == CorrespondenceAction.SEND_TO_OFFICE) {
+                && ((toState == CorrespondenceState.WITH_PRESIDENT_OFFICE
+                        && command.action() == CorrespondenceAction.SEND_TO_OFFICE)
+                    || directInitialSubmission)) {
             DepartmentCode originatingDepartment = readRequiredDepartmentCode(
                     correspondence, PROP_ORIGIN_DEPARTMENT_CODE, "originDepartmentCode");
             String reference = new AlfrescoCorrespondenceReferenceAllocator(

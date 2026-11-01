@@ -2,6 +2,10 @@ package org.badea.correspondence.application;
 
 import java.util.Objects;
 
+import org.badea.correspondence.directory.DepartmentCode;
+import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
+import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceAction;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
@@ -14,7 +18,11 @@ public final class CorrespondenceTransitionService {
     private final CorrespondenceDepartmentService departmentService;
     private final CorrespondenceTransitionRepository repository;
     private final PresidentDocumentFinalizer presidentDocumentFinalizer;
+    private final TarasolOrganizationReader organizationReader;
+    private final CorrespondenceActorRoleResolver actorRoleResolver;
 
+    // Backwards-compatible test/legacy constructor. Direct delivery is disabled
+    // without both authorization dependencies.
     public CorrespondenceTransitionService(
             CorrespondenceWorkflowService workflowService,
             CorrespondenceAccessAuthorizer accessAuthorizer,
@@ -22,6 +30,20 @@ public final class CorrespondenceTransitionService {
             CorrespondenceTransitionRepository repository,
             PresidentDocumentFinalizer presidentDocumentFinalizer) {
 
+        this(workflowService, accessAuthorizer, departmentService, repository,
+                presidentDocumentFinalizer, null, null);
+    }
+
+    public CorrespondenceTransitionService(
+            CorrespondenceWorkflowService workflowService,
+            CorrespondenceAccessAuthorizer accessAuthorizer,
+            CorrespondenceDepartmentService departmentService,
+            CorrespondenceTransitionRepository repository,
+            PresidentDocumentFinalizer presidentDocumentFinalizer,
+            TarasolOrganizationReader organizationReader,
+            CorrespondenceActorRoleResolver actorRoleResolver) {
+        this.organizationReader = organizationReader;
+        this.actorRoleResolver = actorRoleResolver;
         this.workflowService =
                 Objects.requireNonNull(
                         workflowService,
@@ -93,6 +115,11 @@ public final class CorrespondenceTransitionService {
                     accessContext, command.actorRole(), command.actorDepartmentCode());
         }
 
+        if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
+                && accessContext.state() == CorrespondenceState.DRAFT) {
+            authorizeDirectPresidentSubmission(command, accessContext);
+        }
+
         CorrespondenceState nextState =
                 workflowService.nextState(
                         accessContext.state(),
@@ -144,6 +171,34 @@ public final class CorrespondenceTransitionService {
         }
 
         return nextState;
+    }
+
+
+    private void authorizeDirectPresidentSubmission(
+            TransitionCorrespondenceCommand command,
+            CorrespondenceAccessContext context) {
+        // Fail closed: no special path for executive drafts, stale appointments,
+        // President users, or a caller borrowing someone else's Director draft.
+        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR
+                || context.createdByRole() != null
+                || context.createdByEmployeeId() == null
+                || !context.createdByEmployeeId().equals(command.actorEmployeeId().value())
+                || !context.originDepartmentCode().equals(command.actorDepartmentCode())
+                || new DepartmentCode("101").equals(command.actorDepartmentCode())
+                || organizationReader == null || actorRoleResolver == null) {
+            throw new CorrespondenceAuthorizationException("Direct President delivery is not authorized");
+        }
+        var roles = actorRoleResolver.resolveCurrentUserRoles();
+        if (!roles.contains(CorrespondenceActorRole.DIRECTOR)
+                || !roles.contains(CorrespondenceActorRole.PRESIDENT_OFFICE)
+                || roles.contains(CorrespondenceActorRole.PRESIDENT)) {
+            throw new CorrespondenceAuthorizationException("Both Director and Office authority are required");
+        }
+        var workspaces = organizationReader.findCurrentManagerWorkspaces(command.actorEmployeeId());
+        if (workspaces.stream().filter(w -> w.code().equals(context.originDepartmentCode())).count() != 1
+                || workspaces.stream().filter(w -> "101".equals(w.code().value())).count() != 1) {
+            throw new CorrespondenceAuthorizationException("Both active managerial appointments are required");
+        }
     }
 
     private void validateTransitionData(

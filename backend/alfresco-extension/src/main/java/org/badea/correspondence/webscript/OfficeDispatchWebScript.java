@@ -39,9 +39,13 @@ public final class OfficeDispatchWebScript extends AbstractWebScript {
             long president=revision(body,"expectedPresidentReviewRevision");
             long office=revision(body,"expectedOfficeRevision");
             var employee=employees.getCurrentEmployee();
+            var role = roles.resolveCurrentUserRole();
+            if (req.getParameter("workspaceUnit") != null) {
+                role = roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee).role();
+            }
             String dispatchId=service.distribute(new OfficeDispatchCommand(
                     id,president,office,employee.employeeId(),employee.nameEnglish(),
-                    employee.nameArabic()),roles.resolveCurrentUserRole());
+                    employee.nameArabic()), role);
             JSONObject response=new JSONObject();
             response.put("technicalId",id);
             response.put("dispatchId",dispatchId);

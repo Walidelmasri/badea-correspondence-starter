@@ -1,0 +1,16 @@
+.tarasol-access { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.tarasol-access header { margin-bottom: 1.5rem; }
+.tarasol-access h1 { margin: 0.6rem 0; font-size: 1.8rem; }
+.tarasol-access h2 { font-size: 1.1rem; }
+.tarasol-access header p { color: var(--color-text-secondary); }
+.tarasol-access__eyebrow { font-size: 0.72rem; letter-spacing: 0.12em; font-weight: 700; }
+.tarasol-access__form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 1rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
+.tarasol-access__form label { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; font-size: 0.85rem; }
+.tarasol-access__form input, .tarasol-access__form select { width: 100%; min-height: 2.5rem; padding: 0.4rem 0.65rem; border: 1px solid var(--color-border); border-radius: 0.45rem; background: var(--color-surface); color: inherit; }
+.tarasol-access__actions { display: flex; gap: 0.65rem; align-items: end; }
+.tarasol-access button { padding: 0.6rem 0.9rem; border: 1px solid var(--color-border); border-radius: 0.45rem; background: var(--color-primary-050); color: var(--color-primary-800); cursor: pointer; }
+.tarasol-access button:disabled { opacity: 0.5; cursor: not-allowed; }
+.tarasol-access__records { margin-top: 2rem; overflow-x: auto; }
+.tarasol-access table { width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: start; }
+.tarasol-access th, .tarasol-access td { text-align: start; padding: 0.75rem; border-bottom: 1px solid var(--color-border); }
+.tarasol-access__error { color: #b42318; }

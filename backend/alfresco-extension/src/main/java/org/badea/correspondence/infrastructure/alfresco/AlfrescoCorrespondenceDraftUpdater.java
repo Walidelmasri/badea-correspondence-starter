@@ -70,10 +70,6 @@ public final class AlfrescoCorrespondenceDraftUpdater {
                         || command.executiveComposeJson().isBlank())) {
             throw forbidden();
         }
-        if (command.actorRole() == CorrespondenceActorRole.DIRECTOR
-                && command.executiveComposeJson() != null) {
-            throw forbidden();
-        }
 
         NodeRef correspondence = nodeLocator.locate(command.technicalId());
 
@@ -107,7 +103,7 @@ public final class AlfrescoCorrespondenceDraftUpdater {
                 PROP_SOURCE,
                 command.sourceText());
 
-        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR) {
+        if (command.executiveComposeJson() != null) {
             nodeService.setProperty(
                     correspondence,
                     PROP_EXECUTIVE_COMPOSE,
@@ -136,6 +132,17 @@ public final class AlfrescoCorrespondenceDraftUpdater {
                 .equals(originDepartment)) {
 
             throw forbidden();
+        }
+
+        // Enhanced Director drafts are creator-bound like executive drafts,
+        // even if the originating unit has multiple acting managers.
+        if (command.actorRole() == CorrespondenceActorRole.DIRECTOR
+                && nodeService.getProperty(correspondence, PROP_EXECUTIVE_COMPOSE) != null) {
+            Serializable creator = nodeService.getProperty(
+                    correspondence, PROP_CREATED_BY_EMPLOYEE);
+            if (!command.actorEmployeeId().value().equals(creator)) {
+                throw forbidden();
+            }
         }
 
         // Retain the existing Director department-scoped editing policy.

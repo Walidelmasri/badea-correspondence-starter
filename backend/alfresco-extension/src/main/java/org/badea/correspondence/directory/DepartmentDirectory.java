@@ -11,6 +11,11 @@ public interface DepartmentDirectory {
     }
 
 
+    /** All active managers; vacant units return an empty list. */
+    default List<EmployeeId> findActiveManagerEmployeeIds(DepartmentCode code) {
+        return findActiveManagerEmployeeId(code).stream().toList();
+    }
+
     List<DepartmentDirectoryEntry> findAllCorrespondenceDepartments();
 
     Optional<DepartmentDirectoryEntry> findByCode(

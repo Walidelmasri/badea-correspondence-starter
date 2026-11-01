@@ -31,6 +31,9 @@ public final class PresidentSignatureWebScript extends AbstractWebScript {
 
     @Override public void execute(WebScriptRequest request, WebScriptResponse response) throws IOException {
         try {
+            if (request.getParameter("workspaceUnit") != null) {
+                throw new CorrespondenceAuthorizationException("President signing has no managerial workspace");
+            }
             if (roles.resolveCurrentUserRole() != CorrespondenceActorRole.PRESIDENT) {
                 throw new CorrespondenceAuthorizationException("Only the President can manage the signature");
             }

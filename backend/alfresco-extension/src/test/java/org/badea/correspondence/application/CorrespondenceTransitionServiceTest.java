@@ -9,6 +9,10 @@ import static org.mockito.Mockito.when;
 
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeId;
+import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
+import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import java.util.Set;
+import java.util.List;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceAction;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
@@ -545,6 +549,98 @@ class CorrespondenceTransitionServiceTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void dualManagerDirectDraftSubmissionTargetsPresidentAndPreservesDirectorIdentity() {
+        var reader = mock(TarasolOrganizationReader.class);
+        var resolver = mock(CorrespondenceActorRoleResolver.class);
+        when(resolver.resolveCurrentUserRoles()).thenReturn(Set.of(
+                CorrespondenceActorRole.DIRECTOR, CorrespondenceActorRole.PRESIDENT_OFFICE));
+        when(reader.findCurrentManagerWorkspaces(new EmployeeId("18280"))).thenReturn(List.of(
+                workspace("118", "ACTING_MANAGER"), workspace("101", "MANAGER")));
+        var serviceWithPolicy = directService(reader, resolver);
+        var command = command(CorrespondenceActorRole.DIRECTOR,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("118"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                directorDraft("118", "18280"));
+        assertEquals(CorrespondenceState.WITH_PRESIDENT, serviceWithPolicy.transition(command));
+        verify(repository).applyTransition(command, CorrespondenceState.DRAFT,
+                CorrespondenceState.WITH_PRESIDENT, CorrespondenceActorRole.PRESIDENT);
+        org.mockito.Mockito.verifyNoInteractions(finalizer);
+    }
+
+    @Test
+    void directDeliveryFailsClosedForMissingOfficeRoleOrAppointment() {
+        var reader = mock(TarasolOrganizationReader.class);
+        var resolver = mock(CorrespondenceActorRoleResolver.class);
+        var serviceWithPolicy = directService(reader, resolver);
+        var command = command(CorrespondenceActorRole.DIRECTOR,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("118"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(directorDraft("118", "18280"));
+        when(resolver.resolveCurrentUserRoles()).thenReturn(Set.of(CorrespondenceActorRole.DIRECTOR));
+        assertThrows(CorrespondenceAuthorizationException.class, () -> serviceWithPolicy.transition(command));
+        when(resolver.resolveCurrentUserRoles()).thenReturn(Set.of(
+                CorrespondenceActorRole.DIRECTOR, CorrespondenceActorRole.PRESIDENT_OFFICE));
+        when(reader.findCurrentManagerWorkspaces(new EmployeeId("18280")))
+                .thenReturn(List.of(workspace("118", "ACTING_MANAGER")));
+        assertThrows(CorrespondenceAuthorizationException.class, () -> serviceWithPolicy.transition(command));
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void directDeliveryCannotSubmitAnotherEmployeesDraftOrAnotherDepartment() {
+        var reader = mock(TarasolOrganizationReader.class);
+        var resolver = mock(CorrespondenceActorRoleResolver.class);
+        var serviceWithPolicy = directService(reader, resolver);
+        var command = command(CorrespondenceActorRole.DIRECTOR,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("118"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(directorDraft("118", "another"));
+        assertThrows(CorrespondenceAuthorizationException.class, () -> serviceWithPolicy.transition(command));
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(directorDraft("108", "18280"));
+        assertThrows(CorrespondenceAuthorizationException.class, () -> serviceWithPolicy.transition(command));
+        org.mockito.Mockito.verifyNoInteractions(reader);
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ordinaryDirectorAndExecutiveCannotUseDirectDraftRoute() {
+        var direct = command(CorrespondenceActorRole.DIRECTOR,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("118"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(directorDraft("118", "18280"));
+        assertThrows(CorrespondenceAuthorizationException.class, () -> service.transition(direct));
+        var executive = command(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                        new DepartmentCode("101"), null, null, List.of(), List.of(),
+                        CorrespondenceActorRole.PRESIDENT_OFFICE, "18280"));
+        assertThrows(org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException.class,
+                () -> service.transition(executive));
+        verify(repository, never()).applyTransition(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    private CorrespondenceTransitionService directService(
+            TarasolOrganizationReader reader, CorrespondenceActorRoleResolver resolver) {
+        return new CorrespondenceTransitionService(new CorrespondenceWorkflowService(),
+                new CorrespondenceAccessAuthorizer(), departmentService, repository,
+                finalizer, reader, resolver);
+    }
+
+    private static CorrespondenceAccessContext directorDraft(String department, String creator) {
+        return new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                new DepartmentCode(department), null, null, List.of(), List.of(), null, creator);
+    }
+
+    private static TarasolOrganizationReader.ManagerWorkspace workspace(String code, String capacity) {
+        return new TarasolOrganizationReader.ManagerWorkspace(1, new DepartmentCode(code),
+                "Unit " + code, null, capacity);
     }
 
     private static CorrespondenceAccessContext officeContext() {

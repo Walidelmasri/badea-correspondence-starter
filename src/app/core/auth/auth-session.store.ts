@@ -27,6 +27,23 @@ export class AuthSessionStore {
   readonly currentUser =
     this.currentUserState.asReadonly();
 
+  private readonly workspaceUnitState = signal<string | null>(null);
+  readonly workspaceUnit = this.workspaceUnitState.asReadonly();
+  readonly activeWorkspace = computed(() => this.currentUserState()
+    ?.employeeProfile?.managerWorkspaces?.find(w => w.code === this.workspaceUnitState()) ?? null);
+  readonly effectiveRole = computed(() => this.activeWorkspace()?.role
+    ?? this.currentUserState()?.employeeProfile?.correspondenceRole ?? null);
+  readonly effectiveDepartmentCode = computed(() => this.activeWorkspace()?.code
+    ?? this.currentUserState()?.employeeProfile?.department?.code ?? null);
+
+  selectWorkspace(code: string | null): void {
+    if (code && !this.currentUserState()?.employeeProfile?.managerWorkspaces
+      ?.some(workspace => workspace.code === code)) {
+      throw new Error('Workspace not present in authenticated profile');
+    }
+    this.workspaceUnitState.set(code);
+  }
+
   readonly isAuthenticated = computed(
     () =>
       this.ticketState() !== null &&
@@ -81,12 +98,17 @@ export class AuthSessionStore {
   setCurrentUser(
     user: CurrentUser,
   ): void {
+    if (this.currentUserState()?.employeeProfile?.employeeId !== user.employeeProfile?.employeeId
+      || !user.employeeProfile?.managerWorkspaces?.some(w => w.code === this.workspaceUnitState())) {
+      this.workspaceUnitState.set(null);
+    }
     this.currentUserState.set(user);
   }
 
   clear(): void {
     this.ticketState.set(null);
     this.currentUserState.set(null);
+    this.workspaceUnitState.set(null);
 
     try {
       sessionStorage.removeItem(

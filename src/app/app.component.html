@@ -27,9 +27,36 @@
         {{ translation.text().navigation[item.key] }}
       </a>
       }
+      @if (auth.currentUser()?.capabilities.isAdmin) {
+        <a class="app-navigation__item" routerLink="/tarasol/admin/access"
+          routerLinkActive="app-navigation__item--active">
+          {{ translation.language() === 'ar' ? 'إدارة التنظيم' : 'Organization Admin' }}
+        </a>
+      }
+      @if (session.activeWorkspace()) {
+        <a class="app-navigation__item" routerLink="/tarasol/team/access"
+          routerLinkActive="app-navigation__item--active">
+          {{ translation.language() === 'ar' ? 'صلاحيات الفريق' : 'Team Access' }}
+        </a>
+      }
     </nav>
 
     <div class="app-header__actions">
+      @if (session.currentUser()?.employeeProfile?.managerWorkspaces?.length) {
+        <label class="app-workspace-picker">
+          <span>{{ translation.language() === 'ar' ? 'الصفة الإدارية' : 'Workspace' }}</span>
+          <select [value]="session.workspaceUnit() ?? ''" (change)="chooseWorkspace($event)"
+            [attr.aria-label]="translation.language() === 'ar' ? 'اختر الصفة الإدارية' : 'Select workspace'">
+            <option value="">{{ translation.language() === 'ar' ? 'الوضع الحالي' : 'Existing role' }}</option>
+            @for (unit of session.currentUser()?.employeeProfile?.managerWorkspaces ?? []; track unit.code) {
+              <option [value]="unit.code">
+                {{ translation.language() === 'ar' ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}
+                ({{ unit.capacity === 'ACTING_MANAGER' ? (translation.language() === 'ar' ? 'تكليف' : 'Acting') : unit.code }})
+              </option>
+            }
+          </select>
+        </label>
+      }
       <div class="app-notifications">
         <button type="button" class="app-notifications__trigger"
           [attr.aria-label]="notificationText().title"

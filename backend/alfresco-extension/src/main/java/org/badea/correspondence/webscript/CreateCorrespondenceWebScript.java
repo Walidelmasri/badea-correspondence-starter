@@ -14,6 +14,8 @@ import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceRepository;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.DualManagerInitiationAuthorizer;
+import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.badea.correspondence.workflow.CorrespondenceState;
@@ -35,26 +37,24 @@ public final class CreateCorrespondenceWebScript
     private final CorrespondenceActorRoleResolver actorRoleResolver;
 
     private final AlfrescoCorrespondenceRepository correspondenceRepository;
+    private final TarasolOrganizationReader organizationReader;
 
     public CreateCorrespondenceWebScript(
             CurrentEmployeeService currentEmployeeService,
             CorrespondenceActorRoleResolver actorRoleResolver,
             AlfrescoCorrespondenceRepository correspondenceRepository) {
+        this(currentEmployeeService, actorRoleResolver, correspondenceRepository, null);
+    }
 
-        this.currentEmployeeService =
-                Objects.requireNonNull(
-                        currentEmployeeService,
-                        "currentEmployeeService must not be null");
-
-        this.actorRoleResolver =
-                Objects.requireNonNull(
-                        actorRoleResolver,
-                        "actorRoleResolver must not be null");
-
-        this.correspondenceRepository =
-                Objects.requireNonNull(
-                        correspondenceRepository,
-                        "correspondenceRepository must not be null");
+    public CreateCorrespondenceWebScript(
+            CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver actorRoleResolver,
+            AlfrescoCorrespondenceRepository correspondenceRepository,
+            TarasolOrganizationReader organizationReader) {
+        this.currentEmployeeService = Objects.requireNonNull(currentEmployeeService);
+        this.actorRoleResolver = Objects.requireNonNull(actorRoleResolver);
+        this.correspondenceRepository = Objects.requireNonNull(correspondenceRepository);
+        this.organizationReader = organizationReader;
     }
 
     @Override
@@ -77,16 +77,6 @@ public final class CreateCorrespondenceWebScript
                     readRequestBody(request);
 
             String executiveComposeJson = null;
-            if (actorRole == CorrespondenceActorRole.DIRECTOR) {
-                // Preserve the original Director request behavior exactly.
-                // The Director endpoint never persists executive form fields.
-            } else if (actorRole == CorrespondenceActorRole.PRESIDENT
-                    || actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE) {
-                executiveComposeJson = ExecutiveComposePayload.normalize(body);
-            } else {
-                throw new CorrespondenceAuthorizationException(
-                        "A correspondence role is required to create drafts");
-            }
 
             /*
              * The originating department and creator identity
@@ -94,9 +84,32 @@ public final class CreateCorrespondenceWebScript
              */
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
-
+            var requestedWorkspace = request.getParameter("workspaceUnit");
+            var workspace = requestedWorkspace == null ? null
+                : actorRoleResolver.resolveWorkspace(requestedWorkspace, employee);
+            if (workspace != null) actorRole = workspace.role();
+            // The workspace role is authoritative; never validate only the
+            // caller's old primary role when interpreting executive fields.
+            if (actorRole == CorrespondenceActorRole.DIRECTOR) {
+                if (body.has("executiveCompose")) {
+                    // A selected Director workspace identifies the originating unit;
+                    // neither a forged body role nor group membership alone is sufficient.
+                    if (workspace == null) {
+                        throw new CorrespondenceAuthorizationException("Select a managerial workspace");
+                    }
+                    DualManagerInitiationAuthorizer.requireAuthorized(
+                        employee.employeeId(), workspace.unit(), actorRoleResolver, organizationReader);
+                    executiveComposeJson = ExecutiveComposePayload.normalize(body);
+                }
+            } else {
+                executiveComposeJson = ExecutiveComposePayload.normalize(body);
+            }
             DepartmentDirectoryEntry department =
                     employee.department().orElse(null);
+            if (workspace != null) {
+                department = new DepartmentDirectoryEntry(workspace.unit(),
+                    workspace.unit().value(), null);
+            }
 
             if (department == null) {
 
@@ -159,6 +172,10 @@ public final class CreateCorrespondenceWebScript
                     "EMPLOYEE_NOT_FOUND",
                     "No active employee profile was found "
                             + "for the authenticated user.");
+
+        } catch (org.badea.correspondence.directory.DepartmentDirectoryException exception) {
+            writeError(response, Status.STATUS_SERVICE_UNAVAILABLE,
+                    "ORGANIZATION_DIRECTORY_UNAVAILABLE", "The Tarasol directory is unavailable.");
 
         } catch (EmployeeDirectoryException exception) {
 

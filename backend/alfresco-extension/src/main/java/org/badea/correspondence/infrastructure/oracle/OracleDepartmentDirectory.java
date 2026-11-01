@@ -21,51 +21,71 @@ public final class OracleDepartmentDirectory
 
     private static final String SELECT_ALL_SQL = """
             SELECT
-                DEPARTMENT_CODE,
-                NAME,
-                NAME_ARABIC
-            FROM BADEA_ADDONS.COR_DEPARTMENTS
-            ORDER BY DEPARTMENT_CODE
+                UNIT_CODE AS DEPARTMENT_CODE,
+                NAME_EN AS NAME,
+                NAME_AR AS NAME_ARABIC
+            FROM TARASOL_ORG_UNITS
+            ORDER BY UNIT_CODE
             """;
 
     private static final String SELECT_BY_CODE_SQL = """
             SELECT
-                DEPARTMENT_CODE,
-                NAME,
-                NAME_ARABIC
-            FROM BADEA_ADDONS.COR_DEPARTMENTS
-            WHERE DEPARTMENT_CODE = ?
+                UNIT_CODE AS DEPARTMENT_CODE,
+                NAME_EN AS NAME,
+                NAME_AR AS NAME_ARABIC
+            FROM TARASOL_ORG_UNITS
+            WHERE UNIT_CODE = ?
             """;
 
     private static final String SELECT_ACTIVE_HEAD_SQL = """
-            SELECT DEPT_MANAGER_ID
-            FROM BADEA_ADDONS.COR_DEPARTMENTS
-            WHERE DEPARTMENT_CODE = ? AND STATUS = 'A'
+            SELECT a.EMP_ID AS DEPT_MANAGER_ID
+            FROM TARASOL_UNIT_ASSIGNMENTS a
+            JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = a.UNIT_CODE
+            WHERE a.UNIT_CODE = ? AND u.STATUS = 'A'
+              AND a.CAPACITY IN ('MANAGER', 'ACTING_MANAGER')
+              AND a.REVOKED_AT IS NULL
+              AND a.STARTS_AT <= SYSTIMESTAMP
+              AND (a.ENDS_AT IS NULL OR a.ENDS_AT > SYSTIMESTAMP)
+            ORDER BY a.ASSIGNMENT_ID
             """;
+
+    @Override
+    public java.util.List<org.badea.correspondence.directory.EmployeeId> findActiveManagerEmployeeIds(
+            DepartmentCode code) {
+        Objects.requireNonNull(code, "code");
+        var managers = new java.util.ArrayList<org.badea.correspondence.directory.EmployeeId>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_ACTIVE_HEAD_SQL)) {
+            statement.setQueryTimeout(8);
+            statement.setString(1, code.value());
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    String raw = rows.getString("DEPT_MANAGER_ID");
+                    if (raw == null || raw.isBlank()) {
+                        throw new DepartmentDirectoryException("Missing Tarasol manager employee ID for " + code.value());
+                    }
+                    managers.add(new org.badea.correspondence.directory.EmployeeId(raw.trim()));
+                }
+            }
+        } catch (SQLException failure) {
+            throw new DepartmentDirectoryException("Failed to resolve active Tarasol managers", failure);
+        }
+        // Inconsistent duplicate assignments must never cause duplicate notifications.
+        if (new java.util.HashSet<>(managers).size() != managers.size()) {
+            throw new DepartmentDirectoryException("Duplicate active Tarasol manager for " + code.value());
+        }
+        return List.copyOf(managers);
+    }
 
     @Override
     public java.util.Optional<org.badea.correspondence.directory.EmployeeId> findActiveManagerEmployeeId(
             DepartmentCode code) {
-        Objects.requireNonNull(code, "code");
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_ACTIVE_HEAD_SQL)) {
-            statement.setString(1, code.value());
-            try (ResultSet rows = statement.executeQuery()) {
-                if (!rows.next()) return java.util.Optional.empty();
-                String rawId = rows.getString("DEPT_MANAGER_ID");
-                if (rows.next()) {
-                    throw new DepartmentDirectoryException("Multiple active managers for department " + code.value());
-                }
-                if (rawId == null || rawId.isBlank()) return java.util.Optional.empty();
-                try {
-                    return java.util.Optional.of(new org.badea.correspondence.directory.EmployeeId(rawId.trim()));
-                } catch (IllegalArgumentException invalid) {
-                    throw new DepartmentDirectoryException("Invalid active manager ID for department " + code.value(), invalid);
-                }
-            }
-        } catch (SQLException failure) {
-            throw new DepartmentDirectoryException("Failed to resolve active department manager", failure);
+        var managers = findActiveManagerEmployeeIds(code);
+        if (managers.size() > 1) {
+            throw new DepartmentDirectoryException(
+                "Multiple active Tarasol managers for unit " + code.value() + "; use the multi-manager API");
         }
+        return managers.stream().findFirst();
     }
 
     private final DataSource dataSource;
@@ -189,11 +209,7 @@ public final class OracleDepartmentDirectory
                             rawCode);
         } catch (IllegalArgumentException exception) {
 
-            /*
-             * COR_DEPARTMENTS also contains legacy alphabetic
-             * department codes. They are not part of the current
-             * correspondence-routing domain.
-             */
+            /* Legacy nonnumeric codes are not correspondence units. */
             return null;
         }
 

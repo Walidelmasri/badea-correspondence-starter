@@ -40,11 +40,17 @@ public final class DirectorContinueWebScript extends AbstractWebScript {
                 throw new IllegalArgumentException("Reason must contain 1-2000 characters");
             var employee = employees.getCurrentEmployee();
             CorrespondenceActorRole role = roles.resolveCurrentUserRole();
-            if (role != CorrespondenceActorRole.DIRECTOR || employee.department().isEmpty())
+            var department = employee.department().map(d -> d.code()).orElse(null);
+            if (request.getParameter("workspaceUnit") != null) {
+                var workspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
+                role = workspace.role();
+                department = workspace.unit();
+            }
+            if (role != CorrespondenceActorRole.DIRECTOR || department == null)
                 throw new CorrespondenceAuthorizationException("A Director with department is required");
             var command = new TransitionCorrespondenceCommand(id, role,
                     CorrespondenceAction.DIRECTOR_CONTINUE_CORRESPONDENCE,
-                    employee.employeeId(), employee.department().get().code(),
+                    employee.employeeId(), department,
                     employee.nameEnglish(), employee.nameArabic(), null, reason, null);
             long next = cycles.continueCycle(command);
             send(response, Status.STATUS_OK, new JSONObject().put("technicalId", id)

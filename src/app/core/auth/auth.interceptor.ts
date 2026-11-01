@@ -67,8 +67,19 @@ export const authInterceptor:
           })
         : request;
 
+    // A workspace is an explicit per-request hint, never a security token.
+    // The Java endpoint re-checks the authenticated employee's live assignment.
+    const workspaceUnit = session.workspaceUnit();
+    const scopedRequest = workspaceUnit
+      && authenticatedRequest.url.startsWith('/alfresco/service/badea/')
+      && !authenticatedRequest.url.endsWith('/correspondence/me')
+      ? authenticatedRequest.clone({
+          params: authenticatedRequest.params.set('workspaceUnit', workspaceUnit),
+        })
+      : authenticatedRequest;
+
     return next(
-      authenticatedRequest,
+      scopedRequest,
     ).pipe(
       catchError((error: unknown) => {
         if (

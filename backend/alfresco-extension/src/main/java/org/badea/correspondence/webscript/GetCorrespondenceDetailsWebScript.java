@@ -65,6 +65,11 @@ public final class GetCorrespondenceDetailsWebScript
                     employee.department()
                             .map(department -> department.code())
                             .orElse(null);
+            if (request.getParameter("workspaceUnit") != null) {
+                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
+                actorRole = selectedWorkspace.role();
+                actorDepartmentCode = selectedWorkspace.unit();
+            }
 
             CorrespondenceDetails details =
                     detailsService.getDetails(
@@ -85,6 +90,10 @@ public final class GetCorrespondenceDetailsWebScript
                     Status.STATUS_NOT_FOUND,
                     "EMPLOYEE_NOT_FOUND",
                     "No active employee profile was found for the authenticated user.");
+
+        } catch (org.badea.correspondence.directory.DepartmentDirectoryException exception) {
+            writeError(response, Status.STATUS_SERVICE_UNAVAILABLE,
+                    "ORGANIZATION_DIRECTORY_UNAVAILABLE", "The Tarasol directory is unavailable.");
 
         } catch (EmployeeDirectoryException exception) {
 

@@ -42,7 +42,7 @@ export class DraftsPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly session = inject(AuthSessionStore);
   readonly currentRole = computed(() =>
-    this.session.currentUser()?.employeeProfile?.correspondenceRole ?? null);
+    this.session.effectiveRole());
   readonly previewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
 
   private readonly api =

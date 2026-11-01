@@ -215,7 +215,7 @@ export class RealMailboxComponent implements OnInit {
     !this.forwarding() && !this.forwardUncertain() &&
     eligibleForInitialOfficeForward(
       this.box(),
-      this.session.currentUser()?.employeeProfile?.correspondenceRole ?? null,
+      this.session.effectiveRole(),
       this.details()?.state ?? null,
       this.history(),
     ),
@@ -223,7 +223,7 @@ export class RealMailboxComponent implements OnInit {
 
   readonly canCompleteOfficeReview = computed(() => {
     if (this.box() !== 'inbox'
-        || this.session.currentUser()?.employeeProfile?.correspondenceRole !== 'PRESIDENT_OFFICE'
+        || this.session.effectiveRole() !== 'PRESIDENT_OFFICE'
         || this.details()?.state !== 'WITH_PRESIDENT_OFFICE') return false;
     const actions = this.history();
     if (!actions?.length) return false;
@@ -235,7 +235,7 @@ export class RealMailboxComponent implements OnInit {
 
   readonly canReview = computed(() => this.box() === 'inbox'
     && this.details()?.state === 'WITH_PRESIDENT'
-    && this.session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT');
+    && this.session.effectiveRole() === 'PRESIDENT');
 
   ngOnInit(): void {
     // The directory is display-only; a temporary directory failure must not
@@ -701,16 +701,16 @@ export class RealMailboxComponent implements OnInit {
 
   readonly myActionableAssignment = computed(() => {
     if (this.box() !== 'inbox' || this.details()?.state !== 'WITH_DIRECTOR'
-        || this.session.currentUser()?.employeeProfile?.correspondenceRole !== 'DIRECTOR') return null;
-    const code = this.session.currentUser()?.employeeProfile?.department?.code;
+        || this.session.effectiveRole() !== 'DIRECTOR') return null;
+    const code = this.session.effectiveDepartmentCode();
     return this.assignments().find(item => item.departmentCode === code
       && item.recipientType === 'TO' && item.status === 'PENDING') ?? null;
   });
 
   readonly canDirectorFollowUp = computed(() => {
     if (this.box() !== 'inbox' || this.details()?.state !== 'WITH_DIRECTOR'
-        || this.session.currentUser()?.employeeProfile?.correspondenceRole !== 'DIRECTOR') return false;
-    const department = this.session.currentUser()?.employeeProfile?.department?.code;
+        || this.session.effectiveRole() !== 'DIRECTOR') return false;
+    const department = this.session.effectiveDepartmentCode();
     const required = this.assignments().filter(item => item.recipientType === 'TO');
     return required.length > 0
       && required.every(item => item.status === 'COMPLETED')
@@ -791,7 +791,7 @@ export class RealMailboxComponent implements OnInit {
   /** UI eligibility; the server rechecks active-cycle assignments and authorization. */
   readonly officeDistributionReady = computed(() =>
     this.box() === 'inbox'
-    && this.session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT_OFFICE'
+    && this.session.effectiveRole() === 'PRESIDENT_OFFICE'
     && this.details()?.state === 'WITH_DIRECTOR'
     && this.assignments().length > 0
     && this.assignments().every(item => item.recipientType !== 'TO' || item.status === 'COMPLETED'),

@@ -65,20 +65,29 @@ public final class AlfrescoNotificationRecipientResolver {
             throw new IllegalStateException("Correspondence notification group is unexpectedly large");
         }
         if (targetRole == CorrespondenceActorRole.DIRECTOR) {
-            // COR_DEPARTMENTS is the authoritative *active manager* mapping.
-            // Do not guess from any AD group member who happens to work in the unit.
-            var managerId = departments.findActiveManagerEmployeeId(targetDepartment);
-            if (managerId.isEmpty() || managerId.get().value().equals(actorEmployeeId)) return List.of();
-            var manager = employees.findActiveByEmployeeId(managerId.get());
-            if (manager.isEmpty()) return List.of();
-            var person = manager.get();
-            String username = person.username().value();
-            boolean inAuthorizedGroup = members.stream().filter(Objects::nonNull)
-                    .map(String::strip).filter(value -> value.matches("(?i)[a-z0-9][a-z0-9._-]{0,63}(@badea\\.org)?"))
-                    .map(DirectoryUsername::new).anyMatch(account -> account.value().equals(username));
-            if (!inAuthorizedGroup || !username.matches("[a-z0-9][a-z0-9._-]{0,63}")) return List.of();
-            return List.of(new Recipient(person.employeeId().value(), username,
-                    username + "@badea.org", person.nameEnglish(), person.nameArabic()));
+            // All active managers (including concurrent acting managers) receive the
+            // target-unit notification, but only if also in the Directors group.
+            Set<String> eligibleUsernames = new HashSet<>();
+            for (String member : members) {
+                if (member == null) continue;
+                String raw = member.strip();
+                if (!raw.matches("(?i)[a-z0-9][a-z0-9._-]{0,63}(@badea\\.org)?")) continue;
+                eligibleUsernames.add(new DirectoryUsername(raw).value());
+            }
+            Set<String> uniqueIds = new HashSet<>();
+            List<Recipient> recipients = new ArrayList<>();
+            for (var managerId : departments.findActiveManagerEmployeeIds(targetDepartment)) {
+                if (!uniqueIds.add(managerId.value()) || managerId.value().equals(actorEmployeeId)) continue;
+                var found = employees.findActiveByEmployeeId(managerId);
+                if (found.isEmpty()) continue;
+                var person = found.get();
+                String username = person.username().value();
+                if (!eligibleUsernames.contains(username)
+                        || !username.matches("[a-z0-9][a-z0-9._-]{0,63}")) continue;
+                recipients.add(new Recipient(person.employeeId().value(), username,
+                        username + "@badea.org", person.nameEnglish(), person.nameArabic()));
+            }
+            return recipients.stream().sorted(Comparator.comparing(Recipient::username)).toList();
         }
         Set<String> uniqueAccounts = new HashSet<>();
         Set<String> uniqueEmployeeIds = new HashSet<>();

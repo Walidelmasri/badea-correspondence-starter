@@ -31,6 +31,7 @@ import {
 } from './core/i18n/translation.service';
 
 import { UnreadInboxStore } from './core/notifications/unread-inbox.store';
+import { AuthSessionStore } from './core/auth/auth-session.store';
 
 import { MAIN_NAVIGATION,
 } from './core/navigation/navigation.config';
@@ -59,6 +60,17 @@ export class AppComponent {
 
   readonly auth =
     inject(AuthService);
+
+  readonly session = inject(AuthSessionStore);
+
+  chooseWorkspace(event: Event): void {
+    const code = (event.target as HTMLSelectElement).value || null;
+    this.session.selectWorkspace(code);
+    this.notifications.invalidateForWorkspaceChange();
+    void this.router.navigate(['/inbox'], {
+      queryParams: { workspace: code },
+    });
+  }
 
   readonly translation =
     inject(TranslationService);

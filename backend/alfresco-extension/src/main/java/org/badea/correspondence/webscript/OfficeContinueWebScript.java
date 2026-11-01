@@ -43,9 +43,15 @@ public final class OfficeContinueWebScript extends AbstractWebScript {
             }
             var employee = employees.getCurrentEmployee();
             var role = roles.resolveCurrentUserRole();
+            var department = employee.department().map(d -> d.code()).orElse(null);
+            if (request.getParameter("workspaceUnit") != null) {
+                var workspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
+                role = workspace.role();
+                department = workspace.unit();
+            }
             var command = new TransitionCorrespondenceCommand(id, role,
                     CorrespondenceAction.CONTINUE_CORRESPONDENCE, employee.employeeId(),
-                    employee.department().map(d -> d.code()).orElse(null),
+                    department,
                     employee.nameEnglish(), employee.nameArabic(), null, "Begin another workflow round", null);
             long next = service.continueCycle(command);
             send(response, Status.STATUS_OK, new JSONObject().put("technicalId", id)

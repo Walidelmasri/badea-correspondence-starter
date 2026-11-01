@@ -47,11 +47,6 @@ public record CreateCorrespondenceCommand(
                 "createdByEmployeeId must not be null");
 
         Objects.requireNonNull(createdByRole, "createdByRole must not be null");
-        if (createdByRole == CorrespondenceActorRole.DIRECTOR
-                && executiveComposeJson != null) {
-            throw new IllegalArgumentException(
-                    "Director drafts must not contain executive Compose metadata");
-        }
         if (createdByRole != CorrespondenceActorRole.DIRECTOR
                 && (executiveComposeJson == null || executiveComposeJson.isBlank())) {
             throw new IllegalArgumentException(

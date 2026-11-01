@@ -33,6 +33,7 @@
 
         <constructor-arg
             ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
     </bean>
 
     <!--
@@ -81,6 +82,13 @@
             ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
     </bean>
 
+    <!-- Tarasol-owned manager workspace directory; no SAP organizational writes. -->
+    <bean id="badeaCorrespondenceOrganizationReader"
+          class="org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader"
+          lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
+    </bean>
+
     <!--
         Current authenticated employee application service.
     -->
@@ -125,6 +133,9 @@
 
     <constructor-arg
         ref="badeaCorrespondenceActorRoleResolver" />
+
+    <constructor-arg
+        ref="badeaCorrespondenceOrganizationReader" />
 </bean>
 
     <!--
@@ -243,6 +254,8 @@
             ref="badeaCorrespondenceRepository" />
 
         <constructor-arg ref="badeaPresidentDocumentFinalizationService" />
+        <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
     </bean>
 
     <!--
@@ -262,6 +275,7 @@
 
     <constructor-arg
         ref="badeaCorrespondenceRepository" />
+    <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
 </bean>
 
     <!--
@@ -375,6 +389,7 @@
 
     <constructor-arg
         ref="badeaPresidentReviewService" />
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
 </bean>
 
 <!--
@@ -556,6 +571,7 @@
 
     <constructor-arg
         ref="badeaCorrespondenceDraftUpdater" />
+    <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
 </bean>
 <!--
     Reads department-scoped Director drafts.
@@ -695,6 +711,7 @@
       parent="webscript" lazy-init="true">
     <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
     <constructor-arg ref="badeaOfficeCompletionService" />
+    <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
 </bean>
 <bean id="webscript.org.badea.correspondence.office-completion.put"
       class="org.badea.correspondence.webscript.SaveOfficeCompletionWebScript"
@@ -716,6 +733,7 @@
     lazy-init="true">
     <constructor-arg ref="authorityService" />
     <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+    <constructor-arg ref="badeaCorrespondenceDepartmentDirectory" />
 </bean>
 <bean id="badeaOfficeActionSheetRenderer"
     class="org.badea.correspondence.infrastructure.pdf.PdfBoxOfficeActionSheetRenderer"
@@ -926,4 +944,63 @@
     <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
     <constructor-arg ref="badeaCorrespondenceShareService" />
 </bean>
+
+    <!-- Tarasol-owned appointment and scoped team access, never legacy COR_DEPARTMENTS. -->
+    <bean id="badeaTarasolAccessService"
+          class="org.badea.correspondence.organization.TarasolAccessService" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceEmployeeDirectoryDataSource" />
+        <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
+    </bean>
+
+    <bean id="webscript.org.badea.correspondence.tarasol-admin-access.get"
+          class="org.badea.correspondence.webscript.TarasolAccessWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaTarasolAccessService" />
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceRepository" />
+        <constructor-arg value="true" />
+        <constructor-arg value="false" />
+    </bean>
+
+    <bean id="webscript.org.badea.correspondence.tarasol-admin-access.post"
+          class="org.badea.correspondence.webscript.TarasolAccessWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaTarasolAccessService" />
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceRepository" />
+        <constructor-arg value="true" />
+        <constructor-arg value="true" />
+    </bean>
+
+    <bean id="webscript.org.badea.correspondence.tarasol-team-access.get"
+          class="org.badea.correspondence.webscript.TarasolAccessWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaTarasolAccessService" />
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceRepository" />
+        <constructor-arg value="false" />
+        <constructor-arg value="false" />
+    </bean>
+
+    <bean id="webscript.org.badea.correspondence.tarasol-team-access.post"
+          class="org.badea.correspondence.webscript.TarasolAccessWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaTarasolAccessService" />
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceRepository" />
+        <constructor-arg value="false" />
+        <constructor-arg value="true" />
+    </bean>
 </beans>

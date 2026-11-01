@@ -8,6 +8,10 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.sql.SQLTimeoutException;
 import java.util.Optional;
+import java.util.Set;
+import java.util.List;
+
+import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentCode;
@@ -88,6 +92,45 @@ class CurrentEmployeeWebScriptTest {
         assertEquals(
                 "117",
                 result.getJSONObject("department").getString("code"));
+    }
+
+    @Test
+    void returnsAuthenticatedMultiUnitManagerCapacities() throws IOException {
+        var organizationReader = mock(TarasolOrganizationReader.class);
+        when(roleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(
+                CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceActorRole.DIRECTOR));
+        when(organizationReader.findCurrentManagerWorkspaces(new EmployeeId("10001")))
+                .thenReturn(List.of(
+                        new TarasolOrganizationReader.ManagerWorkspace(3,
+                                new DepartmentCode("101"), "Office of President", null, "MANAGER"),
+                        new TarasolOrganizationReader.ManagerWorkspace(7,
+                                new DepartmentCode("118"), "Human Resources", null, "ACTING_MANAGER")));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
+
+        JSONObject result = execute();
+        assertEquals("PRESIDENT_OFFICE", result.getString("correspondenceRole"));
+        var assigned = result.getJSONArray("managerWorkspaces");
+        assertEquals(2, assigned.length());
+        assertEquals("PRESIDENT_OFFICE", assigned.getJSONObject(0).getString("role"));
+        assertEquals("118", assigned.getJSONObject(1).getString("code"));
+        assertEquals("ACTING_MANAGER", assigned.getJSONObject(1).getString("capacity"));
+        assertEquals("DIRECTOR", assigned.getJSONObject(1).getString("role"));
+        assertEquals(2, result.getJSONArray("correspondenceRoles").length());
+    }
+
+    @Test
+    void rejectsOfficeWorkspaceWithoutOfficeGroupEvenForUnitManager() throws IOException {
+        var organizationReader = mock(TarasolOrganizationReader.class);
+        when(roleResolver.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.DIRECTOR);
+        when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(CorrespondenceActorRole.DIRECTOR));
+        when(organizationReader.findCurrentManagerWorkspaces(new EmployeeId("10001")))
+                .thenReturn(List.of(new TarasolOrganizationReader.ManagerWorkspace(4,
+                        new DepartmentCode("101"), "Office of President", null, "MANAGER")));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
+        assertEquals(0, execute().getJSONArray("managerWorkspaces").length());
     }
 
     @Test

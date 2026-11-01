@@ -41,8 +41,11 @@ public final class SaveOfficeCompletionWebScript extends AbstractWebScript {
             long expected=requiredRevision(body,"expectedRevision");
             long expectedPresident=requiredRevision(body,"expectedPresidentReviewRevision");
             JSONObject state=body.getJSONObject("state");
-            var role=roles.resolveCurrentUserRole();
             var employee=employees.getCurrentEmployee();
+            var role=roles.resolveCurrentUserRole();
+            if (req.getParameter("workspaceUnit") != null) {
+                role=roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee).role();
+            }
             OfficeCompletionState saved=service.save(new SaveOfficeCompletionCommand(
                     id,expected,expectedPresident,employee.employeeId(),
                     employee.nameEnglish(),employee.nameArabic(),state.toString()),role);

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 import org.badea.correspondence.application.OfficeCompletionService;
+import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.application.OfficeCompletionState;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -17,21 +18,33 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 public final class GetOfficeCompletionWebScript extends AbstractWebScript {
     private final CorrespondenceActorRoleResolver roles;
     private final OfficeCompletionService service;
+    private final CurrentEmployeeService employees;
     public GetOfficeCompletionWebScript(CorrespondenceActorRoleResolver roles,
             OfficeCompletionService service) {
+        this(roles, service, null);
+    }
+    public GetOfficeCompletionWebScript(CorrespondenceActorRoleResolver roles,
+            OfficeCompletionService service, CurrentEmployeeService employees) {
         this.roles=Objects.requireNonNull(roles); this.service=Objects.requireNonNull(service);
+        this.employees=employees;
     }
     @Override public void execute(WebScriptRequest request,WebScriptResponse response) throws IOException {
         try {
             String id=id(request);
             var role=roles.resolveCurrentUserRole();
-            long presidentRevision=service.presidentRevision(id,role);
-            Optional<OfficeCompletionState> current=service.load(id,role);
+            if (request.getParameter("workspaceUnit") != null) {
+                if (employees == null) throw new CorrespondenceAuthorizationException("Workspace unavailable");
+                role=roles.resolveWorkspace(request.getParameter("workspaceUnit"),
+                    employees.getCurrentEmployee()).role();
+            }
+            final var activeRole = role;
+            long presidentRevision=service.presidentRevision(id,activeRole);
+            Optional<OfficeCompletionState> current=service.load(id,activeRole);
             JSONObject result=new JSONObject();
             result.put("technicalId",id);
             result.put("presidentReviewRevision",presidentRevision);
             result.put("revision",current.map(OfficeCompletionState::revision)
-                    .orElseGet(() -> service.headRevision(id,role)));
+                    .orElseGet(() -> service.headRevision(id,activeRole)));
             if (current.isPresent()) {
                 OfficeCompletionState snapshot=current.orElseThrow();
                 result.put("state",new JSONObject(snapshot.json()));

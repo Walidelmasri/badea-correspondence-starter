@@ -48,8 +48,18 @@ describe('Director Send', () => {
   };
   let page: DirectorNewPageComponent;
   let calls: string[];
+  let language: 'en' | 'ar';
+  let department: { code: string; nameEnglish: string; nameArabic: string | null } | null;
+  let workspace: { code: string; nameEnglish: string; nameArabic: string | null; role?: string } | null;
+  let roles: string[];
+  let managerWorkspaces: { code: string; capacity: string }[];
 
   beforeEach(() => {
+    language = 'en';
+    department = null;
+    workspace = null;
+    roles = [];
+    managerWorkspaces = [];
     calls = [];
     Object.values(api).forEach((mock) => mock.mockReset());
     api.createDraft.mockImplementation(() => {
@@ -86,10 +96,15 @@ describe('Director Send', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: CorrespondenceApiService, useValue: api },
-        { provide: AuthSessionStore, useValue: { currentUser: () => null } },
+        { provide: AuthSessionStore, useValue: {
+          currentUser: () => ({ employeeProfile: {
+            department, correspondenceRoles: roles, managerWorkspaces,
+          } }),
+          activeWorkspace: () => workspace,
+        } },
         {
           provide: TranslationService,
-          useValue: { text: () => ({ director: labels }), language: () => 'en' },
+          useValue: { text: () => ({ director: labels }), language: () => language },
         },
         {
           provide: ActivatedRoute,
@@ -103,6 +118,36 @@ describe('Director Send', () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it('prefills the selected acting HR workspace rather than the SAP home department', () => {
+    department = { code: '108', nameEnglish: 'Regional Offices', nameArabic: 'المكاتب الإقليمية' };
+    workspace = { code: '118', nameEnglish: 'Human Resources', nameArabic: 'الموارد البشرية' };
+    page.ngOnInit();
+    expect(page.form.controls.sourceText.value).toBe('Human Resources');
+  });
+
+  it('prefills the selected acting HR workspace in Arabic', () => {
+    department = { code: '108', nameEnglish: 'Regional Offices', nameArabic: 'المكاتب الإقليمية' };
+    workspace = { code: '118', nameEnglish: 'Human Resources', nameArabic: 'الموارد البشرية' };
+    language = 'ar';
+    page.ngOnInit();
+    expect(page.form.controls.sourceText.value).toBe('الموارد البشرية');
+  });
+
+  it('preserves a manually entered source despite an active acting workspace', () => {
+    department = { code: '108', nameEnglish: 'Regional Offices', nameArabic: 'المكاتب الإقليمية' };
+    workspace = { code: '118', nameEnglish: 'Human Resources', nameArabic: 'الموارد البشرية' };
+    language = 'ar';
+    page.form.controls.sourceText.setValue('Custom source');
+    page.ngOnInit();
+    expect(page.form.controls.sourceText.value).toBe('Custom source');
+  });
+
+  it('retains the legacy home-department default when no workspace is selected', () => {
+    department = { code: '117', nameEnglish: 'Digital Transformation', nameArabic: 'التحول الرقمي' };
+    page.ngOnInit();
+    expect(page.form.controls.sourceText.value).toBe('Digital Transformation');
+  });
 
   function selectPdf(): void {
     const input = { files: [PDF], value: 'selected' } as unknown as HTMLInputElement;
@@ -118,6 +163,40 @@ describe('Director Send', () => {
     });
     expect(page.readOnly()).toBe(true);
     expect(page.form.disabled).toBe(true);
+  });
+
+  it('routes a verified dual-manager Director draft straight to President', async () => {
+    department = { code: '108', nameEnglish: 'Regional Offices', nameArabic: null };
+    workspace = { code: '118', nameEnglish: 'Human Resources', nameArabic: null, role: 'DIRECTOR' };
+    roles = ['DIRECTOR', 'PRESIDENT_OFFICE'];
+    managerWorkspaces = [{ code: '101', capacity: 'MANAGER' }, { code: '118', capacity: 'ACTING_MANAGER' }];
+    api.getDetails.mockImplementation(() => of({
+      technicalId: ID, state: 'DRAFT', documents: [], originDepartmentCode: '118',
+    }));
+    api.transitionCorrespondence.mockReturnValue(of({ technicalId: ID, state: 'WITH_PRESIDENT' }));
+    expect(page.directPresidentEligible()).toBe(true);
+    page.form.controls.recipient.setValue('President');
+    page.form.controls.instruction.setValue('required-action');
+    page.form.controls.explanation.setValue('Please review');
+    await page.sendDraft();
+    expect(api.createDraft).toHaveBeenCalledWith(expect.objectContaining({
+      executiveCompose: expect.objectContaining({
+        recipient: 'President', instruction: 'required-action', explanation: 'Please review',
+      }),
+    }));
+    expect(api.transitionCorrespondence).toHaveBeenCalledWith(ID, { action: 'SEND_TO_PRESIDENT' });
+    expect(page.readOnly()).toBe(true);
+  });
+
+  it('never bypasses the Office without both organizational role and appointment', async () => {
+    workspace = { code: '118', nameEnglish: 'Human Resources', nameArabic: null, role: 'DIRECTOR' };
+    roles = ['DIRECTOR', 'PRESIDENT_OFFICE'];
+    managerWorkspaces = [{ code: '118', capacity: 'ACTING_MANAGER' }];
+    await page.sendDraft();
+    expect(api.createDraft).toHaveBeenCalledWith(expect.not.objectContaining({
+      executiveCompose: expect.anything(),
+    }));
+    expect(api.transitionCorrespondence).toHaveBeenCalledWith(ID, { action: 'SEND_TO_OFFICE' });
   });
 
   it('Save Draft never sends', async () => {

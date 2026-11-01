@@ -2,6 +2,9 @@ package org.badea.correspondence.webscript;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.List;
+import java.util.Set;
+import java.util.ArrayList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -9,6 +12,9 @@ import org.apache.commons.logging.LogFactory;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
+import org.badea.correspondence.directory.DepartmentDirectoryException;
+import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
+import org.json.JSONArray;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -28,8 +34,9 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
  * Returns the authenticated employee and their resolved
  * correspondence workflow role.
  *
- * Valid Alfresco credentials without exactly one correspondence
- * workflow group are denied with HTTP 403.
+ * Membership in both Office and Directors groups is supported;
+ * President membership remains exclusive. Organizational capacities
+ * are sourced from Tarasol-owned assignments.
  */
 public final class CurrentEmployeeWebScript
         extends AbstractWebScript {
@@ -40,16 +47,22 @@ public final class CurrentEmployeeWebScript
     private final CurrentEmployeeService currentEmployeeService;
 
     private final CorrespondenceActorRoleResolver roleResolver;
+    private final TarasolOrganizationReader organizationReader;
 
     public CurrentEmployeeWebScript(
             CurrentEmployeeService currentEmployeeService,
             CorrespondenceActorRoleResolver roleResolver) {
 
-        this.currentEmployeeService =
-                Objects.requireNonNull(currentEmployeeService);
+        this(currentEmployeeService, roleResolver, null);
+    }
 
-        this.roleResolver =
-                Objects.requireNonNull(roleResolver);
+    public CurrentEmployeeWebScript(
+            CurrentEmployeeService currentEmployeeService,
+            CorrespondenceActorRoleResolver roleResolver,
+            TarasolOrganizationReader organizationReader) {
+        this.currentEmployeeService = Objects.requireNonNull(currentEmployeeService);
+        this.roleResolver = Objects.requireNonNull(roleResolver);
+        this.organizationReader = organizationReader;
     }
 
     @Override
@@ -67,12 +80,33 @@ public final class CurrentEmployeeWebScript
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
 
+            Set<CorrespondenceActorRole> groups = roleResolver.resolveCurrentUserRoles();
+            if (groups == null || groups.isEmpty()) groups = Set.of(role);
+            List<ManagerWorkspaceView> workspaces = new ArrayList<>();
+            if (organizationReader != null && role != CorrespondenceActorRole.PRESIDENT) {
+                for (var assignment : organizationReader.findCurrentManagerWorkspaces(employee.employeeId())) {
+                    CorrespondenceActorRole workspaceRole =
+                        "101".equals(assignment.code().value())
+                        ? CorrespondenceActorRole.PRESIDENT_OFFICE
+                        : CorrespondenceActorRole.DIRECTOR;
+                    // Office capacity requires an Office group; other manager
+                    // capacities require an existing correspondence group.
+                    if (workspaceRole == CorrespondenceActorRole.PRESIDENT_OFFICE
+                            && !groups.contains(CorrespondenceActorRole.PRESIDENT_OFFICE)) continue;
+                    if (workspaceRole == CorrespondenceActorRole.DIRECTOR
+                            && !groups.contains(CorrespondenceActorRole.DIRECTOR)) continue;
+                    workspaces.add(new ManagerWorkspaceView(
+                        assignment.code().value(), assignment.nameEnglish(),
+                        assignment.nameArabic(), assignment.capacity(), workspaceRole));
+                }
+            }
+
             response.setHeader("Cache-Control", "no-store");
 
             writeJson(
                     response,
                     Status.STATUS_OK,
-                    toJson(employee, role));
+                    toJson(employee, role, groups, workspaces));
 
         } catch (CorrespondenceAuthorizationException exception) {
 
@@ -91,6 +125,13 @@ public final class CurrentEmployeeWebScript
                     "No active employee profile was found "
                             + "for the authenticated user.");
 
+        } catch (DepartmentDirectoryException exception) {
+
+            LOGGER.error("Failed to read active Tarasol organizational assignments.", exception);
+            writeError(response, Status.STATUS_SERVICE_UNAVAILABLE,
+                    "ORGANIZATION_DIRECTORY_UNAVAILABLE",
+                    "The organizational directory is currently unavailable.");
+
         } catch (EmployeeDirectoryException exception) {
 
             LOGGER.error(
@@ -106,9 +147,15 @@ public final class CurrentEmployeeWebScript
         }
     }
 
+    private record ManagerWorkspaceView(
+            String code, String nameEnglish, String nameArabic,
+            String capacity, CorrespondenceActorRole role) { }
+
     private static JSONObject toJson(
             EmployeeDirectoryEntry employee,
-            CorrespondenceActorRole role) {
+            CorrespondenceActorRole role,
+            Set<CorrespondenceActorRole> roles,
+            List<ManagerWorkspaceView> workspaces) {
 
         try {
             JSONObject json = new JSONObject();
@@ -134,6 +181,22 @@ public final class CurrentEmployeeWebScript
                     role == null
                             ? JSONObject.NULL
                             : role.name());
+
+            JSONArray allRoles = new JSONArray();
+            roles.stream().map(Enum::name).sorted().forEach(allRoles::put);
+            json.put("correspondenceRoles", allRoles);
+
+            JSONArray assignments = new JSONArray();
+            for (ManagerWorkspaceView workspace : workspaces) {
+                JSONObject item = new JSONObject();
+                item.put("code", workspace.code());
+                item.put("nameEnglish", workspace.nameEnglish());
+                item.put("nameArabic", nullableJsonValue(workspace.nameArabic()));
+                item.put("capacity", workspace.capacity());
+                item.put("role", workspace.role().name());
+                assignments.put(item);
+            }
+            json.put("managerWorkspaces", assignments);
 
             json.put(
                     "department",

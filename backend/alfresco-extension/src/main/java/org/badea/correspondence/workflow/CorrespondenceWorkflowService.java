@@ -81,6 +81,11 @@ public final class CorrespondenceWorkflowService {
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action) {
 
+        if (actorRole == CorrespondenceActorRole.DIRECTOR
+                && action == CorrespondenceAction.SEND_TO_PRESIDENT) {
+            // The application service authorizes dual-manager submissions.
+            return CorrespondenceState.WITH_PRESIDENT;
+        }
         if ((actorRole == CorrespondenceActorRole.DIRECTOR
                 || actorRole == CorrespondenceActorRole.PRESIDENT
                 || actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE)

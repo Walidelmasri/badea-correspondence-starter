@@ -1,0 +1,42 @@
+-- Read-only validation; fails loudly on unexpected data.
+SET SERVEROUTPUT ON
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+DECLARE
+    v_count NUMBER;
+    v_invalid NUMBER;
+BEGIN
+    IF USER <> 'STRATEGYKPI'
+      OR SYS_CONTEXT('USERENV','CURRENT_SCHEMA') <> 'STRATEGYKPI' THEN
+      RAISE_APPLICATION_ERROR(-20001, 'STOP: wrong schema');
+    END IF;
+    SELECT COUNT(*) INTO v_count FROM TARASOL_ORG_UNITS;
+    IF v_count <> 19 THEN
+        RAISE_APPLICATION_ERROR(-20004, 'Expected 19 seeded units');
+    END IF;
+    SELECT COUNT(*) INTO v_invalid FROM TARASOL_ORG_UNITS
+    WHERE UNIT_CODE NOT BETWEEN '101' AND '119'
+       OR NAME_EN IS NULL OR NAME_AR IS NULL OR STATUS <> 'A';
+    IF v_invalid <> 0 THEN
+        RAISE_APPLICATION_ERROR(-20005, 'Unexpected catalog unit');
+    END IF;
+    SELECT COUNT(*) INTO v_invalid FROM (
+        SELECT UNIT_CODE FROM TARASOL_ORG_UNITS
+        MINUS
+        SELECT TO_CHAR(100 + LEVEL) FROM DUAL CONNECT BY LEVEL <= 19
+    );
+    IF v_invalid <> 0 THEN
+        RAISE_APPLICATION_ERROR(-20006, 'Incorrect unit code set');
+    END IF;
+    SELECT (SELECT COUNT(*) FROM TARASOL_UNIT_ASSIGNMENTS)
+         + (SELECT COUNT(*) FROM TARASOL_SECRETARY_ASSIGNMENTS)
+         + (SELECT COUNT(*) FROM TARASOL_DELEGATIONS)
+    INTO v_count FROM DUAL;
+    IF v_count <> 0 THEN
+        RAISE_APPLICATION_ERROR(-20007, 'Unexpected authorization rows in Stage 1');
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('PASS: 19 units (101-119), no authorization or delegation grants.');
+END;
+/
+
+SELECT UNIT_CODE, NAME_EN, NAME_AR, UNIT_TYPE
+FROM TARASOL_ORG_UNITS ORDER BY UNIT_CODE;

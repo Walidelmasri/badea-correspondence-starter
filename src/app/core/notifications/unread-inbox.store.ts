@@ -21,13 +21,12 @@ export class UnreadInboxStore {
   constructor() {
     effect(() => {
       const employeeId = this.session.currentUser()?.employeeProfile?.employeeId ?? null;
+      // Read the active unit here so switching capacity invalidates pending
+      // notifications even when the signed-in employee has not changed.
+      this.session.workspaceUnit();
+      this.invalidateForWorkspaceChange();
       if (employeeId && this.session.isAuthenticated()) {
         void this.refresh();
-      } else {
-        ++this.version;
-        this.itemsState.set([]);
-        this.totalState.set(0);
-        this.open.set(false);
       }
     });
     // Modest polling for new deliveries; no notification transport or push server.
@@ -43,21 +42,34 @@ export class UnreadInboxStore {
     if (!this.session.isAuthenticated()) return;
     const employeeId = this.session.currentUser()?.employeeProfile?.employeeId;
     if (!employeeId) return;
+    const workspaceUnit = this.session.workspaceUnit();
     const version = ++this.version;
     try {
       const result = await firstValueFrom(this.api.listMailbox('inbox', 0, 5, 'unread'));
-      if (version !== this.version || this.session.currentUser()?.employeeProfile?.employeeId !== employeeId) return;
+      if (version !== this.version
+          || this.session.currentUser()?.employeeProfile?.employeeId !== employeeId
+          || this.session.workspaceUnit() !== workspaceUnit) return;
       this.itemsState.set(result.items);
       this.totalState.set(result.total);
       this.failed.set(false);
     } catch {
-      if (version === this.version) {
+      if (version === this.version && this.session.workspaceUnit() === workspaceUnit) {
         this.failed.set(true);
         // Do not display stale notification counts as if they were current.
         this.itemsState.set([]);
         this.totalState.set(0);
       }
     }
+  }
+
+  // Also called synchronously from the selector to prevent one frame of
+  // stale Office/Director subjects being shown during a workspace switch.
+  invalidateForWorkspaceChange(): void {
+    ++this.version;
+    this.itemsState.set([]);
+    this.totalState.set(0);
+    this.failed.set(false);
+    this.open.set(false);
   }
 
   toggle(): void {

@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import org.badea.correspondence.application.PresidentReviewService;
+import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.application.PresidentReviewState;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -22,11 +23,19 @@ public final class GetPresidentReviewWebScript
 
     private final CorrespondenceActorRoleResolver actorRoleResolver;
     private final PresidentReviewService presidentReviewService;
+    private final CurrentEmployeeService employees;
 
     public GetPresidentReviewWebScript(
             CorrespondenceActorRoleResolver actorRoleResolver,
             PresidentReviewService presidentReviewService) {
+        this(actorRoleResolver, presidentReviewService, null);
+    }
 
+    public GetPresidentReviewWebScript(
+            CorrespondenceActorRoleResolver actorRoleResolver,
+            PresidentReviewService presidentReviewService,
+            CurrentEmployeeService employees) {
+        this.employees = employees;
         this.actorRoleResolver =
                 Objects.requireNonNull(
                         actorRoleResolver,
@@ -52,6 +61,11 @@ public final class GetPresidentReviewWebScript
             CorrespondenceActorRole actorRole =
                     actorRoleResolver.resolveCurrentUserRole();
 
+            if (request.getParameter("workspaceUnit") != null) {
+                if (employees == null) throw new CorrespondenceAuthorizationException("Workspace unavailable");
+                actorRole = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"),
+                    employees.getCurrentEmployee()).role();
+            }
             Optional<PresidentReviewState> savedState =
                     presidentReviewService.load(
                             technicalId,

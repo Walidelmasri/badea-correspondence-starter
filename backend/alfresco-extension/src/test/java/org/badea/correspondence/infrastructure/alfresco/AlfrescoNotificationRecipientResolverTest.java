@@ -3,6 +3,7 @@ package org.badea.correspondence.infrastructure.alfresco;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.alfresco.service.cmr.security.AuthorityService;
@@ -39,8 +40,8 @@ class AlfrescoNotificationRecipientResolverTest {
     }
 
     private void manager(String department, String id, String username) {
-        when(departments.findActiveManagerEmployeeId(new DepartmentCode(department)))
-                .thenReturn(Optional.of(new EmployeeId(id)));
+        when(departments.findActiveManagerEmployeeIds(new DepartmentCode(department)))
+                .thenReturn(List.of(new EmployeeId(id)));
         when(directory.findActiveByEmployeeId(new EmployeeId(id)))
                 .thenReturn(Optional.of(new EmployeeDirectoryEntry(
                         new EmployeeId(id), new DirectoryUsername(username),
@@ -67,6 +68,24 @@ class AlfrescoNotificationRecipientResolverTest {
         group("DIRECTORS", "director.one");
         assertTrue(resolver.resolve(CorrespondenceActorRole.DIRECTOR,
                 new DepartmentCode("117"), "17258").isEmpty());
+    }
+
+    @Test void allAuthorizedActingManagersReceiveNotificationWithoutDuplicates() {
+        group("DIRECTORS", "acting.one", "acting.two");
+        when(departments.findActiveManagerEmployeeIds(new DepartmentCode("118")))
+                .thenReturn(List.of(new EmployeeId("18284"), new EmployeeId("20002")));
+        when(directory.findActiveByEmployeeId(new EmployeeId("18284")))
+                .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("18284"),
+                        new DirectoryUsername("acting.one"), "Acting One", null, Optional.empty())));
+        when(directory.findActiveByEmployeeId(new EmployeeId("20002")))
+                .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("20002"),
+                        new DirectoryUsername("acting.two"), "Acting Two", null, Optional.empty())));
+        var recipients = resolver.resolve(CorrespondenceActorRole.DIRECTOR,
+                new DepartmentCode("118"), "99999");
+        assertEquals(List.of("18284", "20002"),
+                recipients.stream().map(AlfrescoNotificationRecipientResolver.Recipient::employeeId).toList());
+        assertEquals(1, resolver.resolve(CorrespondenceActorRole.DIRECTOR,
+                new DepartmentCode("118"), "18284").size());
     }
 
     @Test void presidentReceivesOneAuthorizedActiveAccountOnly() {

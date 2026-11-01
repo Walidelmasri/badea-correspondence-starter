@@ -25,6 +25,16 @@ class CorrespondenceWorkflowServiceTest {
     }
 
     @Test
+    void directorDraftCanTargetPresidentOnlyThroughApplicationAuthorization() {
+        assertEquals(CorrespondenceState.WITH_PRESIDENT,
+            workflow.nextState(CorrespondenceState.DRAFT,
+                CorrespondenceActorRole.DIRECTOR, CorrespondenceAction.SEND_TO_PRESIDENT));
+        assertThrows(InvalidCorrespondenceTransitionException.class,
+            () -> workflow.nextState(CorrespondenceState.WITH_DIRECTOR,
+                CorrespondenceActorRole.DIRECTOR, CorrespondenceAction.SEND_TO_PRESIDENT));
+    }
+
+    @Test
     void directorCanSendDraftToPresidentOffice() {
 
         assertEquals(

@@ -36,6 +36,8 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
     private static final int LOOKUP_QUERY_TIMEOUT_SECONDS = 8;
     private static final long SLOW_LOOKUP_MILLIS = 2_000;
 
+    // Transitional home-unit projection for existing single-role endpoints.
+    // Authoritative manager/acting-manager rights come from Tarasol assignments.
     private static final String FIND_ACTIVE_BY_USERNAME_SQL = """
         SELECT
             e.EMP_ID AS EMPLOYEE_ID,
@@ -43,12 +45,12 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
             e.NAME_ENG AS EMPLOYEE_NAME_ENGLISH,
             e.NAME_ARABIC AS EMPLOYEE_NAME_ARABIC,
             e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE,
-            d.DEPARTMENT_CODE AS DEPARTMENT_CODE,
-            d.NAME AS DEPARTMENT_NAME_ENGLISH,
-            d.NAME_ARABIC AS DEPARTMENT_NAME_ARABIC
+            d.UNIT_CODE AS DEPARTMENT_CODE,
+            d.NAME_EN AS DEPARTMENT_NAME_ENGLISH,
+            d.NAME_AR AS DEPARTMENT_NAME_ARABIC
         FROM BADEA_ADDONS.EMPLOYEES e
-        LEFT JOIN BADEA_ADDONS.COR_DEPARTMENTS d
-            ON d.DEPARTMENT_CODE = e.DEPT_CODE
+        LEFT JOIN TARASOL_ORG_UNITS d
+            ON d.UNIT_CODE = e.DEPT_CODE
         WHERE e.ACTIVE = 1
           AND LOWER(
                 CASE
@@ -66,20 +68,20 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
     private static final String FIND_ACTIVE_BY_EMPLOYEE_ID_SQL = """
         SELECT e.EMP_ID AS EMPLOYEE_ID, e.USERID AS DIRECTORY_USER_ID,
                e.NAME_ENG AS EMPLOYEE_NAME_ENGLISH, e.NAME_ARABIC AS EMPLOYEE_NAME_ARABIC,
-               e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE, d.DEPARTMENT_CODE AS DEPARTMENT_CODE,
-               d.NAME AS DEPARTMENT_NAME_ENGLISH, d.NAME_ARABIC AS DEPARTMENT_NAME_ARABIC
+               e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE, d.UNIT_CODE AS DEPARTMENT_CODE,
+               d.NAME_EN AS DEPARTMENT_NAME_ENGLISH, d.NAME_AR AS DEPARTMENT_NAME_ARABIC
         FROM BADEA_ADDONS.EMPLOYEES e
-        LEFT JOIN BADEA_ADDONS.COR_DEPARTMENTS d ON d.DEPARTMENT_CODE = e.DEPT_CODE
+        LEFT JOIN TARASOL_ORG_UNITS d ON d.UNIT_CODE = e.DEPT_CODE
         WHERE e.ACTIVE = 1 AND e.EMP_ID = ?
         """;
 
     private static final String SEARCH_ACTIVE_SQL = """
         SELECT e.EMP_ID AS EMPLOYEE_ID, e.USERID AS DIRECTORY_USER_ID,
                e.NAME_ENG AS EMPLOYEE_NAME_ENGLISH, e.NAME_ARABIC AS EMPLOYEE_NAME_ARABIC,
-               e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE, d.DEPARTMENT_CODE AS DEPARTMENT_CODE,
-               d.NAME AS DEPARTMENT_NAME_ENGLISH, d.NAME_ARABIC AS DEPARTMENT_NAME_ARABIC
+               e.DEPT_CODE AS EMPLOYEE_DEPARTMENT_CODE, d.UNIT_CODE AS DEPARTMENT_CODE,
+               d.NAME_EN AS DEPARTMENT_NAME_ENGLISH, d.NAME_AR AS DEPARTMENT_NAME_ARABIC
         FROM BADEA_ADDONS.EMPLOYEES e
-        LEFT JOIN BADEA_ADDONS.COR_DEPARTMENTS d ON d.DEPARTMENT_CODE = e.DEPT_CODE
+        LEFT JOIN TARASOL_ORG_UNITS d ON d.UNIT_CODE = e.DEPT_CODE
         WHERE e.ACTIVE = 1
           AND (LOWER(TRIM(e.NAME_ENG)) LIKE ? ESCAPE '!'
                OR LOWER(TRIM(e.NAME_ARABIC)) LIKE ? ESCAPE '!'
@@ -166,6 +168,7 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
         Objects.requireNonNull(employeeId, "employeeId");
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(FIND_ACTIVE_BY_EMPLOYEE_ID_SQL)) {
+            statement.setQueryTimeout(LOOKUP_QUERY_TIMEOUT_SECONDS);
             statement.setString(1, employeeId.value());
             try (ResultSet rows = statement.executeQuery()) {
                 if (!rows.next()) return Optional.empty();
@@ -194,6 +197,7 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
         escaped = "%" + escaped + "%";
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(SEARCH_ACTIVE_SQL)) {
+            statement.setQueryTimeout(LOOKUP_QUERY_TIMEOUT_SECONDS);
             statement.setString(1, escaped);
             statement.setString(2, escaped);
             statement.setString(3, escaped);
@@ -281,13 +285,10 @@ public final class OracleEmployeeDirectory implements EmployeeDirectory {
             );
 
         if (joinedDepartmentCode == null) {
-            throw new EmployeeDirectoryException(
-                "Employee "
-                    + employeeId.value()
-                    + " references current department "
-                    + departmentCode.value()
-                    + " but no matching department exists."
-            );
+            // A valid employee may have an HR/SAP home department outside
+            // Tarasol's 19 routable units. Preserve identity resolution;
+            // never infer correspondence authority from that home code.
+            return Optional.empty();
         }
 
         DepartmentDirectoryEntry department =

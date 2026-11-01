@@ -81,6 +81,9 @@ public final class SavePresidentReviewWebScript
 
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
+            if (request.getParameter("workspaceUnit") != null) {
+                actorRole = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee).role();
+            }
 
             SavePresidentReviewStateCommand command =
                     new SavePresidentReviewStateCommand(
