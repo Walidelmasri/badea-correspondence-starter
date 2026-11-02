@@ -25,6 +25,17 @@ public record DirectoryUsername(String value) {
             );
         }
 
+        // Alfresco/AD may expose DOMAIN\\user; Oracle stores the short USERID.
+        // This normalization does not authenticate a user or assign any role.
+        int slashIndex = value.indexOf('\\');
+        if (slashIndex >= 0) {
+            if (slashIndex == 0 || slashIndex == value.length() - 1
+                    || slashIndex != value.lastIndexOf('\\')) {
+                throw new IllegalArgumentException("Directory username has an invalid domain prefix.");
+            }
+            value = value.substring(slashIndex + 1);
+        }
+
         int atIndex = value.indexOf('@');
 
         if (atIndex >= 0) {

@@ -40,14 +40,6 @@ export interface ManagerWorkspace {
   readonly role: 'DIRECTOR' | 'PRESIDENT_OFFICE';
 }
 
-export interface OfficeWorkspace {
-  readonly code: '101';
-  readonly nameEnglish: string;
-  readonly nameArabic: string | null;
-  readonly capacity: 'OFFICE_ACCESS';
-  readonly role: 'PRESIDENT_OFFICE';
-}
-
 export interface SecretaryUnit {
   readonly code: string;
   readonly nameEnglish: string;
@@ -63,7 +55,6 @@ export interface EmployeeProfile {
   readonly correspondenceRole?: CorrespondenceRole | null;
   readonly correspondenceRoles?: readonly CorrespondenceRole[];
   readonly managerWorkspaces?: readonly ManagerWorkspace[];
-  readonly officeWorkspaces?: readonly OfficeWorkspace[];
   readonly tarasolAdministrator?: boolean;
   readonly secretaryUnits?: readonly SecretaryUnit[];
   readonly delegationUnits?: readonly SecretaryUnit[];

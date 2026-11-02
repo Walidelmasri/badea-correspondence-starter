@@ -19,7 +19,7 @@
     </div>
     <div class="tarasol-access__metric">
       <span>{{ label('تعيينات الوحدة', 'Unit appointments') }}</span>
-      <strong>{{ snapshot()?.appointments?.length ?? 0 }}</strong>
+      <strong>{{ visibleAppointments().length }}</strong>
     </div>
     <div class="tarasol-access__metric">
       <span>{{ label('السكرتارية النشطة', 'Active secretaries') }}</span>
@@ -105,7 +105,6 @@
             <select formControlName="capacity">
               <option value="MANAGER">{{ label('مدير رسمي', 'Official manager') }}</option>
               <option value="ACTING_MANAGER">{{ label('مدير مكلف', 'Acting manager') }}</option>
-              <option value="CONSULTANT">{{ label('مستشار (دون صلاحيات سير العمل)', 'Consultant (no workflow authority)') }}</option>
             </select>
           </label>
           <label class="tarasol-access__field">
@@ -193,17 +192,17 @@
               @if (isAdmin) { <th>{{ label('إجراء', 'Action') }}</th> }
             </tr></thead>
             <tbody>
-              @for (entry of (isAdmin ? snapshot()!.appointments : activeAppointments()); track entry.id) {
+              @for (entry of (isAdmin ? visibleAppointments() : activeAppointments()); track entry.id) {
                 <tr>
-                  <td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }} · #{{ entry.id }}</small></td>
-                  <td>{{ capacityName(entry.capacity) }}</td>
-                  <td><time dir="ltr" [title]="entry.startsAt">{{ dateLabel(entry.startsAt) }}</time>
+                  <td [attr.data-label]="label('الموظف', 'Employee')"><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }} · #{{ entry.id }}</small></td>
+                  <td [attr.data-label]="label('الصفة', 'Role')">{{ capacityName(entry.capacity) }}</td>
+                  <td [attr.data-label]="label('الفترة', 'Period')"><time dir="ltr" [title]="entry.startsAt">{{ dateLabel(entry.startsAt) }}</time>
                     <small><time dir="ltr" [title]="entry.endsAt || ''">{{ dateLabel(entry.endsAt) }}</time></small></td>
-                  <td><span class="tarasol-access__status" [class.tarasol-access__status--active]="entry.active">
+                  <td [attr.data-label]="label('الحالة', 'Status')"><span class="tarasol-access__status" [class.tarasol-access__status--active]="entry.active">
                     {{ entry.active ? label('نشط', 'Active') : entry.revokedAt ? label('ملغى', 'Revoked') : label('مجدول / منتهي', 'Scheduled / expired') }}
                   </span></td>
                   @if (isAdmin) {
-                    <td>@if (entry.active) {
+                    <td [attr.data-label]="label('إجراء', 'Action')">@if (entry.active) {
                       <button type="button" class="tarasol-access__revoke" [disabled]="saving()" (click)="revoke('appointment',entry)">{{ label('إلغاء', 'Revoke') }}</button>
                     }</td>
                   }
@@ -233,9 +232,9 @@
             <thead><tr><th>{{ label('الموظف', 'Employee') }}</th><th>{{ label('الوحدة', 'Unit') }}</th><th>{{ label('حتى', 'Until') }}</th><th>{{ label('إجراء', 'Action') }}</th></tr></thead>
             <tbody>
               @for (entry of activeSecretaries(); track entry.id) {
-                <tr><td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
-                  <td>{{ selectedUnitName() }}</td><td><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
-                  <td><button type="button" class="tarasol-access__revoke" (click)="revoke('secretary',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
+                <tr><td [attr.data-label]="label('الموظف', 'Employee')"><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
+                  <td [attr.data-label]="label('الوحدة', 'Unit')">{{ selectedUnitName() }}</td><td [attr.data-label]="label('حتى', 'Until')"><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
+                  <td [attr.data-label]="label('إجراء', 'Action')"><button type="button" class="tarasol-access__revoke" (click)="revoke('secretary',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
               } @empty { <tr><td colspan="4" class="tarasol-access__empty">{{ label('لا توجد سكرتارية نشطة.', 'No active secretaries.') }}</td></tr> }
             </tbody>
           </table>
@@ -248,10 +247,10 @@
           <thead><tr><th>{{ label('الموظف', 'Employee') }}</th><th>{{ label('النطاق', 'Scope') }}</th><th>{{ label('حتى', 'Until') }}</th><th>{{ label('إجراء', 'Action') }}</th></tr></thead>
           <tbody>
             @for (entry of activeDelegations(); track entry.id) {
-              <tr><td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
-                <td>{{ entry.type === 'CASE_HANDOFF' ? label('معاملة واحدة', 'One case') : label('تغطية غياب', 'Leave cover') }}</td>
-                <td><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
-                <td><button type="button" class="tarasol-access__revoke" (click)="revoke('delegation',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
+              <tr><td [attr.data-label]="label('الموظف', 'Employee')"><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
+                <td [attr.data-label]="label('النطاق', 'Scope')">{{ entry.type === 'CASE_HANDOFF' ? label('معاملة واحدة', 'One case') : label('تغطية غياب', 'Leave cover') }}</td>
+                <td [attr.data-label]="label('حتى', 'Until')"><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
+                <td [attr.data-label]="label('إجراء', 'Action')"><button type="button" class="tarasol-access__revoke" (click)="revoke('delegation',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
             } @empty { <tr><td colspan="4" class="tarasol-access__empty">{{ label('لا توجد تفويضات نشطة.', 'No active delegations.') }}</td></tr> }
           </tbody>
         </table></div>

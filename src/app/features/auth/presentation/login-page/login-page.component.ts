@@ -291,17 +291,28 @@ export class LoginPageComponent {
   private resolveLoginError(
     error: unknown,
   ): string {
-    if (
-      error instanceof
-        HttpErrorResponse &&
-      (
-        error.status === 401
-      )
-    ) {
-      return this.translation
-        .text()
-        .auth
-        .invalidCredentials;
+    if (error instanceof HttpErrorResponse) {
+      const ar = this.translation.language() === 'ar';
+      const endpoint = error.url ?? '';
+      if (error.status === 401 && (!endpoint || endpoint.includes('/tickets'))) {
+        return this.translation.text().auth.invalidCredentials;
+      }
+      if (error.status === 404 && endpoint.includes('/badea/correspondence/me')
+          && error.error?.code === 'EMPLOYEE_NOT_FOUND') {
+        return ar
+          ? 'تم قبول تسجيل الدخول في Alfresco، لكن لا يوجد سجل موظف نشط مطابق لهذا الحساب في دليل BADEA. تحقق من اسم المستخدم وUSERID.'
+          : 'Alfresco accepted the credentials, but no active BADEA employee record matches this account. Check the username and employee USERID.';
+      }
+      if (error.status === 401) {
+        return ar
+          ? 'تم قبول بيانات الدخول مبدئياً، لكن تعذر تأكيد جلسة Alfresco. تحقق من إعدادات الجلسة.'
+          : 'The login ticket was issued, but Alfresco could not validate the session. Check the authentication proxy and ticket handling.';
+      }
+      if (error.status === 503 || error.status === 504) {
+        return ar
+          ? 'تعذر التحقق من صلاحيات المستخدم أو دليل الموظفين مؤقتاً. حاول مجدداً أو اطلب من المسؤول مراجعة خدمة Oracle.'
+          : 'The employee directory or authorization check is temporarily unavailable. Ask an administrator to check the Oracle-backed identity service.';
+      }
     }
 
     return this.translation

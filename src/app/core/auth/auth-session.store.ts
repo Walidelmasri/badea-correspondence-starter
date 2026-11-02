@@ -32,17 +32,14 @@ export class AuthSessionStore {
   readonly activeWorkspace = computed(() => {
     const profile = this.currentUserState()?.employeeProfile;
     const code = this.workspaceUnitState();
-    return profile?.managerWorkspaces?.find(w => w.code === code)
-      ?? profile?.officeWorkspaces?.find(w => w.code === code)
-      ?? null;
+    return profile?.managerWorkspaces?.find(w => w.code === code) ?? null;
   });
-  // Office members can work in Office but cannot administer manager approvals,
-  // secretaries, or delegation. Only genuine manager capacities have this flag.
+  // Only active Oracle manager appointments grant Manager Approvals or Team Access.
   readonly activeManagerWorkspace = computed(() => this.currentUserState()
     ?.employeeProfile?.managerWorkspaces?.find(w => w.code === this.workspaceUnitState()) ?? null);
   readonly availableWorkspaces = computed(() => {
     const profile = this.currentUserState()?.employeeProfile;
-    return [...(profile?.managerWorkspaces ?? []), ...(profile?.officeWorkspaces ?? [])];
+    return profile?.managerWorkspaces ?? [];
   });
   readonly showWorkspacePicker = computed(() => this.availableWorkspaces().length > 1
     || this.availableWorkspaces().some(w => w.role === 'DIRECTOR'));
@@ -114,8 +111,7 @@ export class AuthSessionStore {
     user: CurrentUser,
   ): void {
     if (this.currentUserState()?.employeeProfile?.employeeId !== user.employeeProfile?.employeeId
-      || ![...(user.employeeProfile?.managerWorkspaces ?? []),
-          ...(user.employeeProfile?.officeWorkspaces ?? [])]
+      || !(user.employeeProfile?.managerWorkspaces ?? [])
           .some(w => w.code === this.workspaceUnitState())) {
       this.workspaceUnitState.set(null);
     }

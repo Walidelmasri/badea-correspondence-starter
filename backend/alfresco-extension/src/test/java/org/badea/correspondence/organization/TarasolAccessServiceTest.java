@@ -217,6 +217,14 @@ class TarasolAccessServiceTest {
     }
 
     @Test
+    void consultantDesignationDoesNotCreateCorrespondenceAppointment() throws SQLException {
+        assertThrows(IllegalArgumentException.class, () -> service.changeAppointment(
+            new TarasolAccessService.AppointmentChange("APPOINT", "101", 0, "99999",
+                "CONSULTANT", START, null, null, null), ADMIN));
+        verify(dataSource, never()).getConnection();
+    }
+
+    @Test
     void officeMemberAppointmentIsOnlyValidForPresidentOffice101() throws SQLException {
         assertThrows(IllegalArgumentException.class, () -> service.changeAppointment(
             new TarasolAccessService.AppointmentChange("APPOINT", "117", 0, "99999",

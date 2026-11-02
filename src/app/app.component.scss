@@ -438,3 +438,17 @@
   color: #273346;
   font: inherit;
 }
+
+/* iPad portrait and landscape: avoid squeezing navigation and account controls. */
+@media (min-width: 52.001rem) and (max-width: 90rem) {
+  .app-header { grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'brand actions' 'navigation navigation';
+    gap: .55rem 1rem; padding-block: .65rem 0; }
+  .app-header__brand { grid-area: brand; }
+  .app-header__actions { grid-area: actions; min-width: 0; flex-wrap: wrap; gap: .65rem; }
+  .app-navigation { grid-area: navigation; justify-content: flex-start; max-width: 100%;
+    overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: .2rem; }
+  .app-navigation__item { flex: 0 0 auto; }
+  .app-navigation__item--active::after { inset-block-end: -.2rem; }
+  .app-workspace-picker { min-width: 9rem; }
+}

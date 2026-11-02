@@ -140,13 +140,11 @@ class CurrentEmployeeWebScriptTest {
         JSONObject result = execute();
         assertEquals(1, result.getJSONArray("managerWorkspaces").length());
         assertEquals("117", result.getJSONArray("managerWorkspaces").getJSONObject(0).getString("code"));
-        assertEquals(1, result.getJSONArray("officeWorkspaces").length());
-        assertEquals("OFFICE_ACCESS", result.getJSONArray("officeWorkspaces")
-            .getJSONObject(0).getString("capacity"));
+        assertFalse(result.has("officeWorkspaces"));
     }
 
     @Test
-    void officeGroupAloneProvidesOfficeWorkspaceWithoutManagerAuthority() throws IOException {
+    void officeGroupAloneDoesNotCreateAnOrganizationalWorkspace() throws IOException {
         var organizationReader = mock(TarasolOrganizationReader.class);
         when(roleResolver.resolveCurrentUserRole())
             .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
@@ -158,7 +156,7 @@ class CurrentEmployeeWebScriptTest {
         webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
         JSONObject result = execute();
         assertEquals(0, result.getJSONArray("managerWorkspaces").length());
-        assertEquals(1, result.getJSONArray("officeWorkspaces").length());
+        assertFalse(result.has("officeWorkspaces"));
     }
 
     @Test

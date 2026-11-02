@@ -76,7 +76,6 @@
               <option [value]="unit.code">
                 {{ translation.language() === 'ar' ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}
                 ({{ unit.capacity === 'ACTING_MANAGER' ? (translation.language() === 'ar' ? 'مدير مكلف' : 'Acting manager')
-                    : unit.capacity === 'OFFICE_ACCESS' ? (translation.language() === 'ar' ? 'عضو مكتب' : 'Office member')
                     : (translation.language() === 'ar' ? 'مدير' : 'Manager') }})
               </option>
             }

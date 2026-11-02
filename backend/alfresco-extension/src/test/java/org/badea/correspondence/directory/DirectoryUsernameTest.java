@@ -24,6 +24,17 @@ class DirectoryUsernameTest {
     }
 
     @Test
+    void normalizesDomainQualifiedAccountForCanonicalEmployeeLookup() {
+        assertEquals("president.user", new DirectoryUsername("BADEA\\President.User").value());
+    }
+
+    @Test
+    void rejectsAmbiguousDomainQualifiedUsername() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new DirectoryUsername("BADEA\\dept\\president.user"));
+    }
+
+    @Test
     void trimsSurroundingWhitespace() {
         assertEquals(
             "adil.amin",

@@ -280,6 +280,26 @@ describe(
       expect(navigate).toHaveBeenCalledWith('/access-denied');
     });
 
+    it('distinguishes valid Alfresco credentials from a missing employee record', () => {
+      authService.login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 404, url: '/alfresco/service/badea/correspondence/me',
+        error: { code: 'EMPLOYEE_NOT_FOUND' },
+      })));
+      component.form.setValue({ userId: 'president', password: 'sample' });
+      component.submit();
+      expect(component.errorMessage()).toContain('Alfresco accepted');
+      expect(component.errorMessage()).toContain('employee');
+    });
+
+    it('distinguishes a failed session lookup after a valid ticket', () => {
+      authService.login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 401, url: '/alfresco/api/-default-/public/alfresco/versions/1/people/-me-',
+      })));
+      component.form.setValue({ userId: 'president', password: 'sample' });
+      component.submit();
+      expect(component.errorMessage()).toContain('ticket was issued');
+    });
+
     it('restores the form when authentication fails', () => {
       authService
         .login

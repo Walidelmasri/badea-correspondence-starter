@@ -27,7 +27,7 @@ import org.badea.correspondence.security.CorrespondenceAuthorizationException;
  */
 public final class TarasolAccessService {
     private static final Set<String> CAPACITIES = Set.of(
-        "MANAGER", "ACTING_MANAGER", "CONSULTANT");
+        "MANAGER", "ACTING_MANAGER");
     private static final Set<String> DELEGATION_TYPES = Set.of("LEAVE_COVER", "CASE_HANDOFF");
     private final DataSource dataSource;
     private final EmployeeDirectory employees;
@@ -207,11 +207,6 @@ public final class TarasolAccessService {
                 throw invalid("Replacement requires a current official manager and new manager capacity");
             }
             if (!CAPACITIES.contains(change.capacity())) throw invalid("Unknown capacity");
-            // Ordinary President's Office membership comes from the Alfresco Office group.
-            // A consultant is a descriptive appointment, never a workflow manager.
-            if ("OFFICE_MEMBER".equals(change.capacity())) {
-                throw invalid("Office access is managed by the Alfresco President's Office group");
-            }
             requireActiveEmployee(change.employeeId());
             requireDates(change.startsAt(), change.endsAt(), false);
             if (change.appointmentRef() != null && change.appointmentRef().length() > 120)
@@ -413,7 +408,7 @@ public final class TarasolAccessService {
      */
     private static void checkManagementOverlap(Connection c, AppointmentChange change) throws SQLException {
         if (!"MANAGER".equals(change.capacity()) && !"ACTING_MANAGER".equals(change.capacity())) {
-            return; // CONSULTANT never consumes a management seat.
+            return; // Non-manager historical rows never consume managerial capacity.
         }
         String sql = "SELECT EMP_ID, CAPACITY, STARTS_AT, ENDS_AT FROM TARASOL_UNIT_ASSIGNMENTS"
             + " WHERE UNIT_CODE = ? AND REVOKED_AT IS NULL"

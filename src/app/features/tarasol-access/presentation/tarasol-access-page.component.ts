@@ -56,7 +56,8 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
     appointmentRef: new FormControl('', { nonNullable: true }),
   });
 
-  readonly activeAppointments = computed(() => this.snapshot()?.appointments.filter(a => a.active) ?? []);
+  readonly visibleAppointments = computed(() => this.snapshot()?.appointments.filter(a => a.capacity === 'MANAGER' || a.capacity === 'ACTING_MANAGER') ?? []);
+  readonly activeAppointments = computed(() => this.visibleAppointments().filter(a => a.active));
   readonly activeManagerAppointments = computed(() => this.activeAppointments().filter(a => a.capacity === 'MANAGER' || a.capacity === 'ACTING_MANAGER'));
   readonly activeSecretaries = computed(() => this.snapshot()?.secretaries.filter(a => a.active) ?? []);
   readonly activeDelegations = computed(() => this.snapshot()?.delegations.filter(a => a.active) ?? []);
@@ -189,8 +190,6 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
     switch (capacity) {
       case 'MANAGER': return this.label('مدير رسمي', 'Official manager');
       case 'ACTING_MANAGER': return this.label('مدير مكلف', 'Acting manager');
-      case 'OFFICE_MEMBER': return this.label('عضو مكتب', 'Office member');
-      case 'CONSULTANT': return this.label('مستشار', 'Consultant');
       default: return capacity;
     }
   }
