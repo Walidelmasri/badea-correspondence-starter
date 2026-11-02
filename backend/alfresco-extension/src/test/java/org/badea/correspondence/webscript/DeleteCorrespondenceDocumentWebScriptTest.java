@@ -144,7 +144,7 @@ class DeleteCorrespondenceDocumentWebScriptTest {
         doThrow(new CorrespondenceAuthorizationException("Not creator"))
                 .when(deleter).deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
-                        DEPARTMENT, new EmployeeId("10001"));
+                        new DepartmentCode("101"), new EmployeeId("10001"));
 
         JSONObject result = executeError();
 

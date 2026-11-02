@@ -247,11 +247,31 @@ class UploadCorrespondenceDocumentWebScriptTest {
     }
 
     @Test
+    void officePdfUploadUsesInstitutionalUnit101InsteadOfEmployeeHomeUnit() throws IOException {
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(uploader.uploadPdf(eq(TECHNICAL_ID),
+                eq(CorrespondenceActorRole.PRESIDENT_OFFICE),
+                eq(new DepartmentCode("101")), eq(EMPLOYEE_ID),
+                eq("main-letter.pdf"), any(byte[].class)))
+                .thenReturn(new CorrespondenceDocument(DOCUMENT_ID,
+                        "main-letter.pdf", "application/pdf", PDF_BYTES.length));
+
+        JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_CREATED);
+        assertEquals(DOCUMENT_ID, result.getString("nodeId"));
+        verify(uploader).uploadPdf(eq(TECHNICAL_ID),
+                eq(CorrespondenceActorRole.PRESIDENT_OFFICE),
+                eq(new DepartmentCode("101")), eq(EMPLOYEE_ID),
+                eq("main-letter.pdf"), any(byte[].class));
+    }
+
+    @Test
     void rejectsUnauthorizedExecutiveUploader() throws IOException {
         when(actorRoleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
         when(uploader.uploadPdf(eq(TECHNICAL_ID),
-                eq(CorrespondenceActorRole.PRESIDENT_OFFICE), eq(DEPARTMENT),
+                eq(CorrespondenceActorRole.PRESIDENT_OFFICE), eq(new DepartmentCode("101")),
                 eq(EMPLOYEE_ID), eq("main-letter.pdf"), any(byte[].class)))
                 .thenThrow(new CorrespondenceAuthorizationException("Not creator"));
 

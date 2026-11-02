@@ -95,6 +95,8 @@ describe('Executive Compose draft persistence', () => {
     api.uploadDocument.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 400 })));
     await component.send();
     expect(component.queuedPdfs()[0]?.status).toBe('failed');
+    expect(component.uploadNotice()).toBe('Upload failed');
+    expect(component.notice()).toBeNull();
     expect(api.transitionCorrespondence).not.toHaveBeenCalled();
   });
 

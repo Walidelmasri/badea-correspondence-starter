@@ -89,6 +89,7 @@ export class ComposePageComponent implements OnInit {
   readonly queuedPdfs = signal<readonly QueuedPdf[]>([]);
   readonly savedPdfs = signal<readonly CorrespondenceDocumentUpload[]>([]);
   readonly notice = signal<Notice | null>(null);
+  readonly uploadNotice = signal<string | null>(null);
   private nextPdfId = 0;
 
   ngOnInit(): void {
@@ -158,19 +159,23 @@ export class ComposePageComponent implements OnInit {
       additions.push({ id: ++this.nextPdfId, file, status: 'queued' });
     }
     if (additions.length) this.queuedPdfs.update(current => [...current, ...additions]);
-    if (invalid) this.notice.set({ kind: 'error', message: this.translation.text().compose.feedback.invalidPdf });
+    if (invalid) this.uploadNotice.set(this.translation.text().compose.feedback.invalidPdf);
   }
 
   removeQueuedPdf(id: number): void {
     if (this.blocked()) return;
     this.queuedPdfs.update(current => current.filter(item =>
       item.id !== id || (item.status !== 'queued' && item.status !== 'failed')));
+    if (!this.queuedPdfs().some(item => item.status === 'failed' || item.status === 'verify')) {
+      this.uploadNotice.set(null);
+    }
   }
 
   retryFailedPdf(id: number): void {
     if (this.blocked()) return;
     this.queuedPdfs.update(current => current.map(item =>
       item.id === id && item.status === 'failed' ? { ...item, status: 'queued' } : item));
+    this.uploadNotice.set(null);
     void this.saveDraft();
   }
 
@@ -210,6 +215,7 @@ export class ComposePageComponent implements OnInit {
     const creating = !this.technicalId();
     this.busy.set(true);
     this.notice.set(null);
+    this.uploadNotice.set(null);
     this.form.disable({ emitEvent: false });
     try {
       let id = this.technicalId();
@@ -257,11 +263,11 @@ export class ComposePageComponent implements OnInit {
       }
       const uncertain = this.queuedPdfs().some(item => item.status === 'verify');
       const failed = this.queuedPdfs().some(item => item.status === 'failed');
-      this.notice.set({
-        kind: uncertain || failed ? 'warning' : 'success',
-        message: uncertain ? this.translation.text().compose.feedback.uploadUncertain
-          : failed ? this.translation.text().compose.feedback.uploadFailed
-          : this.translation.text().compose.feedback.saved,
+      this.uploadNotice.set(uncertain ? this.translation.text().compose.feedback.uploadUncertain
+        : failed ? this.translation.text().compose.feedback.uploadFailed : null);
+      // Upload errors belong beside the attachment, not above the entire form.
+      this.notice.set(uncertain || failed ? null : {
+        kind: 'success', message: this.translation.text().compose.feedback.saved,
       });
     } catch (error) {
       if (this.uncertain(error)) {
@@ -300,8 +306,12 @@ export class ComposePageComponent implements OnInit {
     // create/upload is issued after an uncertain response.
     await this.saveDraft();
     const id = this.technicalId();
-    if (!id || this.blocked() || this.notice()?.kind !== 'success'
-        || this.queuedPdfs().length !== 0) {
+    if (this.queuedPdfs().length !== 0) {
+      // The attachment section already explains the failed/pending upload.
+      // Do not replace that with an unrelated banner above the entire form.
+      return;
+    }
+    if (!id || this.blocked() || this.notice()?.kind !== 'success') {
       this.notice.set({ kind: 'warning', message: this.translation.text().compose.feedback.sendBlocked });
       return;
     }

@@ -76,10 +76,15 @@ public final class DeleteCorrespondenceDocumentWebScript
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
 
+            // Office correspondence originates in institution unit 101,
+            // irrespective of the employee's HR/home department.
+            // Explicit managerial workspaces are resolved below.
             DepartmentCode departmentCode =
-                    employee.department()
-                            .map(department -> department.code())
-                            .orElse(null);
+                    role == CorrespondenceActorRole.PRESIDENT_OFFICE
+                            ? new DepartmentCode("101")
+                            : employee.department()
+                                    .map(department -> department.code())
+                                    .orElse(null);
             if (request.getParameter("workspaceUnit") != null) {
                 var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
                 role = selectedWorkspace.role();

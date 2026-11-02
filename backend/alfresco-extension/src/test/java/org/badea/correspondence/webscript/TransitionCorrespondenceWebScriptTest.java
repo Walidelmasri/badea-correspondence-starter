@@ -207,6 +207,30 @@ class TransitionCorrespondenceWebScriptTest {
     }
 
     @Test
+    void officeSendUsesUnit101NotEmployeeHomeDepartment() throws IOException {
+        configureRequest("""
+            { "action": "SEND_TO_PRESIDENT" }
+            """);
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        EmployeeDirectoryEntry officeEmployee = employee("117");
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(officeEmployee);
+        when(transitionService.transition(any(TransitionCorrespondenceCommand.class)))
+                .thenReturn(CorrespondenceState.WITH_PRESIDENT);
+
+        webScript.execute(request, response);
+
+        ArgumentCaptor<TransitionCorrespondenceCommand> captured =
+                ArgumentCaptor.forClass(TransitionCorrespondenceCommand.class);
+        verify(transitionService).transition(captured.capture());
+        assertEquals(new DepartmentCode("101"), captured.getValue().actorDepartmentCode());
+        assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE, captured.getValue().actorRole());
+        assertEquals(CorrespondenceAction.SEND_TO_PRESIDENT, captured.getValue().action());
+        verify(response).setStatus(Status.STATUS_OK);
+    }
+
+    @Test
     void returnsForbiddenWhenUserHasNoCorrespondenceRole()
             throws IOException {
 

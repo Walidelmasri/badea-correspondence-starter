@@ -165,7 +165,12 @@ class UpdateCorrespondenceDraftWebScriptTest {
         when(content.getContent()).thenReturn(executiveBody());
         execute();
         verify(response).setStatus(Status.STATUS_OK);
-        verify(updater).updateDraft(any(UpdateCorrespondenceDraftCommand.class));
+        ArgumentCaptor<UpdateCorrespondenceDraftCommand> captured =
+                ArgumentCaptor.forClass(UpdateCorrespondenceDraftCommand.class);
+        verify(updater).updateDraft(captured.capture());
+        assertEquals(new DepartmentCode("101"), captured.getValue().actorDepartmentCode());
+        assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                captured.getValue().actorRole());
     }
 
     @Test

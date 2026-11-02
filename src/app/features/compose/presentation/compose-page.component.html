@@ -231,6 +231,9 @@
           }
         </ul>
       }
+      @if (uploadNotice(); as uploadError) {
+        <p class="compose-notice compose-notice--warning" role="alert">{{ uploadError }}</p>
+      }
     </section>
 
     <footer class="compose-actions">
