@@ -44,7 +44,7 @@ export interface OfficeWorkspace {
   readonly code: '101';
   readonly nameEnglish: string;
   readonly nameArabic: string | null;
-  readonly capacity: 'OFFICE_MEMBER';
+  readonly capacity: 'OFFICE_ACCESS';
   readonly role: 'PRESIDENT_OFFICE';
 }
 

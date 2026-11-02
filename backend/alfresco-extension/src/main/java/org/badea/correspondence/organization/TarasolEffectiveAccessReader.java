@@ -42,7 +42,11 @@ public final class TarasolEffectiveAccessReader {
     private static final String SECRETARY_UNITS_SQL = """
         SELECT DISTINCT access.UNIT_CODE, unit.NAME_EN, unit.NAME_AR
         FROM TARASOL_SECRETARY_ASSIGNMENTS access
-        """ + ACTIVE_PARENT + """
+        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = access.UNIT_CODE
+        WHERE unit.STATUS = 'A'
+          AND access.REVOKED_AT IS NULL
+          AND access.STARTS_AT <= SYSTIMESTAMP
+          AND (access.ENDS_AT IS NULL OR access.ENDS_AT > SYSTIMESTAMP)
           AND access.SECRETARY_EMP_ID = ?
         ORDER BY access.UNIT_CODE
         """;
@@ -50,7 +54,11 @@ public final class TarasolEffectiveAccessReader {
     private static final String SECRETARY_SQL = """
         SELECT access.SECRETARY_ASSIGNMENT_ID
         FROM TARASOL_SECRETARY_ASSIGNMENTS access
-        """ + ACTIVE_PARENT + """
+        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = access.UNIT_CODE
+        WHERE unit.STATUS = 'A'
+          AND access.REVOKED_AT IS NULL
+          AND access.STARTS_AT <= SYSTIMESTAMP
+          AND (access.ENDS_AT IS NULL OR access.ENDS_AT > SYSTIMESTAMP)
           AND access.SECRETARY_EMP_ID = ?
           AND access.UNIT_CODE = ?
         """;
@@ -92,7 +100,7 @@ public final class TarasolEffectiveAccessReader {
 
     public record SecretaryUnit(String code, String nameEnglish, String nameArabic) { }
 
-    /** A secretary may belong to several units. Always filter using active parent appointments. */
+    /** A secretary belongs to an active unit, irrespective of manager vacancies or leave. */
     public List<SecretaryUnit> findCurrentSecretaryUnits(EmployeeId actor) {
         Objects.requireNonNull(actor, "actor");
         if (!isActiveEmployee(actor)) return List.of();

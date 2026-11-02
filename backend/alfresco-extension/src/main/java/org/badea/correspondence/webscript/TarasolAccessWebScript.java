@@ -98,12 +98,22 @@ public final class TarasolAccessWebScript extends AbstractWebScript {
                     result.put("employeesById", names);
                 }
             } else if (adminMode) {
-                var change = new TarasolAccessService.AppointmentChange(
-                    required(input,"action"), unit, input.optLong("assignmentId"),
-                    optional(input,"employeeId"), optional(input,"capacity"),
-                    timestamp(input,"startsAt"), timestamp(input,"endsAt"),
-                    optional(input,"appointmentRef"), optional(input,"reason"));
-                long id = service.changeAppointment(change, employee.employeeId());
+                String action = required(input, "action");
+                long id;
+                if ("ASSIGN_SECRETARY".equals(action) || "REVOKE_SECRETARY".equals(action)) {
+                    var change = new TarasolAccessService.TeamChange(
+                        action, unit, 0L, input.optLong("recordId"), optional(input,"employeeId"),
+                        null, null, timestamp(input,"startsAt"), timestamp(input,"endsAt"),
+                        optional(input,"reason"));
+                    id = service.changeSecretaryAsAdministrator(change, employee.employeeId());
+                } else {
+                    var change = new TarasolAccessService.AppointmentChange(
+                        action, unit, input.optLong("assignmentId"),
+                        optional(input,"employeeId"), optional(input,"capacity"),
+                        timestamp(input,"startsAt"), timestamp(input,"endsAt"),
+                        optional(input,"appointmentRef"), optional(input,"reason"));
+                    id = service.changeAppointment(change, employee.employeeId());
+                }
                 result = new JSONObject().put("id", id).put("ok", true);
             } else {
                 var change = new TarasolAccessService.TeamChange(

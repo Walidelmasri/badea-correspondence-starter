@@ -77,6 +77,7 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
       this.form.controls.unitCode.setValue(workspace.code);
       this.form.controls.unitCode.disable();
     } else {
+      this.form.controls.teamAction.setValue('APPOINT');
       try {
         const available = await firstValueFrom(this.directory.getDepartments());
         this.units.set(available);
@@ -96,10 +97,6 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
   }
 
   onUnitChange(): void {
-    if (this.form.controls.unitCode.value !== '101'
-        && this.form.controls.capacity.value === 'OFFICE_MEMBER') {
-      this.form.controls.capacity.setValue('MANAGER');
-    }
     this.clearEmployee();
     this.snapshot.set(null);
     void this.reload();
@@ -214,14 +211,17 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
       this.feedback.set({ kind: 'error', message: this.label('اختر موظفاً من نتائج البحث.', 'Select an active employee from the search results.') });
       return;
     }
-    const action = this.isAdmin ? 'APPOINT' : raw.teamAction;
+    const action = this.isAdmin
+      ? (raw.teamAction === 'ASSIGN_SECRETARY' ? 'ASSIGN_SECRETARY' : 'APPOINT')
+      : raw.teamAction;
     const startAt = this.toIso(raw.startAt) ?? new Date().toISOString();
     const endAt = this.toIso(raw.endAt);
     if ((raw.endAt && !endAt) || (endAt !== null && endAt <= startAt)) {
       this.feedback.set({ kind: 'error', message: this.label('تاريخ البداية أو النهاية غير صالح.', 'Invalid effective date range.') });
       return;
     }
-    if (!this.isAdmin && (!raw.managerAssignmentId || Number(raw.managerAssignmentId) <= 0)) {
+    if (!this.isAdmin && raw.teamAction === 'GRANT_DELEGATION'
+        && (!raw.managerAssignmentId || Number(raw.managerAssignmentId) <= 0)) {
       this.feedback.set({ kind: 'error', message: this.label('اختر تكليف المدير النشط.', 'Select your active manager assignment.') });
       return;
     }
@@ -232,7 +232,7 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
     let finalAction = action;
     let replacingId: number | undefined;
     let replacementReason: string | undefined;
-    if (this.isAdmin && raw.capacity === 'MANAGER') {
+    if (this.isAdmin && action === 'APPOINT' && raw.capacity === 'MANAGER') {
       const official = this.activeAppointments().find(a => a.capacity === 'MANAGER');
       if (official) {
         if (!window.confirm(this.label(
@@ -248,9 +248,9 @@ export class TarasolAccessPageComponent implements OnInit, OnDestroy {
       action: finalAction, unitCode, employeeId, startsAt: startAt,
       ...(replacingId ? { assignmentId: replacingId, reason: replacementReason } : {}),
       endsAt: endAt,
-      ...(this.isAdmin ? {
+      ...(this.isAdmin ? (action === 'ASSIGN_SECRETARY' ? {} : {
         capacity: raw.capacity, appointmentRef: raw.appointmentRef.trim(),
-      } : {
+      }) : {
         managerAssignmentId: Number(raw.managerAssignmentId),
         delegationType: raw.delegationType,
         caseTechnicalId: raw.delegationType === 'CASE_HANDOFF' ? raw.caseTechnicalId.trim() : undefined,

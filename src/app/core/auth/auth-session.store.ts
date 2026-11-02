@@ -44,6 +44,8 @@ export class AuthSessionStore {
     const profile = this.currentUserState()?.employeeProfile;
     return [...(profile?.managerWorkspaces ?? []), ...(profile?.officeWorkspaces ?? [])];
   });
+  readonly showWorkspacePicker = computed(() => this.availableWorkspaces().length > 1
+    || this.availableWorkspaces().some(w => w.role === 'DIRECTOR'));
   readonly effectiveRole = computed(() => this.activeWorkspace()?.role
     ?? this.currentUserState()?.employeeProfile?.correspondenceRole ?? null);
   readonly effectiveDepartmentCode = computed(() => this.activeWorkspace()?.code
@@ -118,6 +120,13 @@ export class AuthSessionStore {
       this.workspaceUnitState.set(null);
     }
     this.currentUserState.set(user);
+    // A Director-only login must have a real manager unit selected before
+    // the first mailbox request; Office users retain their shared Office default.
+    if (this.workspaceUnitState() === null
+        && user.employeeProfile?.correspondenceRole === 'DIRECTOR'
+        && user.employeeProfile.managerWorkspaces?.length) {
+      this.workspaceUnitState.set(user.employeeProfile.managerWorkspaces[0].code);
+    }
   }
 
   clear(): void {

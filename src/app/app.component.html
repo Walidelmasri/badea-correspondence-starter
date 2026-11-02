@@ -64,7 +64,7 @@
     </nav>
 
     <div class="app-header__actions">
-      @if (session.availableWorkspaces().length) {
+      @if (session.showWorkspacePicker()) {
         <label class="app-workspace-picker">
           <span>{{ translation.language() === 'ar' ? 'الصفة الإدارية' : 'Workspace' }}</span>
           <select [value]="session.workspaceUnit() ?? ''" (change)="chooseWorkspace($event)"
@@ -76,7 +76,7 @@
               <option [value]="unit.code">
                 {{ translation.language() === 'ar' ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}
                 ({{ unit.capacity === 'ACTING_MANAGER' ? (translation.language() === 'ar' ? 'مدير مكلف' : 'Acting manager')
-                    : unit.capacity === 'OFFICE_MEMBER' ? (translation.language() === 'ar' ? 'عضو مكتب' : 'Office member')
+                    : unit.capacity === 'OFFICE_ACCESS' ? (translation.language() === 'ar' ? 'عضو مكتب' : 'Office member')
                     : (translation.language() === 'ar' ? 'مدير' : 'Manager') }})
               </option>
             }

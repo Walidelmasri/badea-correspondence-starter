@@ -54,8 +54,24 @@ public final class AlfrescoCorrespondenceActorRoleResolver
     public Workspace resolveWorkspace(String requestedUnit, EmployeeDirectoryEntry employee) {
         Objects.requireNonNull(employee, "employee");
         if (requestedUnit == null) {
-            return new Workspace(resolveCurrentUserRole(),
-                employee.department().map(d -> d.code()).orElse(null));
+            CorrespondenceActorRole role = resolveCurrentUserRole();
+            if (role != CorrespondenceActorRole.DIRECTOR || organizationReader == null) {
+                // Office is group-controlled; President stays exclusive.
+                return new Workspace(role,
+                    employee.department().map(d -> d.code()).orElse(null));
+            }
+            // A stale Alfresco DIRECTORS group must not silently grant a revoked
+            // Director access through the legacy unscoped fallback.
+            var managed = organizationReader.findCurrentManagerWorkspaces(employee.employeeId())
+                .stream().filter(w -> !"101".equals(w.code().value())).toList();
+            if (managed.isEmpty()) {
+                throw new CorrespondenceAuthorizationException("No active Tarasol Director appointment");
+            }
+            var preferred = managed.stream().filter(w -> employee.department()
+                .map(d -> d.code().equals(w.code())).orElse(false)).toList();
+            if (preferred.size() == 1) return new Workspace(role, preferred.get(0).code());
+            if (managed.size() == 1) return new Workspace(role, managed.get(0).code());
+            throw new CorrespondenceAuthorizationException("Select an authorized Director workspace");
         }
         // An explicit selection must be a known, active managerial appointment.
         // Never fall back to SAP department or Alfresco group alone.
@@ -78,8 +94,9 @@ public final class AlfrescoCorrespondenceActorRoleResolver
         }
         if (resolved == null && "101".equals(requestedUnit)
                 && groups.contains(CorrespondenceActorRole.PRESIDENT_OFFICE)
-                && organizationReader.findCurrentOfficeMembership(employee.employeeId()).isPresent()) {
-            // An Office member may use the Office workflow, but cannot become
+                && organizationReader.findActiveUnits().stream()
+                    .anyMatch(u -> "101".equals(u.code().value()))) {
+            // Alfresco Office group grants Office access, but cannot become
             // an Office manager or obtain a departmental Director workspace.
             return new Workspace(CorrespondenceActorRole.PRESIDENT_OFFICE,
                 new org.badea.correspondence.directory.DepartmentCode("101"));

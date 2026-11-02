@@ -181,10 +181,11 @@ public final class CurrentEmployeeWebScript
             if (organizationReader != null && role != CorrespondenceActorRole.PRESIDENT
                     && groups.contains(CorrespondenceActorRole.PRESIDENT_OFFICE)
                     && workspaces.stream().noneMatch(w -> "101".equals(w.code()))) {
-                organizationReader.findCurrentOfficeMembership(employee.employeeId())
-                    .ifPresent(office -> officeWorkspaces.add(new ManagerWorkspaceView(
+                organizationReader.findActiveUnits().stream()
+                    .filter(unit -> "101".equals(unit.code().value()))
+                    .findFirst().ifPresent(office -> officeWorkspaces.add(new ManagerWorkspaceView(
                         office.code().value(), office.nameEnglish(), office.nameArabic(),
-                        "OFFICE_MEMBER", CorrespondenceActorRole.PRESIDENT_OFFICE)));
+                        "OFFICE_ACCESS", CorrespondenceActorRole.PRESIDENT_OFFICE)));
             }
 
             boolean tarasolAdministrator = false;
@@ -307,7 +308,7 @@ public final class CurrentEmployeeWebScript
                     .put("code", workspace.code())
                     .put("nameEnglish", workspace.nameEnglish())
                     .put("nameArabic", nullableJsonValue(workspace.nameArabic()))
-                    .put("capacity", "OFFICE_MEMBER")
+                    .put("capacity", workspace.capacity())
                     .put("role", "PRESIDENT_OFFICE"));
             }
             json.put("officeWorkspaces", officeAssignments);

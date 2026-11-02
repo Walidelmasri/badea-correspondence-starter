@@ -101,7 +101,7 @@ describe('AuthSessionStore', () => {
       managerWorkspaces: [{ code: '117', nameEnglish: 'Digital Transformation',
         nameArabic: null, capacity: 'MANAGER', role: 'DIRECTOR' }],
       officeWorkspaces: [{ code: '101', nameEnglish: "President's Office",
-        nameArabic: null, capacity: 'OFFICE_MEMBER', role: 'PRESIDENT_OFFICE' }],
+        nameArabic: null, capacity: 'OFFICE_ACCESS', role: 'PRESIDENT_OFFICE' }],
     }});
     expect(store.availableWorkspaces()).toHaveLength(2);
     store.selectWorkspace('101');
@@ -114,10 +114,23 @@ describe('AuthSessionStore', () => {
       employeeId: '99999', username: 'walid.salem', nameEnglish: 'Walid', nameArabic: null,
       department: null, correspondenceRole: 'PRESIDENT_OFFICE', managerWorkspaces: [],
       officeWorkspaces: [{ code: '101', nameEnglish: 'President Office', nameArabic: null,
-        capacity: 'OFFICE_MEMBER', role: 'PRESIDENT_OFFICE' }],
+        capacity: 'OFFICE_ACCESS', role: 'PRESIDENT_OFFICE' }],
     }});
     expect(store.workspaceUnit()).toBeNull();
     expect(() => store.selectWorkspace('117')).toThrow();
+  });
+
+  it('selects an authorized Oracle manager unit by default for a Director-only login', () => {
+    const store = new AuthSessionStore();
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '18284', username: 'ndjack', nameEnglish: 'NDjack', nameArabic: null,
+      department: null, correspondenceRole: 'DIRECTOR',
+      managerWorkspaces: [{ code: '118', nameEnglish: 'HR', nameArabic: null,
+        capacity: 'ACTING_MANAGER', role: 'DIRECTOR' }],
+    }});
+    expect(store.workspaceUnit()).toBe('118');
+    expect(store.effectiveRole()).toBe('DIRECTOR');
+    expect(store.effectiveDepartmentCode()).toBe('118');
   });
 
   it('tracks the authenticated user and clears the complete session', () => {

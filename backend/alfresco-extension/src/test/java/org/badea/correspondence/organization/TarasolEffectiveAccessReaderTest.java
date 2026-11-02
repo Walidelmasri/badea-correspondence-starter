@@ -42,13 +42,13 @@ class TarasolEffectiveAccessReaderTest {
     }
 
     @Test
-    void secretaryAssignmentRequiresLiveManagerAndCannotGrantManagerRole() throws SQLException {
+    void secretaryAssignmentIsIndependentOfManagerAndCannotGrantManagerRole() throws SQLException {
         when(rows.next()).thenReturn(true);
         assertTrue(reader.hasActiveSecretaryAssignment(actor, unit));
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(connection).prepareStatement(sql.capture());
-        assertTrue(sql.getValue().contains("manager.REVOKED_AT IS NULL"));
-        assertTrue(sql.getValue().contains("manager.CAPACITY IN ('MANAGER', 'ACTING_MANAGER')"));
+        assertTrue(sql.getValue().contains("unit.STATUS = 'A'"));
+        assertFalse(sql.getValue().contains("manager.REVOKED_AT"));
         assertTrue(sql.getValue().contains("access.SECRETARY_EMP_ID = ?"));
         verify(statement).setString(1, "00123");
         verify(statement).setString(2, "118");

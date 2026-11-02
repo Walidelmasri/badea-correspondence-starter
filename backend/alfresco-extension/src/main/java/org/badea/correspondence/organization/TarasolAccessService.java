@@ -27,7 +27,7 @@ import org.badea.correspondence.security.CorrespondenceAuthorizationException;
  */
 public final class TarasolAccessService {
     private static final Set<String> CAPACITIES = Set.of(
-        "MANAGER", "ACTING_MANAGER", "OFFICE_MEMBER");
+        "MANAGER", "ACTING_MANAGER", "CONSULTANT");
     private static final Set<String> DELEGATION_TYPES = Set.of("LEAVE_COVER", "CASE_HANDOFF");
     private final DataSource dataSource;
     private final EmployeeDirectory employees;
@@ -137,8 +137,8 @@ public final class TarasolAccessService {
                     }
                 }
             }
-            List<TeamEntry> secretaries = administrator ? listTeam(c, unitCode, null, true) :
-                listTeam(c, unitCode, managerEmployeeId, true);
+            // Secretaries belong to the UNIT, not to the employee who appointed them.
+            List<TeamEntry> secretaries = listTeam(c, unitCode, null, true);
             List<TeamEntry> delegations = administrator ? listTeam(c, unitCode, null, false) :
                 listTeam(c, unitCode, managerEmployeeId, false);
             return new AccessSnapshot(List.copyOf(appointments),
@@ -155,24 +155,36 @@ public final class TarasolAccessService {
         String target = secretary ? "SECRETARY_EMP_ID" : "DELEGATE_EMP_ID";
         String extra = secretary ? "NULL AS DELEGATION_TYPE, NULL AS CASE_TECHNICAL_ID" :
             "d.DELEGATION_TYPE, d.CASE_TECHNICAL_ID";
-        String sql = "SELECT d." + id + " AS ID, d.MANAGER_ASSIGNMENT_ID, d." + target
-            + " AS TARGET_EMP_ID, " + extra + ", d.STARTS_AT, d.ENDS_AT, d.REVOKED_AT,"
-            + " CASE WHEN d.REVOKED_AT IS NULL AND d.STARTS_AT <= SYSTIMESTAMP"
-            + " AND (d.ENDS_AT IS NULL OR d.ENDS_AT > SYSTIMESTAMP)"
-            + " AND a.REVOKED_AT IS NULL AND a.STARTS_AT <= SYSTIMESTAMP"
-            + " AND (a.ENDS_AT IS NULL OR a.ENDS_AT > SYSTIMESTAMP)"
-            + " AND a.CAPACITY IN ('MANAGER','ACTING_MANAGER')"
-            + " AND u.STATUS = 'A' THEN 1 ELSE 0 END AS IS_ACTIVE FROM "
-            + table + " d JOIN TARASOL_UNIT_ASSIGNMENTS a ON a.ASSIGNMENT_ID = d.MANAGER_ASSIGNMENT_ID "
-            + "AND a.UNIT_CODE = d.UNIT_CODE "
-            + "JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = d.UNIT_CODE "
-            + "WHERE d.UNIT_CODE = ?" + (actor == null ? "" : " AND a.EMP_ID = ?") +
-            " ORDER BY d." + id + " DESC";
+        String sql;
+        if (secretary) {
+            sql = "SELECT d." + id + " AS ID, d.MANAGER_ASSIGNMENT_ID, d." + target
+                + " AS TARGET_EMP_ID, " + extra + ", d.STARTS_AT, d.ENDS_AT, d.REVOKED_AT,"
+                + " CASE WHEN d.REVOKED_AT IS NULL AND d.STARTS_AT <= SYSTIMESTAMP"
+                + " AND (d.ENDS_AT IS NULL OR d.ENDS_AT > SYSTIMESTAMP)"
+                + " AND u.STATUS = 'A' THEN 1 ELSE 0 END AS IS_ACTIVE"
+                + " FROM TARASOL_SECRETARY_ASSIGNMENTS d"
+                + " JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = d.UNIT_CODE"
+                + " WHERE d.UNIT_CODE = ? ORDER BY d.SECRETARY_ASSIGNMENT_ID DESC";
+        } else {
+            sql = "SELECT d." + id + " AS ID, d.MANAGER_ASSIGNMENT_ID, d." + target
+                + " AS TARGET_EMP_ID, " + extra + ", d.STARTS_AT, d.ENDS_AT, d.REVOKED_AT,"
+                + " CASE WHEN d.REVOKED_AT IS NULL AND d.STARTS_AT <= SYSTIMESTAMP"
+                + " AND (d.ENDS_AT IS NULL OR d.ENDS_AT > SYSTIMESTAMP)"
+                + " AND a.REVOKED_AT IS NULL AND a.STARTS_AT <= SYSTIMESTAMP"
+                + " AND (a.ENDS_AT IS NULL OR a.ENDS_AT > SYSTIMESTAMP)"
+                + " AND a.CAPACITY IN ('MANAGER','ACTING_MANAGER')"
+                + " AND u.STATUS = 'A' THEN 1 ELSE 0 END AS IS_ACTIVE FROM "
+                + table + " d JOIN TARASOL_UNIT_ASSIGNMENTS a ON a.ASSIGNMENT_ID = d.MANAGER_ASSIGNMENT_ID "
+                + "AND a.UNIT_CODE = d.UNIT_CODE "
+                + "JOIN TARASOL_ORG_UNITS u ON u.UNIT_CODE = d.UNIT_CODE "
+                + "WHERE d.UNIT_CODE = ?" + (actor == null ? "" : " AND a.EMP_ID = ?") +
+                " ORDER BY d." + id + " DESC";
+        }
         List<TeamEntry> result = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setQueryTimeout(8);
             ps.setString(1, unit);
-            if (actor != null) ps.setString(2, actor);
+            if (!secretary && actor != null) ps.setString(2, actor);
             try (ResultSet rows = ps.executeQuery()) {
                 while (rows.next()) {
                     result.add(new TeamEntry(rows.getLong("ID"), rows.getLong("MANAGER_ASSIGNMENT_ID"),
@@ -195,8 +207,10 @@ public final class TarasolAccessService {
                 throw invalid("Replacement requires a current official manager and new manager capacity");
             }
             if (!CAPACITIES.contains(change.capacity())) throw invalid("Unknown capacity");
-            if ("OFFICE_MEMBER".equals(change.capacity()) && !"101".equals(change.unitCode())) {
-                throw invalid("Office membership is only valid in President's Office (101)");
+            // Ordinary President's Office membership comes from the Alfresco Office group.
+            // A consultant is a descriptive appointment, never a workflow manager.
+            if ("OFFICE_MEMBER".equals(change.capacity())) {
+                throw invalid("Office access is managed by the Alfresco President's Office group");
             }
             requireActiveEmployee(change.employeeId());
             requireDates(change.startsAt(), change.endsAt(), false);
@@ -269,22 +283,21 @@ public final class TarasolAccessService {
         }
         return transaction(c -> {
             lockUnit(c, change.unitCode());
-            requireCurrentManager(c, change.unitCode(), change.managerAssignmentId(), manager.value());
+            boolean secretaryAction = change.action().endsWith("SECRETARY");
+            if (secretaryAction) requireAnyCurrentManager(c, change.unitCode(), manager.value());
+            else requireCurrentManager(c, change.unitCode(), change.managerAssignmentId(), manager.value());
             if (!creation) {
-                boolean secretary = change.action().equals("REVOKE_SECRETARY");
-                return revokeTeam(c, secretary, change.recordId(), change.managerAssignmentId(),
+                if (secretaryAction) return revokeSecretary(c, change.recordId(),
+                    change.unitCode(), manager.value(), change.reason());
+                return revokeTeam(c, false, change.recordId(), change.managerAssignmentId(),
                     manager.value(), change.reason());
             }
-            boolean secretary = change.action().equals("ASSIGN_SECRETARY");
-            ensureNoDuplicateTeam(c, change, secretary);
-            String table = secretary ? "TARASOL_SECRETARY_ASSIGNMENTS" : "TARASOL_DELEGATIONS";
-            String id = secretary ? "SECRETARY_ASSIGNMENT_ID" : "DELEGATION_ID";
-            String target = secretary ? "SECRETARY_EMP_ID" : "DELEGATE_EMP_ID";
-            String sql = "INSERT INTO " + table + " (UNIT_CODE, MANAGER_ASSIGNMENT_ID, "
-                + target + ", STARTS_AT, ENDS_AT, APPROVED_BY_EMP_ID, CREATED_BY_EMP_ID"
-                + (secretary ? "" : ", DELEGATION_TYPE, CASE_TECHNICAL_ID")
-                + ") VALUES (?, ?, ?, ?, ?, ?, ?" + (secretary ? "" : ", ?, ?") + ")";
-            try (PreparedStatement ps = c.prepareStatement(sql, new String[]{id})) {
+            ensureNoDuplicateTeam(c, change, false);
+            String sql = "INSERT INTO TARASOL_DELEGATIONS"
+                + " (UNIT_CODE, MANAGER_ASSIGNMENT_ID, DELEGATE_EMP_ID, STARTS_AT,"
+                + " ENDS_AT, APPROVED_BY_EMP_ID, CREATED_BY_EMP_ID,"
+                + " DELEGATION_TYPE, CASE_TECHNICAL_ID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement ps = c.prepareStatement(sql, new String[]{"DELEGATION_ID"})) {
                 ps.setQueryTimeout(8);
                 ps.setString(1, change.unitCode());
                 ps.setLong(2, change.managerAssignmentId());
@@ -293,17 +306,78 @@ public final class TarasolAccessService {
                 bindDate(ps, 5, change.endsAt());
                 ps.setString(6, manager.value());
                 ps.setString(7, manager.value());
-                if (!secretary) {
-                    ps.setString(8, change.delegationType());
-                    ps.setString(9, change.caseTechnicalId());
-                }
+                ps.setString(8, change.delegationType());
+                ps.setString(9, change.caseTechnicalId());
                 ps.executeUpdate();
                 try (ResultSet ids = ps.getGeneratedKeys()) {
                     if (ids.next()) return ids.getLong(1);
                 }
-                throw new SQLException("Oracle did not return team assignment identity");
+                throw new SQLException("Oracle did not return delegation identity");
             }
         });
+    }
+
+    /** Organizational Admin may attach secretaries to a unit even when no manager exists. */
+    public long changeSecretaryAsAdministrator(TeamChange change, EmployeeId administrator) {
+        Objects.requireNonNull(change, "change");
+        Objects.requireNonNull(administrator, "administrator");
+        requireUnitCode(change.unitCode());
+        if (!"ASSIGN_SECRETARY".equals(change.action())
+                && !"REVOKE_SECRETARY".equals(change.action())) {
+            throw invalid("Only secretary management is supported by this operation");
+        }
+        if ("ASSIGN_SECRETARY".equals(change.action())) {
+            requireActiveEmployee(change.employeeId());
+            requireDates(change.startsAt(), change.endsAt(), false);
+        }
+        return transaction(c -> {
+            lockUnit(c, change.unitCode());
+            if ("REVOKE_SECRETARY".equals(change.action())) {
+                return revokeSecretary(c, change.recordId(), change.unitCode(),
+                    administrator.value(), change.reason());
+            }
+            ensureNoDuplicateTeam(c, change, true);
+            return insertSecretary(c, change, administrator);
+        });
+    }
+
+    private static long insertSecretary(Connection c, TeamChange change, EmployeeId actor)
+            throws SQLException {
+        String sql = "INSERT INTO TARASOL_SECRETARY_ASSIGNMENTS "
+            + "(UNIT_CODE, MANAGER_ASSIGNMENT_ID, SECRETARY_EMP_ID, STARTS_AT, ENDS_AT,"
+            + " APPROVED_BY_EMP_ID, CREATED_BY_EMP_ID) VALUES (?, NULL, ?, ?, ?, ?, ?)";
+        try (PreparedStatement ps = c.prepareStatement(sql,
+                new String[]{"SECRETARY_ASSIGNMENT_ID"})) {
+            ps.setQueryTimeout(8);
+            ps.setString(1, change.unitCode());
+            ps.setString(2, change.employeeId());
+            bindDate(ps, 3, change.startsAt());
+            bindDate(ps, 4, change.endsAt());
+            ps.setString(5, actor.value());
+            ps.setString(6, actor.value());
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) return keys.getLong(1);
+            }
+            throw new SQLException("Oracle did not return secretary assignment identity");
+        }
+    }
+
+    private static long revokeSecretary(Connection c, long id, String unit,
+            String actor, String reason) throws SQLException {
+        if (id <= 0) throw invalid("Secretary record ID required");
+        String sql = "UPDATE TARASOL_SECRETARY_ASSIGNMENTS SET REVOKED_AT = SYSTIMESTAMP,"
+            + " REVOKED_BY_EMP_ID = ?, REVOKE_REASON = ? WHERE SECRETARY_ASSIGNMENT_ID = ?"
+            + " AND UNIT_CODE = ? AND REVOKED_AT IS NULL";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setQueryTimeout(8);
+            ps.setString(1, actor);
+            ps.setString(2, normalizeReason(reason));
+            ps.setLong(3, id);
+            ps.setString(4, unit);
+            if (ps.executeUpdate() != 1) throw invalid("Secretary assignment already revoked or wrong unit");
+            return id;
+        }
     }
 
     private void requireActiveEmployee(String employeeId) {
@@ -331,13 +405,23 @@ public final class TarasolAccessService {
         }
     }
 
+    /**
+     * Concurrent managerial capacity is capped at two:
+     * one MANAGER + one finite ACTING_MANAGER for leave/travel, OR
+     * up to two ACTING_MANAGERs when the official position is vacant.
+     * Appointments are serialized by the organizational unit FOR UPDATE lock.
+     */
     private static void checkManagementOverlap(Connection c, AppointmentChange change) throws SQLException {
-        String sql = """
-            SELECT EMP_ID, CAPACITY FROM TARASOL_UNIT_ASSIGNMENTS
-            WHERE UNIT_CODE = ? AND REVOKED_AT IS NULL
-              AND (? IS NULL OR STARTS_AT < ?)
-              AND (ENDS_AT IS NULL OR ENDS_AT > ?)
-            """;
+        if (!"MANAGER".equals(change.capacity()) && !"ACTING_MANAGER".equals(change.capacity())) {
+            return; // CONSULTANT never consumes a management seat.
+        }
+        String sql = "SELECT EMP_ID, CAPACITY, STARTS_AT, ENDS_AT FROM TARASOL_UNIT_ASSIGNMENTS"
+            + " WHERE UNIT_CODE = ? AND REVOKED_AT IS NULL"
+            + " AND CAPACITY IN ('MANAGER','ACTING_MANAGER')"
+            + " AND (? IS NULL OR STARTS_AT < ?)"
+            + " AND (ENDS_AT IS NULL OR ENDS_AT > ?)";
+        record Existing(String employeeId, String capacity, OffsetDateTime start, OffsetDateTime end) { }
+        List<Existing> existing = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setQueryTimeout(8);
             ps.setString(1, change.unitCode());
@@ -346,15 +430,43 @@ public final class TarasolAccessService {
             bindDate(ps, 4, change.startsAt());
             try (ResultSet rows = ps.executeQuery()) {
                 while (rows.next()) {
-                    String currentCapacity = rows.getString("CAPACITY");
-                    boolean same = change.employeeId().equals(rows.getString("EMP_ID"));
-                    boolean managerCollision = ("MANAGER".equals(change.capacity())
-                            && ("MANAGER".equals(currentCapacity) || "ACTING_MANAGER".equals(currentCapacity)))
-                        || ("ACTING_MANAGER".equals(change.capacity()) && "MANAGER".equals(currentCapacity));
-                    if ((same && change.capacity().equals(currentCapacity)) || managerCollision) {
-                        throw invalid("Appointment conflicts with another non-revoked appointment in this unit");
+                    // Timestamp strings preserve the full Oracle offset when returned by JDBC.
+                    OffsetDateTime start = rows.getObject("STARTS_AT", OffsetDateTime.class);
+                    OffsetDateTime end = rows.getObject("ENDS_AT", OffsetDateTime.class);
+                    existing.add(new Existing(rows.getString("EMP_ID"), rows.getString("CAPACITY"),
+                        start, end));
+                }
+            }
+        }
+        // Check each interval boundary, including future-effective appointments.
+        Set<OffsetDateTime> boundaries = new LinkedHashSet<>();
+        boundaries.add(change.startsAt());
+        for (Existing row : existing) {
+            if (row.start() != null && row.start().isAfter(change.startsAt())) boundaries.add(row.start());
+            if (row.end() != null && row.end().isAfter(change.startsAt())) boundaries.add(row.end());
+            if (row.employeeId().equals(change.employeeId())) {
+                throw invalid("Employee already holds an overlapping managerial appointment in this unit");
+            }
+        }
+        for (OffsetDateTime point : boundaries) {
+            if (change.endsAt() != null && !point.isBefore(change.endsAt())) continue;
+            int official = "MANAGER".equals(change.capacity()) ? 1 : 0;
+            int acting = "ACTING_MANAGER".equals(change.capacity()) ? 1 : 0;
+            boolean actingHasExpiry = !"ACTING_MANAGER".equals(change.capacity()) || change.endsAt() != null;
+            for (Existing row : existing) {
+                if ((row.start() == null || !row.start().isAfter(point))
+                        && (row.end() == null || row.end().isAfter(point))) {
+                    if ("MANAGER".equals(row.capacity())) official++;
+                    else {
+                        acting++;
+                        if (row.end() == null) actingHasExpiry = false;
                     }
                 }
+            }
+            if (official > 1 || acting > (official == 0 ? 2 : 1)
+                    || (official > 0 && acting > 0 && !actingHasExpiry)) {
+                throw invalid("Manager capacity conflict: one official plus one expiring acting manager,"
+                    + " or up to two acting managers when vacant");
             }
         }
     }
@@ -364,17 +476,36 @@ public final class TarasolAccessService {
         String table = secretary ? "TARASOL_SECRETARY_ASSIGNMENTS" : "TARASOL_DELEGATIONS";
         String target = secretary ? "SECRETARY_EMP_ID" : "DELEGATE_EMP_ID";
         String sql = "SELECT 1 FROM " + table +
-            " WHERE MANAGER_ASSIGNMENT_ID = ? AND " + target + " = ? AND REVOKED_AT IS NULL"
+            " WHERE " + (secretary ? "UNIT_CODE" : "MANAGER_ASSIGNMENT_ID")
+            + " = ? AND " + target + " = ? AND REVOKED_AT IS NULL"
             + " AND (? IS NULL OR STARTS_AT < ?) AND (ENDS_AT IS NULL OR ENDS_AT > ?)";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setQueryTimeout(8);
-            ps.setLong(1, change.managerAssignmentId());
+            if (secretary) ps.setString(1, change.unitCode());
+            else ps.setLong(1, change.managerAssignmentId());
             ps.setString(2, change.employeeId());
             bindDate(ps, 3, change.endsAt());
             bindDate(ps, 4, change.endsAt());
             bindDate(ps, 5, change.startsAt());
             try (ResultSet rows = ps.executeQuery()) {
                 if (rows.next()) throw invalid("Overlapping secretary/delegation assignment already exists");
+            }
+        }
+    }
+
+    private static void requireAnyCurrentManager(Connection c, String unit, String employeeId)
+            throws SQLException {
+        String sql = "SELECT 1 FROM TARASOL_UNIT_ASSIGNMENTS WHERE UNIT_CODE = ?"
+            + " AND EMP_ID = ? AND CAPACITY IN ('MANAGER','ACTING_MANAGER')"
+            + " AND REVOKED_AT IS NULL AND STARTS_AT <= SYSTIMESTAMP"
+            + " AND (ENDS_AT IS NULL OR ENDS_AT > SYSTIMESTAMP)";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setQueryTimeout(8);
+            ps.setString(1, unit);
+            ps.setString(2, employeeId);
+            try (ResultSet rows = ps.executeQuery()) {
+                if (!rows.next()) throw new CorrespondenceAuthorizationException(
+                    "Active unit manager required for secretary management");
             }
         }
     }

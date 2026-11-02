@@ -109,41 +109,78 @@ class TarasolAccessServiceTest {
     }
 
     @Test
-    void preventsAppointingActingManagerWhileOfficialManagerExists() throws SQLException {
+    void permitsExpiringActingManagerToCoverOfficialManagerLeave() throws SQLException {
         activeEmployee("18284");
         lockedUnit();
         PreparedStatement check = mock(PreparedStatement.class);
         ResultSet occupied = mock(ResultSet.class);
         when(connection.prepareStatement(contains("SELECT EMP_ID, CAPACITY"))).thenReturn(check);
         when(check.executeQuery()).thenReturn(occupied);
-        when(occupied.next()).thenReturn(true);
+        when(occupied.next()).thenReturn(true, false);
         when(occupied.getString("CAPACITY")).thenReturn("MANAGER");
         when(occupied.getString("EMP_ID")).thenReturn("99999");
+        PreparedStatement insert = mock(PreparedStatement.class);
+        ResultSet ids = mock(ResultSet.class);
+        when(connection.prepareStatement(startsWith("INSERT INTO TARASOL_UNIT_ASSIGNMENTS"),
+            any(String[].class))).thenReturn(insert);
+        when(insert.getGeneratedKeys()).thenReturn(ids);
+        when(ids.next()).thenReturn(true);
+        when(ids.getLong(1)).thenReturn(62L);
+        long id = service.changeAppointment(new TarasolAccessService.AppointmentChange(
+            "APPOINT", "118", 0, "18284", "ACTING_MANAGER", START, END, null, null), ADMIN);
+        assertEquals(62L, id);
+        verify(connection).commit();
+    }
 
+    @Test
+    void nonExpiringActingManagerCannotOverlapOfficialManager() throws SQLException {
+        activeEmployee("18284");
+        lockedUnit();
+        PreparedStatement check = mock(PreparedStatement.class);
+        ResultSet occupied = mock(ResultSet.class);
+        when(connection.prepareStatement(contains("SELECT EMP_ID, CAPACITY"))).thenReturn(check);
+        when(check.executeQuery()).thenReturn(occupied);
+        when(occupied.next()).thenReturn(true, false);
+        when(occupied.getString("CAPACITY")).thenReturn("MANAGER");
+        when(occupied.getString("EMP_ID")).thenReturn("99999");
+        assertThrows(IllegalArgumentException.class,
+            () -> service.changeAppointment(new TarasolAccessService.AppointmentChange(
+                "APPOINT", "118", 0, "18284", "ACTING_MANAGER", START, null, null, null), ADMIN));
+        verify(connection).rollback();
+    }
+
+    @Test
+    void thirdActingManagerIsRejectedWhenPositionVacant() throws SQLException {
+        activeEmployee("18284");
+        lockedUnit();
+        PreparedStatement check = mock(PreparedStatement.class);
+        ResultSet occupied = mock(ResultSet.class);
+        when(connection.prepareStatement(contains("SELECT EMP_ID, CAPACITY"))).thenReturn(check);
+        when(check.executeQuery()).thenReturn(occupied);
+        when(occupied.next()).thenReturn(true, true, false);
+        when(occupied.getString("CAPACITY")).thenReturn("ACTING_MANAGER");
+        when(occupied.getString("EMP_ID")).thenReturn("10001", "10002");
         assertThrows(IllegalArgumentException.class,
             () -> service.changeAppointment(new TarasolAccessService.AppointmentChange(
                 "APPOINT", "118", 0, "18284", "ACTING_MANAGER", START, END, null, null), ADMIN));
         verify(connection).rollback();
-        verify(connection, never()).commit();
     }
 
     @Test
-    void refusesSecretaryChangesAfterManagerAppointmentExpires() throws SQLException {
+    void secretaryAssignmentRequiresManagerInUnitButNotManagerRecordLink() throws SQLException {
         activeEmployee("24428");
         lockedUnit();
         PreparedStatement authority = mock(PreparedStatement.class);
         ResultSet notCurrent = mock(ResultSet.class);
-        when(connection.prepareStatement(contains("CAPACITY IN ('MANAGER','ACTING_MANAGER')")))
+        when(connection.prepareStatement(contains("SELECT 1 FROM TARASOL_UNIT_ASSIGNMENTS WHERE UNIT_CODE = ?")))
             .thenReturn(authority);
         when(authority.executeQuery()).thenReturn(notCurrent);
         when(notCurrent.next()).thenReturn(false);
-
         assertThrows(CorrespondenceAuthorizationException.class,
             () -> service.changeTeam(new TarasolAccessService.TeamChange(
-                "ASSIGN_SECRETARY", "118", 91, 0, "24428", null, null, START, null, null),
+                "ASSIGN_SECRETARY", "118", 0, 0, "24428", null, null, START, null, null),
                 new EmployeeId("18284")));
         verify(connection).rollback();
-        verify(connection, never()).commit();
     }
 
     @Test
@@ -172,10 +209,10 @@ class TarasolAccessServiceTest {
     }
 
     @Test
-    void refusesUndefinedConsultantAppointmentBeforeAnyDatabaseWrite() throws SQLException {
+    void undefinedOfficeMembershipCannotBeCreatedInAnyUnit() throws SQLException {
         assertThrows(IllegalArgumentException.class, () -> service.changeAppointment(
             new TarasolAccessService.AppointmentChange("APPOINT", "101", 0, "99999",
-                "CONSULTANT", START, null, null, null), ADMIN));
+                "OFFICE_MEMBER", START, null, null, null), ADMIN));
         verify(dataSource, never()).getConnection();
     }
 
@@ -185,6 +222,31 @@ class TarasolAccessServiceTest {
             new TarasolAccessService.AppointmentChange("APPOINT", "117", 0, "99999",
                 "OFFICE_MEMBER", START, null, null, null), ADMIN));
         verify(dataSource, never()).getConnection();
+    }
+
+    @Test
+    void administratorCanAssignSecretaryWithoutAnyManagerAppointment() throws SQLException {
+        activeEmployee("24428");
+        lockedUnit();
+        PreparedStatement duplicates = mock(PreparedStatement.class);
+        ResultSet none = mock(ResultSet.class);
+        when(connection.prepareStatement(contains("SELECT 1 FROM TARASOL_SECRETARY_ASSIGNMENTS")))
+            .thenReturn(duplicates);
+        when(duplicates.executeQuery()).thenReturn(none);
+        when(none.next()).thenReturn(false);
+        PreparedStatement insert = mock(PreparedStatement.class);
+        ResultSet keys = mock(ResultSet.class);
+        when(connection.prepareStatement(startsWith("INSERT INTO TARASOL_SECRETARY_ASSIGNMENTS"),
+            any(String[].class))).thenReturn(insert);
+        when(insert.getGeneratedKeys()).thenReturn(keys);
+        when(keys.next()).thenReturn(true);
+        when(keys.getLong(1)).thenReturn(29L);
+        long id = service.changeSecretaryAsAdministrator(new TarasolAccessService.TeamChange(
+            "ASSIGN_SECRETARY", "118", 0, 0, "24428", null, null, START, null, null), ADMIN);
+        assertEquals(29L, id);
+        verify(insert).setString(1, "118");
+        verify(insert).setString(2, "24428");
+        verify(connection).commit();
     }
 
     @Test

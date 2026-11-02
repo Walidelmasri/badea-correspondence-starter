@@ -133,29 +133,32 @@ class CurrentEmployeeWebScriptTest {
         when(organizationReader.findCurrentManagerWorkspaces(new EmployeeId("10001")))
             .thenReturn(List.of(new TarasolOrganizationReader.ManagerWorkspace(7,
                 new DepartmentCode("117"), "Digital Transformation", null, "MANAGER")));
-        when(organizationReader.findCurrentOfficeMembership(new EmployeeId("10001")))
-            .thenReturn(Optional.of(new TarasolOrganizationReader.OfficeMembership(8,
-                new DepartmentCode("101"), "President's Office", null)));
+        when(organizationReader.findActiveUnits()).thenReturn(List.of(
+            new TarasolOrganizationReader.Unit(new DepartmentCode("101"),
+                "President's Office", null, null, "OFFICE")));
         webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
         JSONObject result = execute();
         assertEquals(1, result.getJSONArray("managerWorkspaces").length());
         assertEquals("117", result.getJSONArray("managerWorkspaces").getJSONObject(0).getString("code"));
         assertEquals(1, result.getJSONArray("officeWorkspaces").length());
-        assertEquals("OFFICE_MEMBER", result.getJSONArray("officeWorkspaces")
+        assertEquals("OFFICE_ACCESS", result.getJSONArray("officeWorkspaces")
             .getJSONObject(0).getString("capacity"));
     }
 
     @Test
-    void officeGroupAloneDoesNotConvertAnUnrelatedOfficeMemberIntoManager() throws IOException {
+    void officeGroupAloneProvidesOfficeWorkspaceWithoutManagerAuthority() throws IOException {
         var organizationReader = mock(TarasolOrganizationReader.class);
         when(roleResolver.resolveCurrentUserRole())
             .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
         when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(
             CorrespondenceActorRole.PRESIDENT_OFFICE));
+        when(organizationReader.findActiveUnits()).thenReturn(List.of(
+            new TarasolOrganizationReader.Unit(new DepartmentCode("101"),
+                "President's Office", null, null, "OFFICE")));
         webScript = new CurrentEmployeeWebScript(employeeService, roleResolver, organizationReader);
         JSONObject result = execute();
         assertEquals(0, result.getJSONArray("managerWorkspaces").length());
-        assertEquals(0, result.getJSONArray("officeWorkspaces").length());
+        assertEquals(1, result.getJSONArray("officeWorkspaces").length());
     }
 
     @Test

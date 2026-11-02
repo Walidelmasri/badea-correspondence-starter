@@ -93,20 +93,28 @@
 
         @if (isAdmin) {
           <label class="tarasol-access__field">
+            <span>{{ label('الإجراء', 'Action') }}</span>
+            <select formControlName="teamAction">
+              <option value="APPOINT">{{ label('تعيين مدير أو مدير مكلف', 'Manager / acting manager appointment') }}</option>
+              <option value="ASSIGN_SECRETARY">{{ label('تعيين سكرتير للوحدة', 'Assign department secretary') }}</option>
+            </select>
+          </label>
+          @if (form.controls.teamAction.value !== 'ASSIGN_SECRETARY') {
+          <label class="tarasol-access__field">
             <span>{{ label('نوع التعيين', 'Appointment type') }}</span>
             <select formControlName="capacity">
               <option value="MANAGER">{{ label('مدير رسمي', 'Official manager') }}</option>
-              <option value="ACTING_MANAGER">{{ label('مدير مكلف (شاغر)', 'Acting manager (vacant position)') }}</option>
-              @if (form.controls.unitCode.value === '101') {
-                <option value="OFFICE_MEMBER">{{ label('عضو مكتب الرئيس', "President's Office member") }}</option>
-              }
+              <option value="ACTING_MANAGER">{{ label('مدير مكلف', 'Acting manager') }}</option>
+              <option value="CONSULTANT">{{ label('مستشار (دون صلاحيات سير العمل)', 'Consultant (no workflow authority)') }}</option>
             </select>
           </label>
           <label class="tarasol-access__field">
             <span>{{ label('مرجع التعيين', 'Appointment reference') }}</span>
             <input formControlName="appointmentRef" maxlength="120" [placeholder]="label('رقم القرار (اختياري)', 'Decision reference (optional)')" />
           </label>
+          }
         } @else {
+          @if (form.controls.teamAction.value === 'GRANT_DELEGATION') {
           <label class="tarasol-access__field">
             <span>{{ label('تعيين المدير الحالي', 'Your manager appointment') }}</span>
             <select formControlName="managerAssignmentId">
@@ -118,6 +126,7 @@
               }
             </select>
           </label>
+          }
           <label class="tarasol-access__field">
             <span>{{ label('نوع الصلاحية', 'Access type') }}</span>
             <select formControlName="teamAction">
@@ -158,7 +167,8 @@
           <button type="submit" class="tarasol-access__primary" [disabled]="saving() || loading() || !selectedEmployee()">
             {{ saving() ? label('جارٍ الحفظ…', 'Saving…') : label('تأكيد التعيين', 'Confirm assignment') }}
           </button>
-          <p>{{ label('كل تغيير يخضع للتحقق والتدقيق على الخادم.', 'Every change is authorized and audited on the server.') }}</p>
+          <p>{{ label('مجموعات Alfresco / AD تُدار بشكل مستقل. تعيين المدير هنا لا يُضيفه تلقائياً إلى مجموعة المدراء أو مكتب الرئيس.',
+            'Alfresco/AD groups are managed separately. Manager appointments here do not automatically add someone to a Directors or President’s Office group.') }}</p>
         </div>
       </form>
     </section>
@@ -212,7 +222,7 @@
     <p class="tarasol-access__notice" [class.tarasol-access__error]="message.kind === 'error'" role="status">{{ message.message }}</p>
   }
 
-  @if (!isAdmin && snapshot()) {
+  @if (snapshot()) {
     <div class="tarasol-access__team-grid">
       <section class="tarasol-access__panel tarasol-access__records">
         <div class="tarasol-access__panel-heading">
@@ -220,17 +230,18 @@
         </div>
         <div class="tarasol-access__table-wrap">
           <table>
-            <thead><tr><th>{{ label('الموظف', 'Employee') }}</th><th>{{ label('التعيين', 'Manager appointment') }}</th><th>{{ label('حتى', 'Until') }}</th><th>{{ label('إجراء', 'Action') }}</th></tr></thead>
+            <thead><tr><th>{{ label('الموظف', 'Employee') }}</th><th>{{ label('الوحدة', 'Unit') }}</th><th>{{ label('حتى', 'Until') }}</th><th>{{ label('إجراء', 'Action') }}</th></tr></thead>
             <tbody>
               @for (entry of activeSecretaries(); track entry.id) {
                 <tr><td><strong>{{ nameForId(entry.employeeId) || label('موظف', 'Employee') }}</strong><small dir="ltr">ID {{ entry.employeeId }}</small></td>
-                  <td>#{{ entry.managerAssignmentId }}</td><td><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
+                  <td>{{ selectedUnitName() }}</td><td><time dir="ltr">{{ dateLabel(entry.endsAt) }}</time></td>
                   <td><button type="button" class="tarasol-access__revoke" (click)="revoke('secretary',entry)" [disabled]="saving()">{{ label('إلغاء', 'Revoke') }}</button></td></tr>
               } @empty { <tr><td colspan="4" class="tarasol-access__empty">{{ label('لا توجد سكرتارية نشطة.', 'No active secretaries.') }}</td></tr> }
             </tbody>
           </table>
         </div>
       </section>
+      @if (!isAdmin) {
       <section class="tarasol-access__panel tarasol-access__records">
         <div class="tarasol-access__panel-heading"><h2>{{ label('التفويضات النشطة', 'Active delegations') }}</h2></div>
         <div class="tarasol-access__table-wrap"><table>
@@ -245,6 +256,7 @@
           </tbody>
         </table></div>
       </section>
+      }
     </div>
   }
 </section>
