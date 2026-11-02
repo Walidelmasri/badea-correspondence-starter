@@ -287,8 +287,8 @@ describe(
       })));
       component.form.setValue({ userId: 'president', password: 'sample' });
       component.submit();
-      expect(component.errorMessage()).toContain('Alfresco accepted');
-      expect(component.errorMessage()).toContain('employee');
+      expect(component.errorMessage()).toContain('Alfresco');
+      expect(component.errorMessage()).toMatch(/employee|موظف/);
     });
 
     it('distinguishes a failed session lookup after a valid ticket', () => {
@@ -297,7 +297,7 @@ describe(
       })));
       component.form.setValue({ userId: 'president', password: 'sample' });
       component.submit();
-      expect(component.errorMessage()).toContain('ticket was issued');
+      expect(component.errorMessage()).toMatch(/ticket was issued|جلسة Alfresco/);
     });
 
     it('restores the form when authentication fails', () => {

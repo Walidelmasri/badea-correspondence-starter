@@ -9,6 +9,7 @@ import {
 import {
   composeRoleGuard,
   directorRoleGuard,
+  officeRoleGuard,
   secretaryDashboardGuard,
 } from './core/auth/correspondence-role.guard';
 
@@ -101,6 +102,14 @@ export const routes: Routes = [
           ).then(
             (module) => module.ComposePageComponent,
           ),
+      },
+
+      {
+        path: 'office/new',
+        canActivate: [officeRoleGuard],
+        loadComponent: () =>
+          import('./features/office-new/presentation/office-new-page.component')
+            .then(module => module.OfficeNewPageComponent),
       },
 
       {

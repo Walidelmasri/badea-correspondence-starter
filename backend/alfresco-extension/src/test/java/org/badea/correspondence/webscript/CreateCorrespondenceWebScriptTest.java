@@ -275,8 +275,31 @@ class CreateCorrespondenceWebScriptTest {
         verify(repository).createDraft(captor.capture());
         assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE,
                 captor.getValue().createdByRole());
+        // The logged-in user's home department must never be substituted for Office 101.
+        assertEquals(new DepartmentCode("101"), captor.getValue().originDepartmentCode());
         assertEquals("", new JSONObject(captor.getValue().executiveComposeJson())
                 .getString("explanation"));
+    }
+
+    @Test
+    void officeCanInitiateIntoUnit101EvenWithNoDirectoryDepartment()
+            throws Exception {
+        when(actorRoleResolver.resolveCurrentUserRole())
+                .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(employeeWithoutDepartment());
+        when(repository.createDraft(any(CreateCorrespondenceCommand.class)))
+                .thenReturn("550e8400-e29b-41d4-a716-446655440000");
+
+        TestResponse response = execute("""
+                {"subject": "Office intake", "executiveCompose": {"recipient": "President's Office"}}
+                """);
+        assertEquals(Status.STATUS_CREATED, response.status());
+        ArgumentCaptor<CreateCorrespondenceCommand> captor =
+                ArgumentCaptor.forClass(CreateCorrespondenceCommand.class);
+        verify(repository).createDraft(captor.capture());
+        assertEquals(new DepartmentCode("101"), captor.getValue().originDepartmentCode());
+        assertEquals(CorrespondenceActorRole.PRESIDENT_OFFICE, captor.getValue().createdByRole());
     }
 
     @Test

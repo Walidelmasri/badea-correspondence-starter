@@ -216,7 +216,8 @@ export class DraftsPageComponent implements OnInit {
     if (details?.technicalId === technicalId && details.state === 'DRAFT'
         && details.executiveCompose
         && (this.currentRole() === 'PRESIDENT' || this.currentRole() === 'PRESIDENT_OFFICE')) {
-      void this.router.navigate(['/compose'], { queryParams: { draft: technicalId } });
+      void this.router.navigate([this.currentRole() === 'PRESIDENT_OFFICE' ? '/office/new' : '/compose'],
+        { queryParams: { draft: technicalId } });
     } else if (this.currentRole() === 'PRESIDENT') {
       void this.router.navigate(['/president-review', technicalId]);
     } else if (this.currentRole() === 'DIRECTOR') {
@@ -234,7 +235,7 @@ export class DraftsPageComponent implements OnInit {
   closePreview(): void { this.previewDocument.set(null); }
 
   openCompose(): void {
-    void this.router.navigate(['/compose']);
+    void this.router.navigate([this.currentRole() === 'PRESIDENT_OFFICE' ? '/office/new' : '/compose']);
   }
 
   previousPage(): void {

@@ -11,7 +11,9 @@ import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceDraftLister;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
+import org.badea.correspondence.infrastructure.alfresco.CorrespondenceMailboxPermissionException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 
@@ -88,10 +90,23 @@ public final class ListCorrespondenceWebScript
                         "Director department required for drafts");
                 result = serialize(draftLister.list(department, offset, limit));
             } else {
-                result = serializeMailbox(mailboxLister.list(box, role, department,
-                        employee.employeeId().value(), view, offset, limit));
+                // Role and workspace have been resolved from the authenticated
+                // Alfresco account BEFORE any shared-mailbox projection.
+                final var approvedRole = role;
+                final var approvedDepartment = department;
+                final var approvedView = view;
+                result = serializeMailbox(InstitutionalMailboxReadScope.read(approvedRole,
+                        () -> mailboxLister.list(box, approvedRole, approvedDepartment,
+                                employee.employeeId().value(), approvedView, offset, limit)));
             }
             writeJson(response, Status.STATUS_OK, result);
+
+        } catch (CorrespondenceMailboxPermissionException exception) {
+
+            writeError(response, Status.STATUS_FORBIDDEN,
+                    "PRESIDENT_REPOSITORY_READ_DENIED",
+                    "Alfresco denied read access to correspondence folders or items. "
+                        + "Check President group membership and correspondence-folder permissions.");
 
         } catch (CorrespondenceAuthorizationException exception) {
 

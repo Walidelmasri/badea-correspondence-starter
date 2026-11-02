@@ -13,6 +13,7 @@ import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 
@@ -71,12 +72,11 @@ public final class GetCorrespondenceDetailsWebScript
                 actorDepartmentCode = selectedWorkspace.unit();
             }
 
-            CorrespondenceDetails details =
-                    detailsService.getDetails(
-                            technicalId,
-                            actorRole,
-                            actorDepartmentCode,
-                            employee.employeeId().value());
+            final var approvedRole = actorRole;
+            final var approvedDepartment = actorDepartmentCode;
+            CorrespondenceDetails details = InstitutionalMailboxReadScope.read(approvedRole,
+                    () -> detailsService.getDetails(technicalId, approvedRole,
+                            approvedDepartment, employee.employeeId().value()));
 
             writeJson(
                     response,

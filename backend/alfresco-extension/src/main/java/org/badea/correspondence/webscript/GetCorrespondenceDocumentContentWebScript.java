@@ -19,6 +19,7 @@ import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
@@ -89,12 +90,14 @@ public final class GetCorrespondenceDocumentContentWebScript
                 departmentCode = selectedWorkspace.unit();
             }
 
-            document = contentService.open(
-                    technicalId,
-                    nodeId,
-                    actorRole,
-                    departmentCode,
-                    employee.employeeId().value());
+            final var approvedRole = actorRole;
+            final var approvedDepartment = departmentCode;
+            // The content service verifies the correspondence assignment,
+            // persisted participation AND that the requested node belongs to
+            // this correspondence before opening it. No arbitrary DMS nodes.
+            document = InstitutionalMailboxReadScope.read(approvedRole,
+                    () -> contentService.open(technicalId, nodeId, approvedRole,
+                            approvedDepartment, employee.employeeId().value()));
 
         } catch (CurrentEmployeeNotFoundException exception) {
 

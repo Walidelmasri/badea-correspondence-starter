@@ -91,12 +91,23 @@ public final class AlfrescoCorrespondenceMailboxLister {
 
         List<MailboxSummary> matches = new ArrayList<>();
         NodeRef root = folders.locateCorrespondenceRoot();
+        int deniedFolders = 0;
+        boolean deniedChildren = false;
         for (ChildAssociationRef folderAssociation : nodes.getChildAssocs(root)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(folderAssociation.getTypeQName())) continue;
             NodeRef folder = folderAssociation.getChildRef();
-            if (permissions.hasPermission(folder, PermissionService.READ) != AccessStatus.ALLOWED
-                    || !ContentModel.TYPE_FOLDER.equals(nodes.getType(folder))) continue;
-            collect(folder, box, role, department, employeeId, view, matches);
+            if (permissions.hasPermission(folder, PermissionService.READ) != AccessStatus.ALLOWED) {
+                deniedFolders++;
+                continue;
+            }
+            if (!ContentModel.TYPE_FOLDER.equals(nodes.getType(folder))) continue;
+            deniedChildren |= collect(folder, box, role, department, employeeId, view, matches);
+        }
+        // Do not silently return a partial/empty President mailbox on ACL denial.
+        // Never bypass Alfresco permissions or disclose inaccessible content.
+        if (role == CorrespondenceActorRole.PRESIDENT
+                && (deniedFolders > 0 || deniedChildren)) {
+            throw new CorrespondenceMailboxPermissionException();
         }
 
         matches.sort(Comparator.comparing(MailboxSummary::modifiedAt)
@@ -107,14 +118,18 @@ public final class AlfrescoCorrespondenceMailboxLister {
         return new MailboxPage(matches.subList(from, to), offset, limit, total);
     }
 
-    private void collect(NodeRef folder, String box, CorrespondenceActorRole role,
+    private boolean collect(NodeRef folder, String box, CorrespondenceActorRole role,
             DepartmentCode department, String employeeId, String view,
             List<MailboxSummary> matches) {
+        boolean deniedChild = false;
         for (ChildAssociationRef association : nodes.getChildAssocs(folder)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
             NodeRef node = association.getChildRef();
-            if (permissions.hasPermission(node, PermissionService.READ) != AccessStatus.ALLOWED
-                    || !TYPE_CORRESPONDENCE.equals(nodes.getType(node))) continue;
+            if (permissions.hasPermission(node, PermissionService.READ) != AccessStatus.ALLOWED) {
+                deniedChild = true;
+                continue;
+            }
+            if (!TYPE_CORRESPONDENCE.equals(nodes.getType(node))) continue;
 
             CorrespondenceState state = readState(node);
             String origin = required(node, PROP_ORIGIN);
@@ -177,6 +192,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
                     required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
                     timestamp(node, ContentModel.PROP_MODIFIED), active, unread, incoming));
         }
+        return deniedChild;
     }
 
     private boolean isDraft(NodeRef node, CorrespondenceActorRole role,

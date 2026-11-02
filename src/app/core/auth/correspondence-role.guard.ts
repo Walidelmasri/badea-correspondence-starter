@@ -27,8 +27,9 @@ export const composeRoleGuard: CanActivateFn = () => {
       return router.createUrlTree(['/director/new']);
 
     case 'PRESIDENT_OFFICE':
+      return router.createUrlTree(['/office/new']);
+
     case 'PRESIDENT':
-      // Both use the current executive Compose layout.
       return true;
 
     default:
@@ -53,10 +54,10 @@ export const directorRoleGuard: CanActivateFn = () => {
     return true;
   }
 
-  if (
-    role === 'PRESIDENT' ||
-    role === 'PRESIDENT_OFFICE'
-  ) {
+  if (role === 'PRESIDENT_OFFICE') {
+    return router.createUrlTree(['/office/new']);
+  }
+  if (role === 'PRESIDENT') {
     return router.createUrlTree(['/compose']);
   }
 
@@ -75,4 +76,16 @@ export const secretaryDashboardGuard: CanActivateFn = () => {
     return inject(Router).createUrlTree(['/tarasol/admin/access']);
   }
   return true;
+};
+
+/** The Office's intake editor is never a President or Director form. */
+export const officeRoleGuard: CanActivateFn = () => {
+  const session = inject(AuthSessionStore);
+  const router = inject(Router);
+  const role = session.effectiveRole?.()
+    ?? session.currentUser()?.employeeProfile?.correspondenceRole;
+  if (role === 'PRESIDENT_OFFICE') return true;
+  if (role === 'PRESIDENT') return router.createUrlTree(['/compose']);
+  if (role === 'DIRECTOR') return router.createUrlTree(['/director/new']);
+  return router.createUrlTree(['/inbox']);
 };

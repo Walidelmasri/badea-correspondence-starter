@@ -283,8 +283,12 @@ export class ComposePageComponent implements OnInit {
     }
   }
 
-  /** Submit only a confirmed, fully persisted executive draft to the Office.
-   *  The existing Director submit path remains separate and unchanged. */
+  /** President's own editor sends to Office; Office overrides the target. */
+  protected submissionAction(): 'SEND_TO_OFFICE' | 'SEND_TO_PRESIDENT' {
+    return 'SEND_TO_OFFICE';
+  }
+
+  /** Submit only a confirmed, fully persisted executive draft. */
   async send(): Promise<void> {
     if (this.blocked()) return;
     if (this.form.invalid) {
@@ -307,7 +311,7 @@ export class ComposePageComponent implements OnInit {
     this.form.disable({ emitEvent: false });
     this.notice.set(null);
     try {
-      await firstValueFrom(this.api.transitionCorrespondence(id, { action: 'SEND_TO_OFFICE' }));
+      await firstValueFrom(this.api.transitionCorrespondence(id, { action: this.submissionAction() }));
       this.readOnly.set(true);
       this.notice.set({ kind: 'success', message: this.translation.text().compose.feedback.sent });
       void this.router.navigate(['/sent']);

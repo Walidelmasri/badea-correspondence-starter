@@ -48,7 +48,7 @@ describe('Drafts navigation for executive-originated correspondence', () => {
     await Promise.resolve(); await Promise.resolve();
     expect(page.details()?.state).toBe('DRAFT');
     page.openDraft(ID);
-    expect(router.navigate).toHaveBeenCalledWith(['/compose'], { queryParams: { draft: ID } });
+    expect(router.navigate).toHaveBeenCalledWith(['/office/new'], { queryParams: { draft: ID } });
   });
 
   it('retains the existing President review route for WITH_PRESIDENT work', async () => {

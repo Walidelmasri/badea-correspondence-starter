@@ -8,6 +8,7 @@ import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.application.OfficeCompletionState;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.json.JSONObject;
 import org.springframework.extensions.webscripts.AbstractWebScript;
@@ -38,13 +39,16 @@ public final class GetOfficeCompletionWebScript extends AbstractWebScript {
                     employees.getCurrentEmployee()).role();
             }
             final var activeRole = role;
-            long presidentRevision=service.presidentRevision(id,activeRole);
-            Optional<OfficeCompletionState> current=service.load(id,activeRole);
+            long presidentRevision=InstitutionalMailboxReadScope.read(activeRole,
+                    () -> service.presidentRevision(id,activeRole));
+            Optional<OfficeCompletionState> current=InstitutionalMailboxReadScope.read(activeRole,
+                    () -> service.load(id,activeRole));
             JSONObject result=new JSONObject();
             result.put("technicalId",id);
             result.put("presidentReviewRevision",presidentRevision);
             result.put("revision",current.map(OfficeCompletionState::revision)
-                    .orElseGet(() -> service.headRevision(id,activeRole)));
+                    .orElseGet(() -> InstitutionalMailboxReadScope.read(activeRole,
+                            () -> service.headRevision(id,activeRole))));
             if (current.isPresent()) {
                 OfficeCompletionState snapshot=current.orElseThrow();
                 result.put("state",new JSONObject(snapshot.json()));

@@ -391,8 +391,10 @@ public final class AlfrescoCorrespondenceRepository
                 && command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
                 && (command.actorRole() == CorrespondenceActorRole.DIRECTOR
                     || (command.actorRole() == CorrespondenceActorRole.PRESIDENT_OFFICE
-                        && "PENDING".equals(nodeService.getProperty(correspondence, PROP_SECRETARY_STATUS))
-                        && "101".equals(nodeService.getProperty(correspondence, PROP_ORIGIN_DEPARTMENT_CODE))));
+                        && "101".equals(nodeService.getProperty(correspondence, PROP_ORIGIN_DEPARTMENT_CODE))
+                        && (CorrespondenceActorRole.PRESIDENT_OFFICE.name().equals(
+                                nodeService.getProperty(correspondence, PROP_CREATION_ROLE))
+                            || "PENDING".equals(nodeService.getProperty(correspondence, PROP_SECRETARY_STATUS)))));
         if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
                 && !directInitialSubmission
                 && !lastActionWasForwardableOfficeArrival(correspondence, currentSequence)) {

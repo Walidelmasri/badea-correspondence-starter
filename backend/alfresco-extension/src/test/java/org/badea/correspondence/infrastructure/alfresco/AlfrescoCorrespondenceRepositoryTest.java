@@ -394,6 +394,47 @@ class AlfrescoCorrespondenceRepositoryTest {
     }
 
     @Test
+    void officeInitiationFromUnit101ReservesReferenceAndCreatesPresidentDelivery() {
+        NodeRef correspondence = nodeRef("00000000-0000-0000-0000-000000000900");
+        NodeRef actionNode = nodeRef("00000000-0000-0000-0000-000000000901");
+        ChildAssociationRef action = mock(ChildAssociationRef.class);
+        when(action.getChildRef()).thenReturn(actionNode);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(correspondence);
+        when(nodeService.getProperty(correspondence, qname("state"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(correspondence, qname("lastActionSequence"))).thenReturn(0L);
+        when(nodeService.getProperty(correspondence, qname("originDepartmentCode")))
+                .thenReturn("101");
+        when(nodeService.getProperty(correspondence, qname("createdByCorrespondenceRole")))
+                .thenReturn("PRESIDENT_OFFICE");
+        NodeRef folder = nodeRef("00000000-0000-0000-0000-000000000118");
+        when(folderLocator.locateDepartmentFolder(new DepartmentCode("101")))
+                .thenReturn(folder);
+        when(nodeService.getChildAssocs(folder)).thenReturn(java.util.List.of());
+        ChildAssociationRef reservation = mock(ChildAssociationRef.class);
+        when(reservation.getChildRef()).thenReturn(
+                nodeRef("00000000-0000-0000-0000-000000000119"));
+        when(nodeService.createNode(eq(folder), eq(ContentModel.ASSOC_CONTAINS),
+                eq(qname("ref-sequence-1")), eq(ContentModel.TYPE_FOLDER), any()))
+                .thenReturn(reservation);
+        when(nodeService.createNode(eq(correspondence), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(qname("workflowAction")), any()))
+                .thenReturn(action);
+        var command = transitionCommand(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null);
+        repository.applyTransition(command, CorrespondenceState.DRAFT,
+                CorrespondenceState.WITH_PRESIDENT, CorrespondenceActorRole.PRESIDENT);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<QName, Serializable>> properties = ArgumentCaptor.forClass(Map.class);
+        verify(nodeService).createNode(eq(correspondence), eq(ContentModel.ASSOC_CONTAINS),
+                eq(qname("action-000001")), eq(qname("workflowAction")), properties.capture());
+        assertEquals("SEND_TO_PRESIDENT", properties.getValue().get(qname("actionType")));
+        assertEquals("PRESIDENT_OFFICE", properties.getValue().get(qname("actorRole")));
+        assertEquals("PRESIDENT", properties.getValue().get(qname("targetRole")));
+        verify(nodeService).setProperty(eq(correspondence), eq(qname("documentNumber")), any());
+        verify(nodeService).setProperty(correspondence, qname("state"), "WITH_PRESIDENT");
+    }
+
+    @Test
     void persistsFirstWorkflowActionAndUpdatesAssignment() {
 
         NodeRef correspondence =

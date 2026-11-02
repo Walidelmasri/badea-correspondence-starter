@@ -9,6 +9,7 @@ import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.application.PresidentReviewState;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.json.JSONException;
@@ -66,10 +67,9 @@ public final class GetPresidentReviewWebScript
                 actorRole = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"),
                     employees.getCurrentEmployee()).role();
             }
-            Optional<PresidentReviewState> savedState =
-                    presidentReviewService.load(
-                            technicalId,
-                            actorRole);
+            final var approvedRole = actorRole;
+            Optional<PresidentReviewState> savedState = InstitutionalMailboxReadScope.read(
+                    approvedRole, () -> presidentReviewService.load(technicalId, approvedRole));
 
             JSONObject result =
                     new JSONObject();

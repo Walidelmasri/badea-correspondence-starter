@@ -152,6 +152,23 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
+    void presidentInboxIsSharedButPresidentSentRemainsPersonal() {
+        prop("state", "WITH_PRESIDENT");
+        prop("assignedRole", "PRESIDENT");
+        action("10001", "PRESIDENT_OFFICE", "PRESIDENT", null);
+        for (String presidentEmployee : List.of("10002", "10003")) {
+            assertEquals(1, lister.list("inbox", CorrespondenceActorRole.PRESIDENT,
+                    null, presidentEmployee, "all", 0, 25).total());
+            assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT,
+                    null, presidentEmployee, "all", 0, 25).total());
+        }
+        assertEquals(1, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "10002", "all", 0, 25).total());
+    }
+
+    @Test
     void directorInboxMustMatchAssignedDepartment() {
         prop("state", "WITH_DIRECTOR");
         prop("assignedRole", "DIRECTOR");
@@ -174,6 +191,29 @@ class AlfrescoCorrespondenceMailboxListerTest {
         when(permissions.hasPermission(folder, PermissionService.READ))
                 .thenReturn(AccessStatus.DENIED);
         assertEquals(0, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE, null, 0, 25).total());
+    }
+
+    @Test
+    void presidentCannotMistakeMissingDepartmentReadPermissionsForAnEmptyInbox() {
+        when(permissions.hasPermission(folder, PermissionService.READ))
+                .thenReturn(AccessStatus.DENIED);
+        assertThrows(CorrespondenceMailboxPermissionException.class,
+                () -> lister.list("inbox", CorrespondenceActorRole.PRESIDENT,
+                        null, "president", "all", 0, 25));
+        // Other role semantics and document permissions remain unchanged.
+        assertEquals(0, lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                null, "office", "all", 0, 25).total());
+    }
+
+    @Test
+    void presidentCannotReceiveSilentlyEmptyInboxWhenDocumentAclDeniesRead() {
+        prop("state", "WITH_PRESIDENT");
+        prop("assignedRole", "PRESIDENT");
+        when(permissions.hasPermission(document, PermissionService.READ))
+                .thenReturn(AccessStatus.DENIED);
+        assertThrows(CorrespondenceMailboxPermissionException.class,
+                () -> lister.list("inbox", CorrespondenceActorRole.PRESIDENT,
+                        null, "president", "all", 0, 25));
     }
 
     @Test

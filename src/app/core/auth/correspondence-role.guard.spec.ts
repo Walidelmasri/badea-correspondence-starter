@@ -28,6 +28,7 @@ import {
 import {
   composeRoleGuard,
   directorRoleGuard,
+  officeRoleGuard,
 } from './correspondence-role.guard';
 
 const baseUser: CurrentUser = {
@@ -125,10 +126,20 @@ describe('Correspondence role guards', () => {
     expect(runComposeGuard()).toBe(true);
   });
 
-  it('opens the shared executive form for the Office', () => {
+  it('routes President Office users to their own intake form', () => {
     setRole('PRESIDENT_OFFICE');
+    const result = runComposeGuard();
+    expect(result instanceof UrlTree).toBe(true);
+    expect(router.serializeUrl(result as UrlTree)).toBe('/office/new');
+  });
 
-    expect(runComposeGuard()).toBe(true);
+  it('does not let the President open the Office intake editor', () => {
+    setRole('PRESIDENT');
+    const result = TestBed.runInInjectionContext(() => officeRoleGuard(
+      {} as ActivatedRouteSnapshot,
+      { url: '/office/new' } as RouterStateSnapshot,
+    )) as UrlTree;
+    expect(router.serializeUrl(result)).toBe('/compose');
   });
 
   it('does not guess a role from department membership', () => {
@@ -165,6 +176,12 @@ describe('Correspondence role guards', () => {
     expect(
       router.serializeUrl(result as UrlTree),
     ).toBe('/compose');
+  });
+
+  it('redirects Office users from the Director form to Office intake', () => {
+    setRole('PRESIDENT_OFFICE');
+    const result = runDirectorGuard() as UrlTree;
+    expect(router.serializeUrl(result)).toBe('/office/new');
   });
 
   it('blocks users without a correspondence role', () => {

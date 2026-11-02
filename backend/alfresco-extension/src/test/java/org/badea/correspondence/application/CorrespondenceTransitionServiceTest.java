@@ -57,7 +57,7 @@ class CorrespondenceTransitionServiceTest {
     @Test
     void executiveCreatorCanSubmitToOfficeWithoutFinalizingPresidentReview() {
         for (var role : new CorrespondenceActorRole[] {
-                CorrespondenceActorRole.PRESIDENT, CorrespondenceActorRole.PRESIDENT_OFFICE }) {
+                CorrespondenceActorRole.PRESIDENT }) {
             TransitionCorrespondenceCommand submit = command(role,
                     CorrespondenceAction.SEND_TO_OFFICE, new DepartmentCode("117"), null, null);
             var draft = new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
@@ -68,6 +68,20 @@ class CorrespondenceTransitionServiceTest {
             verify(repository).applyTransition(submit, CorrespondenceState.DRAFT,
                     CorrespondenceState.WITH_PRESIDENT_OFFICE, CorrespondenceActorRole.PRESIDENT_OFFICE);
         }
+        org.mockito.Mockito.verifyNoInteractions(finalizer);
+    }
+
+    @Test
+    void officeCreatorSubmitsToPresidentWithPersonalSenderIdentity() {
+        var office = command(CorrespondenceActorRole.PRESIDENT_OFFICE,
+                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null);
+        when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
+                new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
+                        new DepartmentCode("101"), null, null, List.of(), List.of(),
+                        CorrespondenceActorRole.PRESIDENT_OFFICE, "18280"));
+        assertEquals(CorrespondenceState.WITH_PRESIDENT, service.transition(office));
+        verify(repository).applyTransition(office, CorrespondenceState.DRAFT,
+                CorrespondenceState.WITH_PRESIDENT, CorrespondenceActorRole.PRESIDENT);
         org.mockito.Mockito.verifyNoInteractions(finalizer);
     }
 
@@ -614,7 +628,7 @@ class CorrespondenceTransitionServiceTest {
         when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(directorDraft("118", "18280"));
         assertThrows(CorrespondenceAuthorizationException.class, () -> service.transition(direct));
         var executive = command(CorrespondenceActorRole.PRESIDENT_OFFICE,
-                CorrespondenceAction.SEND_TO_PRESIDENT, new DepartmentCode("101"), null, null);
+                CorrespondenceAction.SEND_TO_OFFICE, new DepartmentCode("101"), null, null);
         when(repository.getAccessContext(TECHNICAL_ID)).thenReturn(
                 new CorrespondenceAccessContext(CorrespondenceState.DRAFT,
                         new DepartmentCode("101"), null, null, List.of(), List.of(),

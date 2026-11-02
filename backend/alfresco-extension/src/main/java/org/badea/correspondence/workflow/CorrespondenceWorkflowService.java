@@ -86,9 +86,14 @@ public final class CorrespondenceWorkflowService {
             // The application service authorizes dual-manager submissions.
             return CorrespondenceState.WITH_PRESIDENT;
         }
+        // Office-originated correspondence goes directly to the President.
+        // The Office does not send its own newly-created draft back to itself.
+        if (actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE
+                && action == CorrespondenceAction.SEND_TO_PRESIDENT) {
+            return CorrespondenceState.WITH_PRESIDENT;
+        }
         if ((actorRole == CorrespondenceActorRole.DIRECTOR
-                || actorRole == CorrespondenceActorRole.PRESIDENT
-                || actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE)
+                || actorRole == CorrespondenceActorRole.PRESIDENT)
                 && action == CorrespondenceAction.SEND_TO_OFFICE) {
 
             return CorrespondenceState.WITH_PRESIDENT_OFFICE;

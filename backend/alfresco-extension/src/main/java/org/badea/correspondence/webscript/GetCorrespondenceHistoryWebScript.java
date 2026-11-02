@@ -13,6 +13,7 @@ import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceHistoryReader;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.json.JSONArray;
@@ -54,9 +55,16 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
                 role = selectedWorkspace.role();
                 department = selectedWorkspace.unit();
             }
-            // This call enforces both role/department visibility and Alfresco READ.
-            details.getDetails(id, role, department, employee.employeeId().value());
-            List<AlfrescoCorrespondenceHistoryReader.ActionEntry> history = reader.list(id);
+            // Authenticated role + persisted correspondence participation grant
+            // institutional visibility, while private drafts remain private.
+            final var approvedRole = role;
+            final var approvedDepartment = department;
+            List<AlfrescoCorrespondenceHistoryReader.ActionEntry> history =
+                    InstitutionalMailboxReadScope.read(approvedRole, () -> {
+                        details.getDetails(id, approvedRole, approvedDepartment,
+                                employee.employeeId().value());
+                        return reader.list(id);
+                    });
             JSONArray items = new JSONArray();
             for (var a : history) {
                 JSONObject item = new JSONObject();

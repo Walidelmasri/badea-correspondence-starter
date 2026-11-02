@@ -13,8 +13,7 @@ class CorrespondenceWorkflowServiceTest {
     @Test
     void executiveOriginatorsMaySendOnlyTheirDraftToOfficeAtWorkflowLevel() {
         for (var role : new CorrespondenceActorRole[] {
-                CorrespondenceActorRole.PRESIDENT,
-                CorrespondenceActorRole.PRESIDENT_OFFICE }) {
+                CorrespondenceActorRole.PRESIDENT }) {
             assertEquals(CorrespondenceState.WITH_PRESIDENT_OFFICE,
                     workflow.nextState(CorrespondenceState.DRAFT, role,
                             CorrespondenceAction.SEND_TO_OFFICE));
@@ -48,16 +47,15 @@ class CorrespondenceWorkflowServiceTest {
     }
 
     @Test
-    void presidentOfficeCannotSendUnsubmittedDraftToPresident() {
-
-        assertThrows(
-                InvalidCorrespondenceTransitionException.class,
-                () -> workflow.nextState(
-                        CorrespondenceState.DRAFT,
+    void presidentOfficeInitiatedDraftGoesDirectlyToPresident() {
+        assertEquals(CorrespondenceState.WITH_PRESIDENT,
+                workflow.nextState(CorrespondenceState.DRAFT,
                         CorrespondenceActorRole.PRESIDENT_OFFICE,
-                        CorrespondenceAction.SEND_TO_PRESIDENT
-                )
-        );
+                        CorrespondenceAction.SEND_TO_PRESIDENT));
+        assertThrows(InvalidCorrespondenceTransitionException.class,
+                () -> workflow.nextState(CorrespondenceState.DRAFT,
+                        CorrespondenceActorRole.PRESIDENT_OFFICE,
+                        CorrespondenceAction.SEND_TO_OFFICE));
     }
 
     @Test

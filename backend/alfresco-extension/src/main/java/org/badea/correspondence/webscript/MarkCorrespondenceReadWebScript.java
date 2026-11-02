@@ -10,6 +10,7 @@ import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceReadReceipts;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
+import org.badea.correspondence.security.InstitutionalMailboxReadScope;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.json.JSONObject;
@@ -54,7 +55,10 @@ public final class MarkCorrespondenceReadWebScript extends AbstractWebScript {
             }
             String employeeId = employee.employeeId().value();
             // Mandatory existing authorization check before any write.
-            var authorized = details.getDetails(id, role, department, employeeId);
+            final var approvedRole = role;
+            final var approvedDepartment = department;
+            InstitutionalMailboxReadScope.read(approvedRole,
+                    () -> details.getDetails(id, approvedRole, approvedDepartment, employeeId));
             // The repository checks incoming target role and department.
             // The existing details service has already authorized this employee.
             long applied = receipts.markRead(id, role, department, employeeId,

@@ -106,7 +106,9 @@ public final class CorrespondenceTransitionService {
             // department-scoped draft permission or any assigned-role permission.
             accessAuthorizer.authorizeExecutiveDraftSubmission(
                     accessContext, command.actorRole(), command.actorEmployeeId().value());
-            if (command.action() != CorrespondenceAction.SEND_TO_OFFICE) {
+            CorrespondenceAction allowed = command.actorRole() == CorrespondenceActorRole.PRESIDENT_OFFICE
+                    ? CorrespondenceAction.SEND_TO_PRESIDENT : CorrespondenceAction.SEND_TO_OFFICE;
+            if (command.action() != allowed) {
                 throw new org.badea.correspondence.workflow.InvalidCorrespondenceTransitionException(
                         accessContext.state(), command.actorRole(), command.action());
             }
@@ -116,7 +118,8 @@ public final class CorrespondenceTransitionService {
         }
 
         if (command.action() == CorrespondenceAction.SEND_TO_PRESIDENT
-                && accessContext.state() == CorrespondenceState.DRAFT) {
+                && accessContext.state() == CorrespondenceState.DRAFT
+                && command.actorRole() == CorrespondenceActorRole.DIRECTOR) {
             authorizeDirectPresidentSubmission(command, accessContext);
         }
 

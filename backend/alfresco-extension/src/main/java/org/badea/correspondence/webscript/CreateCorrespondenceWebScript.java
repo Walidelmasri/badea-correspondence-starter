@@ -9,6 +9,7 @@ import org.badea.correspondence.application.CreateCorrespondenceCommand;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
+import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceRepository;
@@ -106,7 +107,13 @@ public final class CreateCorrespondenceWebScript
             }
             DepartmentDirectoryEntry department =
                     employee.department().orElse(null);
-            if (workspace != null) {
+            if (actorRole == CorrespondenceActorRole.PRESIDENT_OFFICE) {
+                // Institutional Office initiation always belongs to unit 101.
+                // A staff member's directory/home department is NOT the Office.
+                // Director workspaces retain their own originating department.
+                department = new DepartmentDirectoryEntry(
+                    new DepartmentCode("101"), "President's Office", null);
+            } else if (workspace != null) {
                 department = new DepartmentDirectoryEntry(workspace.unit(),
                     workspace.unit().value(), null);
             }
