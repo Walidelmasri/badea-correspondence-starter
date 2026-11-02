@@ -142,7 +142,7 @@ class PdfBoxOfficeActionSheetRendererTest {
                 "Official correspondence",null,"A-11",LocalDate.of(2026,10,20),"IT", "117","Author",null,List.of());
         var recipients=new DistributionRecipients(List.of(new DepartmentCode("117")),List.of());
         var plan=new OfficeDistributionPlan(5,2,recipients,List.of("study-and-opinion"),
-                "توجيهات الرئيس", "استكمال مكتب الرئيس", "ملاحظات إدارية", "", "");
+                "توجيهات الرئيس", "استكمال مكتب الرئيس", "ملاحظات إدارية", "جهة إضافية خاصة", "");
         byte[] bytes=new PdfBoxOfficeActionSheetRenderer().render(source,plan,
                 List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),"Digital Transformation","إدارة التحول الرقمي")),List.of(),printContext());
         assertTrue(bytes.length>1000);
@@ -151,6 +151,22 @@ class PdfBoxOfficeActionSheetRendererTest {
             assertEquals(595.3,pdf.getPage(0).getMediaBox().getWidth(),1.5);
         }
     }
+    @Test void ordinaryOfficeMetadataDoesNotInsertAnUnrequestedSecondPacketPage() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Test President Inbox", null, "117/20261102/7", LocalDate.of(2026,11,2),
+                "إدارة التحول الرقمي", "117", "Author", null, List.of());
+        var recipients = new DistributionRecipients(List.of(new DepartmentCode("117")),List.of());
+        var plan = new OfficeDistributionPlan(2,2,recipients,List.of("required-action"),
+                "", "مكتمل من مكتب الرئيس", "ملاحظات إدارية مسجلة في النظام", "", "");
+        byte[] bytes = new PdfBoxOfficeActionSheetRenderer().render(source,plan,
+                List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                        "Digital Transformation","إدارة التحول الرقمي")), List.of(), printContext());
+        try (var pdf = Loader.loadPDF(bytes)) {
+            assertEquals(1,pdf.getNumberOfPages(),
+                    "Ordinary office metadata is recorded in history, not a duplicate summary page");
+        }
+    }
+
     @Test void simpleHandwrittenExplanationNeedsNoGenericAnnex() throws Exception {
         var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
                 "Subject", null, "117/20261025/1", LocalDate.of(2026,10,25),

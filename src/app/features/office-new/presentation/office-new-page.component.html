@@ -39,11 +39,6 @@
           ? 'الوجهة ثابتة ولا تعتمد على إدارة الموظف في دليل الموارد البشرية.'
           : 'The destination is fixed; the sender’s home department does not change it.' }}
       </p>
-      <label class="form-field">
-        <span class="form-field__label">{{ translation.text().compose.fields.copyTo }}</span>
-        <input type="text" formControlName="copyTo"
-          [placeholder]="translation.text().compose.placeholders.copyTo" autocomplete="off" />
-      </label>
     </section>
     <section class="compose-section">
       <div class="compose-section__header">
@@ -100,9 +95,24 @@
           <input
             type="text"
             formControlName="entity"
-            [placeholder]="translation.text().compose.placeholders.entity"
+            list="office-entity-departments"
+            [placeholder]="translation.language() === 'ar'
+              ? 'اكتب اسم الدولة أو الجهة، أو اختر إدارة من القائمة'
+              : 'Enter a country/organization or select a department'"
             autocomplete="off"
           />
+          <datalist id="office-entity-departments">
+            @for (department of departments(); track department.code) {
+              <option [value]="translation.language() === 'ar'
+                ? (department.nameArabic || department.nameEnglish)
+                : department.nameEnglish"></option>
+            }
+          </datalist>
+          <span class="form-field__hint">
+            {{ translation.language() === 'ar'
+              ? 'يمكن كتابة أي دولة أو جهة بحرية، أو اختيار إدارة من دليل BADEA.'
+              : 'Free text is accepted; BADEA departments are suggested from the directory.' }}
+          </span>
         </label>
       </div>
     </section>
@@ -111,8 +121,20 @@
       <div class="compose-section__header">
         <h2>
           {{ translation.text().compose.fields.instruction }}
+          <small>{{ translation.language() === 'ar' ? '(اختياري)' : '(optional)' }}</small>
         </h2>
       </div>
+      <p class="compose-notice">
+        {{ translation.language() === 'ar'
+          ? 'يمكن ترك الإجراء دون تحديد، ليقرر الرئيس الإجراء ويعيد المراسلة إلى المكتب.'
+          : 'Leave the action blank for the President to decide and return the correspondence to the Office.' }}
+      </p>
+      @if (form.controls.instruction.value !== null) {
+        <button type="button" class="compose-actions__secondary"
+          [disabled]="busy() || readOnly()" (click)="clearInstruction()">
+          {{ translation.language() === 'ar' ? 'مسح الإجراء المحدد' : 'Clear selected action' }}
+        </button>
+      }
 
       <fieldset class="instruction-grid">
         <legend class="visually-hidden">

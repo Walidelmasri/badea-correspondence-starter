@@ -37,19 +37,22 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     private static final Font FONT = new Font("Dialog", Font.PLAIN, 11);
     private static final FontRenderContext FRC = new FontRenderContext(null, true, true);
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final Map<String, float[]> DEPARTMENTS = Map.ofEntries(
-        entry("إدارة الشؤون القانونية",28,249), entry("إدارة الشؤون الإدارية والخدمات اللوجستية",28,268),
-        entry("إدارة التحول الرقمي",28,291), entry("إدارة العمليات المالية والمصرفية",28,305),
-        entry("إدارة الموارد البشرية",28,327), entry("نائب رئيس المصرف لقطاع الموارد المؤسسية",28,239),
-        entry("مكتب الشراكات التنموية",215,223), entry("مستشارو رئيس المصرف",215,251),
-        entry("المكاتب الإقليمية",215,267), entry("الاتصال والإعلام",215,292),
-        entry("إدارة الاستراتيجية",215,307), entry("إدارة المخاطر",217,341),
-        entry("نائب رئيس المصرف لقطاع العمليات",354,231),
-        entry("إدارة العمليات قطاع عام",354,250),
-        entry("إدارة العمليات قطاع خاص وتمويل التجارة",354,269),
-        entry("إدارة الخزانة والاستثمار",354,293),
-        entry("مكتب تقييم فعالية التنمية",34,359), entry("مكتب الامتثال والنزاهة",132,359),
-        entry("إدارة التدقيق الداخلي",354,358), entry("أمانة مجلسي المحافظين والإدارة واللجان",458,358));
+    private static final List<List<String>> DEPARTMENT_COLUMNS = List.of(
+        List.of("نائب رئيس المصرف لقطاع الموارد المؤسسية", "إدارة الشؤون القانونية",
+                "إدارة الشؤون الإدارية والخدمات اللوجستية", "إدارة التحول الرقمي",
+                "إدارة العمليات المالية والمصرفية", "إدارة الموارد البشرية",
+                "مكتب تقييم فعالية التنمية"),
+        List.of("مكتب الشراكات التنموية", "مستشارو رئيس المصرف",
+                "المكاتب الإقليمية", "الاتصال والإعلام", "إدارة الاستراتيجية",
+                "إدارة المخاطر", "مكتب الامتثال والنزاهة"),
+        List.of("نائب رئيس المصرف لقطاع العمليات", "إدارة العمليات قطاع عام",
+                "إدارة العمليات قطاع خاص وتمويل التجارة", "إدارة الخزانة والاستثمار",
+                "إدارة التدقيق الداخلي", "أمانة مجلسي المحافظين والإدارة واللجان"));
+    private static final float DEPARTMENT_TABLE_LEFT = 22f;
+    private static final float DEPARTMENT_TABLE_RIGHT = 573f;
+    private static final float DEPARTMENT_TABLE_TOP = 197f;
+    private static final float DEPARTMENT_TABLE_HEADING_HEIGHT = 19f;
+    private static final float DEPARTMENT_TABLE_ROW_HEIGHT = 22f;
     private static final Map<String,float[]> ACTIONS = Map.ofEntries(
         entry("required-action",335,395), entry("review-and-advise",335,412),
         entry("direct-response",335,429), entry("information-and-action",335,448),
@@ -108,11 +111,16 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     // An overlong recipient list is detailed on the annex, not written over the table.
                     String allNames = recipientHeader(to, printContext);
                     String header = allNames;
-                    if (textWidth(header, 10) > 395) {
+                    if (textWidth(header, 9) > 505) {
                         header = "الأسماء كاملة في الملحق";
                     }
-                    outline(canvas,header,475,131,10,h,true);
-                    outline(canvas,fitHeader(source.subject(),10,430),485,158,10,h,true);
+                    // One recipient per dedicated line, with a clear vertical gap
+                    // before the printed subject label. This replaces the cramped
+                    // original "إلى السيد" line without covering the BADEA masthead.
+                    erase(canvas,h,22,108,573,35);
+                    outline(canvas,"إلى السيد /",570,121,10,h,true);
+                    outline(canvas,header,544,139,9,h,true);
+                    outline(canvas,fitHeader(source.subject(),10,420),469,158,10,h,true);
                     outline(canvas,fitHeader(source.documentNumber(),9,120),471,173,9,h,true);
                     // Source/country is on the RIGHT of its printed caption, not
                     // across the caption or into the date/number columns.
@@ -125,12 +133,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                         outline(canvas,sourceField.lines().get(0),382,166,sourceField.fontSize(),h,true);
                         outline(canvas,sourceField.lines().get(1),382,175,sourceField.fontSize(),h,true);
                     }
-                    for (DepartmentDirectoryEntry recipient : to) {
-                        String key = normalize(recipient.nameArabic());
-                        for (var marker : DEPARTMENTS.entrySet()) {
-                            if (normalize(marker.getKey()).equals(key)) mark(canvas,marker.getValue(),h);
-                        }
-                    }
+                    drawDepartmentTable(canvas,h,to);
                     for (String code : plan.actionCodes()) {
                         float[] box = ACTIONS.get(code);
                         if (box != null) mark(canvas,box,h);
@@ -163,8 +166,8 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 // Additional pages are produced only for real overflow or material
                 // that is not represented on the printed cover, never unconditionally.
                 if (requiresContinuation(plan, to, copy, printContext.presidentSignature() != null)
-                        || textWidth(recipientHeader(to, printContext), 10) > 395
-                        || textWidth(source.subject(), 10) > 430
+                        || textWidth(recipientHeader(to, printContext), 9) > 505
+                        || textWidth(source.subject(), 10) > 420
                         || textWidth(source.documentNumber(), 9) > 120
                         || needsSourceAnnex(source.sourceText())) {
                     appendAnnex(document,source,plan,to,copy,printContext);
@@ -262,13 +265,13 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
 
     private static boolean requiresContinuation(OfficeDistributionPlan plan,
             List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy, boolean signed) {
+        // Office completion and administrative notes belong to the persisted
+        // workflow history; they do not justify a duplicate printable packet page.
         if (copy.size() > 3 || copy.stream().anyMatch(entry -> recipientName(entry).length() > 60)
-                || !plan.officeDirections().isBlank()
-                || !plan.administrativeNotes().isBlank()
                 || !plan.otherRecipient().isBlank() || !plan.otherAction().isBlank()) return true;
-        // The old annex preserved names not represented in the printed checkboxes.
+        // Preserve real recipients whose names cannot be represented in the table.
         for (DepartmentDirectoryEntry recipient : to) {
-            if (!DEPARTMENTS.keySet().stream().anyMatch(name ->
+            if (DEPARTMENT_COLUMNS.stream().flatMap(List::stream).noneMatch(name ->
                     normalize(name).equals(normalize(recipient.nameArabic())))) return true;
         }
         boolean ink = plan.explanationInkPages().stream().anyMatch(page -> !page.isEmpty());
@@ -464,6 +467,90 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 .replaceAll("[اأإآ]","ا")
                 .replaceAll("\\s+","").replace("–","").replace("-","").trim();
     }
+    private static void drawDepartmentTable(PDPageContentStream canvas, float pageHeight,
+            List<DepartmentDirectoryEntry> selected) throws IOException {
+        float width = DEPARTMENT_TABLE_RIGHT - DEPARTMENT_TABLE_LEFT;
+        float columnWidth = width / DEPARTMENT_COLUMNS.size();
+        float bottom = DEPARTMENT_TABLE_TOP + DEPARTMENT_TABLE_HEADING_HEIGHT
+                + 7f * DEPARTMENT_TABLE_ROW_HEIGHT;
+        // The source template already has overprinted labels at the upper edge,
+        // and a right border outside the useful grid. Clear the entire region,
+        // not only the interior of the replacement table.
+        erase(canvas,pageHeight,DEPARTMENT_TABLE_LEFT-2,192.2f,
+                575f,bottom-192.2f+2f);
+        canvas.setStrokingColor(0.30f,0.34f,0.34f);
+        canvas.setLineWidth(0.55f);
+        canvas.addRect(DEPARTMENT_TABLE_LEFT,pageHeight-bottom,width,bottom-DEPARTMENT_TABLE_TOP);
+        for (int col = 1; col < DEPARTMENT_COLUMNS.size(); col++) {
+            float x = DEPARTMENT_TABLE_LEFT + col * columnWidth;
+            canvas.moveTo(x,pageHeight-(DEPARTMENT_TABLE_TOP+DEPARTMENT_TABLE_HEADING_HEIGHT));
+            canvas.lineTo(x,pageHeight-bottom);
+        }
+        for (int row = 0; row <= 7; row++) {
+            float y = DEPARTMENT_TABLE_TOP + DEPARTMENT_TABLE_HEADING_HEIGHT
+                    + row * DEPARTMENT_TABLE_ROW_HEIGHT;
+            canvas.moveTo(DEPARTMENT_TABLE_LEFT,pageHeight-y);
+            canvas.lineTo(DEPARTMENT_TABLE_RIGHT,pageHeight-y);
+        }
+        canvas.stroke();
+        canvas.setStrokingColor(0f,0f,0f);
+        String heading = "مكتب الرئيس";
+        outline(canvas,heading,(DEPARTMENT_TABLE_LEFT+DEPARTMENT_TABLE_RIGHT
+                + textWidth(heading,10))/2f,DEPARTMENT_TABLE_TOP+13,10,pageHeight,true);
+        for (int col = 0; col < DEPARTMENT_COLUMNS.size(); col++) {
+            List<String> names = DEPARTMENT_COLUMNS.get(col);
+            float left = DEPARTMENT_TABLE_LEFT + col*columnWidth;
+            float right = left+columnWidth;
+            for (int row = 0; row < names.size(); row++) {
+                String name = names.get(row);
+                float top = DEPARTMENT_TABLE_TOP+DEPARTMENT_TABLE_HEADING_HEIGHT
+                        + row*DEPARTMENT_TABLE_ROW_HEIGHT;
+                List<String> lines = List.of();
+                float size = 0;
+                for (float candidate : new float[]{8.2f,7.6f,7f,6.4f,5.8f}) {
+                    lines = wrapCell(name,candidate,columnWidth-35f);
+                    if (!lines.isEmpty()) { size=candidate; break; }
+                }
+                if (lines.isEmpty()) throw new IllegalStateException("Action-sheet cell cannot fit: " + name);
+                float baseline = top+(lines.size()==1 ? 14f : 9.5f);
+                for (String line : lines) {
+                    outline(canvas,line,right-7f,baseline,size,pageHeight,true);
+                    baseline += 9.5f;
+                }
+                float boxX=left+6f, boxTop=top+5.5f;
+                canvas.setStrokingColor(0.19f,0.31f,0.44f);
+                canvas.setLineWidth(0.8f);
+                canvas.addRect(boxX,pageHeight-boxTop-11f,11f,11f);
+                canvas.stroke();
+                if (selected.stream().anyMatch(recipient ->
+                        normalize(name).equals(normalize(recipient.nameArabic())))) {
+                    canvas.setLineWidth(1.4f);
+                    canvas.moveTo(boxX+2,pageHeight-(boxTop+6));
+                    canvas.lineTo(boxX+5,pageHeight-(boxTop+9));
+                    canvas.lineTo(boxX+10,pageHeight-(boxTop+2));
+                    canvas.stroke();
+                }
+            }
+        }
+        canvas.setStrokingColor(0f,0f,0f);
+    }
+
+    private static List<String> wrapCell(String text,float size,float maxWidth) {
+        var lines = new java.util.ArrayList<String>();
+        String current="";
+        for (String word : text.split("\\s+")) {
+            if (textWidth(word,size)>maxWidth) return List.of();
+            String next=current.isEmpty() ? word : current+" "+word;
+            if (textWidth(next,size)>maxWidth) {
+                if (current.isEmpty()) return List.of();
+                lines.add(current);
+                current=word;
+            } else current=next;
+        }
+        if (!current.isEmpty()) lines.add(current);
+        return lines.size()>2 ? List.of() : List.copyOf(lines);
+    }
+
     private static void mark(PDPageContentStream canvas,float[] p,float pageHeight) throws IOException {
         float x=p[0],y=pageHeight-p[1];
         canvas.setLineWidth(1.5f);
