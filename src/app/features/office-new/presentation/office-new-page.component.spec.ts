@@ -67,6 +67,7 @@ describe('President Office institutional intake', () => {
     });
     await office.send();
     expect(api.createDraft).toHaveBeenCalledWith(expect.objectContaining({
+      sourceText: 'Kenya',
       executiveCompose: expect.objectContaining({ entity: 'Kenya', instruction: '' }),
     }));
   });

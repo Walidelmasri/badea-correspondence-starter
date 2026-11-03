@@ -280,6 +280,20 @@ describe(
       expect(navigate).toHaveBeenCalledWith('/access-denied');
     });
 
+    it('keeps a rejected Alfresco ticket on the login form instead of showing 403', () => {
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      authService.login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 403,
+        url: '/alfresco/api/-default-/public/authentication/versions/1/tickets',
+      })));
+      component.form.setValue({ userId: 'test.user', password: 'wrong-password' });
+      component.submit();
+      fixture.detectChanges();
+      expect(navigate).not.toHaveBeenCalledWith('/access-denied');
+      expect(component.errorMessage()).toBe(component.translation.text().auth.invalidCredentials);
+      expect(fixture.nativeElement.querySelector('.login-form')).not.toBeNull();
+    });
+
     it('distinguishes valid Alfresco credentials from a missing employee record', () => {
       authService.login.mockReturnValue(throwError(() => new HttpErrorResponse({
         status: 404, url: '/alfresco/service/badea/correspondence/me',

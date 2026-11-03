@@ -184,6 +184,34 @@ class PdfBoxOfficeActionSheetRendererTest {
         }
     }
 
+    @Test void legacyExecutiveEntityRendersEvenWhenSourceTextWasNotSaved() {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "101/20261103/1", LocalDate.of(2026,11,3), null,
+                "101", "Office", null, List.of(), List.of(), "{\"entity\":\"Kenya\"}");
+        assertEquals("Kenya", PdfBoxOfficeActionSheetRenderer.sourceValue(source));
+    }
+
+    @Test void attachmentsShowOnCoverUnlessFullListNeedsAnnex() {
+        var one = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "101/20261103/1", LocalDate.of(2026,11,3), "Kenya",
+                "101", "Office", null, List.of(new org.badea.correspondence.application.CorrespondenceDocument(
+                        "attachment-1", "brief.pdf", "application/pdf", 123L)),
+                List.of(), null);
+        assertEquals("brief.pdf", PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(one));
+        assertFalse(PdfBoxOfficeActionSheetRenderer.needsAttachmentAnnex(one));
+
+        var longList = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "101/20261103/1", LocalDate.of(2026,11,3), "Kenya",
+                "101", "Office", null, List.of(
+                        new org.badea.correspondence.application.CorrespondenceDocument(
+                                "attachment-1", "regional-governance-report-long-name.pdf", "application/pdf", 123L),
+                        new org.badea.correspondence.application.CorrespondenceDocument(
+                                "attachment-2", "presidential-departmental-communication-reference.pdf", "application/pdf", 123L)),
+                List.of(), null);
+        assertTrue(PdfBoxOfficeActionSheetRenderer.needsAttachmentAnnex(longList));
+        assertTrue(PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(longList).contains("2"));
+    }
+
     @Test void generationTimestampPreservesOfficialDepartmentRecipientRule() {
         var stamp = new OfficeActionSheetPrintContext(LocalDate.of(2026, 11, 3),
             java.util.Map.of(), null, java.time.LocalTime.of(14, 7, 45));

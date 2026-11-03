@@ -21,6 +21,9 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.badea.correspondence.application.CorrespondenceDetails;
+import org.badea.correspondence.application.CorrespondenceDocument;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.badea.correspondence.application.OfficeActionSheetRenderer;
 import org.badea.correspondence.application.OfficeActionSheetPrintContext;
 import org.badea.correspondence.application.OfficeDistributionPlan;
@@ -124,7 +127,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     outline(canvas,fitHeader(source.documentNumber(),9,120),471,173,9,h,true);
                     // Source/country is on the RIGHT of its printed caption, not
                     // across the caption or into the date/number columns.
-                    SourceFieldLayout sourceField = layoutSourceField(source.sourceText());
+                    SourceFieldLayout sourceField = layoutSourceField(sourceValue(source));
                     if (sourceField.lines().size() == 1) {
                         outline(canvas,sourceField.lines().get(0),382,173,sourceField.fontSize(),h,true);
                     } else {
@@ -143,24 +146,25 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     for (int i = 0; i < Math.min(3, copy.size()); i++) {
                         outline(canvas, recipientName(copy.get(i)), 520, 687 + 17*i, 9, h, true);
                     }
-                    // Replace the template's dotted signature/date placeholders with
-                    // clean blank signing lines. A real signature and its actual signing
-                    // timestamp require an authenticated signing event; never fabricate
-                    // a signature or reuse the PDF generation date as the signing date.
+                    // Show the actual persisted source-PDF filenames in the printed
+                    // attachments field. Long lists are continued on an annex.
+                    if (!source.documents().isEmpty()) {
+                        erase(canvas,h,304,628.5f,242,20);
+                        outline(canvas,attachmentCoverLabel(source),536,642,8.5f,h,true);
+                    }
+                    // Redraw this one signing area as a coherent, right-to-left
+                    // block; the Word template's old dotted labels are overlapped.
                     cleanSigningLines(canvas,h);
                     // Write directions first: this renderer clears the printed شرح area.
                     // Stamping before it would erase the upper half of a saved signature.
                     fillExplanation(canvas,h,plan,printContext.presidentSignature() != null);
                     if (printContext.presidentSignature() != null) {
                         drawRegisteredSignature(canvas,h,printContext.presidentSignature());
-                        // This is the issuance date of the automatically stamped action sheet,
-                        // not a claim that the President manually signed it on this date.
-                        outline(canvas,printContext.generatedOn().format(DATE),540,615,9,h,true);
                     }
-                    // Distinct from the document's original date above; this is when
-                    // the Office generated the immutable action-sheet artifact.
-                    outline(canvas,"تاريخ إعداد ورقة الإجراء: " + printContext.generatedAtLabel(),
-                            530,786,9,h,true);
+                    // The issuance date/time belongs under the signature, not
+                    // loose at the page footer. It is NOT claimed to be the time
+                    // the President manually signed the stored signature mark.
+                    outline(canvas,printContext.generatedAtLabel(),496,614,8.5f,h,true);
                 }
                 // The official form is a single cover page when its actual fields fit.
                 // Additional pages are produced only for real overflow or material
@@ -169,7 +173,8 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                         || textWidth(recipientHeader(to, printContext), 9) > 505
                         || textWidth(source.subject(), 10) > 420
                         || textWidth(source.documentNumber(), 9) > 120
-                        || needsSourceAnnex(source.sourceText())) {
+                        || needsSourceAnnex(sourceValue(source))
+                        || needsAttachmentAnnex(source)) {
                     appendAnnex(document,source,plan,to,copy,printContext);
                 }
                 // The first ink page is already included in الشرح on the cover.
@@ -193,16 +198,18 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
      */
     private static void cleanSigningLines(PDPageContentStream canvas, float pageHeight)
             throws IOException {
-        // Preserve the original labels: التوقيع at x=509..544 (y=586..601),
-        // التاريخ at x=380..418 (y=602..618).
-        erase(canvas,pageHeight,341,583,167,19);
-        erase(canvas,pageHeight,420,600,126,19);
+        // The template's signature label overlaps its dotted line. Remove the
+        // ENTIRE small block (not just fragments of the dotted placeholders).
+        // The explanation ends above y=583, and attachments begin below y=630.
+        erase(canvas,pageHeight,341,583,216,40);
+        outline(canvas,"التوقيع:",543,596,10,pageHeight,true);
+        outline(canvas,"التاريخ:",543,615,10,pageHeight,true);
         canvas.setStrokingColor(0.28f,0.32f,0.32f);
         canvas.setLineWidth(0.65f);
-        canvas.moveTo(349,pageHeight-600);
-        canvas.lineTo(496,pageHeight-600);
-        canvas.moveTo(423,pageHeight-617);
-        canvas.lineTo(541,pageHeight-617);
+        canvas.moveTo(349,pageHeight-601);
+        canvas.lineTo(499,pageHeight-601);
+        canvas.moveTo(349,pageHeight-620);
+        canvas.lineTo(499,pageHeight-620);
         canvas.stroke();
         canvas.setStrokingColor(0f,0f,0f);
     }
@@ -263,6 +270,35 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         }
     }
 
+    /** The Office compose form stored this field in executiveCompose.entity in
+     * legacy correspondence, while sourceText was null. Preserve those records. */
+    static String sourceValue(CorrespondenceDetails source) {
+        if (source.sourceText() != null && !source.sourceText().isBlank()) {
+            return source.sourceText().trim();
+        }
+        if (source.executiveComposeJson() == null || source.executiveComposeJson().isBlank()) {
+            return "";
+        }
+        try {
+            return new JSONObject(source.executiveComposeJson()).optString("entity", "").trim();
+        } catch (JSONException malformed) {
+            return "";
+        }
+    }
+
+    static String attachmentCoverLabel(CorrespondenceDetails source) {
+        String names = source.documents().stream().map(CorrespondenceDocument::filename)
+                .collect(java.util.stream.Collectors.joining("، "));
+        return textWidth(names,8.5f) <= 220f ? names
+                : "عدد المرفقات: " + source.documents().size() + " (الأسماء في الملحق)";
+    }
+
+    static boolean needsAttachmentAnnex(CorrespondenceDetails source) {
+        String names = source.documents().stream().map(CorrespondenceDocument::filename)
+                .collect(java.util.stream.Collectors.joining("، "));
+        return textWidth(names,8.5f) > 220f;
+    }
+
     private static boolean requiresContinuation(OfficeDistributionPlan plan,
             List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy, boolean signed) {
         // Office completion and administrative notes belong to the persisted
@@ -300,7 +336,13 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         lines.add("المصرف العربي للتنمية الاقتصادية في أفريقيا - مكتب الرئيس");
         lines.add("ملحق ورقة الإجراء الرسمية");
         lines.add("الموضوع: " + source.subject());
-        lines.add("الجهة: " + Objects.toString(source.sourceText(), ""));
+        lines.add("الجهة: " + sourceValue(source));
+        if (!source.documents().isEmpty()) {
+            lines.add("المرفقات:");
+            for (CorrespondenceDocument attachment : source.documents()) {
+                lines.add("• " + attachment.filename());
+            }
+        }
         lines.add("رقم الوثيقة: " + Objects.toString(source.documentNumber(),""));
         lines.add("تاريخ إعداد ورقة الإجراء: " + printContext.generatedAtLabel());
         lines.add("إلى:");

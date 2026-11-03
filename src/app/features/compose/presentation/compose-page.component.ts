@@ -225,7 +225,7 @@ export class ComposePageComponent implements OnInit {
         bodyText: null,
         documentNumber: this.optional(values.documentNumber),
         documentDate: this.optional(values.documentDate),
-        sourceText: null,
+        sourceText: this.optional(values.entity),
         executiveCompose: {
           recipient: values.recipient.trim(),
           copyTo: values.copyTo.trim(),

@@ -30,6 +30,10 @@ import {
 } from 'rxjs';
 
 import {
+  ALFRESCO_TICKETS_URL,
+} from '../../../../core/auth/auth.constants';
+
+import {
   AuthService,
 } from '../../../../core/auth/auth.service';
 
@@ -243,7 +247,8 @@ export class LoginPageComponent {
         error: (error: unknown) => {
           if (
             error instanceof HttpErrorResponse &&
-            error.status === 403
+            error.status === 403 &&
+            !this.isCredentialRequest(error)
           ) {
             void this.router.navigateByUrl('/access-denied');
             return;
@@ -288,13 +293,19 @@ export class LoginPageComponent {
     return returnUrl;
   }
 
+  private isCredentialRequest(error: HttpErrorResponse): boolean {
+    return (error.url ?? '').split('?')[0] ===
+      ALFRESCO_TICKETS_URL;
+  }
+
   private resolveLoginError(
     error: unknown,
   ): string {
     if (error instanceof HttpErrorResponse) {
       const ar = this.translation.language() === 'ar';
       const endpoint = error.url ?? '';
-      if (error.status === 401 && (!endpoint || endpoint.includes('/tickets'))) {
+      if ((error.status === 401 && !endpoint) ||
+          ((error.status === 401 || error.status === 403) && this.isCredentialRequest(error))) {
         return this.translation.text().auth.invalidCredentials;
       }
       if (error.status === 404 && endpoint.includes('/badea/correspondence/me')
