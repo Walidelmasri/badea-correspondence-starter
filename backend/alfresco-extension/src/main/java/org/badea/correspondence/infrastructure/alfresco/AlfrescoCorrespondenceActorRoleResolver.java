@@ -55,10 +55,14 @@ public final class AlfrescoCorrespondenceActorRoleResolver
         Objects.requireNonNull(employee, "employee");
         if (requestedUnit == null) {
             CorrespondenceActorRole role = resolveCurrentUserRole();
-            if (role != CorrespondenceActorRole.DIRECTOR || organizationReader == null) {
-                // Office is group-controlled; President stays exclusive.
-                return new Workspace(role,
-                    employee.department().map(d -> d.code()).orElse(null));
+            if (role != CorrespondenceActorRole.DIRECTOR) {
+                // The Office operates in unit 101, independent of HR/home unit.
+                return new Workspace(role, role == CorrespondenceActorRole.PRESIDENT_OFFICE
+                    ? new org.badea.correspondence.directory.DepartmentCode("101")
+                    : employee.department().map(d -> d.code()).orElse(null));
+            }
+            if (organizationReader == null) {
+                throw new CorrespondenceAuthorizationException("Tarasol Director appointments unavailable");
             }
             // A stale Alfresco DIRECTORS group must not silently grant a revoked
             // Director access through the legacy unscoped fallback.

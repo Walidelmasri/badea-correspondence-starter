@@ -428,6 +428,17 @@ describe('CorrespondenceApiService', () => {
       total: 25,
     });
   });
+  it('marks Director continuation PDFs as next-cycle attachments', () => {
+    const file = new File(['%PDF-1.7'], 'follow-up.pdf', { type: 'application/pdf' });
+    service.uploadDocument('case-117', file, true).subscribe();
+    const request = http.expectOne(
+      '/alfresco/service/badea/correspondence/case-117/documents?filename=follow-up.pdf&followUp=true',
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toBe(file);
+    request.flush({ nodeId: 'node-1', filename: file.name, mimeType: 'application/pdf', sizeBytes: file.size, workflowCycle: 2 });
+  });
+
   it('preserves upload errors for the caller', () => {
     const file = new File(
       ['%PDF-1.7'],

@@ -317,11 +317,14 @@ class AlfrescoCorrespondenceMailboxListerTest {
         action("10001", "PRESIDENT_OFFICE", "PRESIDENT", null);
         prop("state", "WITH_PRESIDENT");
         prop("assignedRole", "PRESIDENT");
+        prop("presidentReviewUpdatedByEmployeeId", "10001");
         when(nodes.getProperty(document,qname("presidentReviewRevision"))).thenReturn(2L);
         when(nodes.getProperty(document,qname("presidentReviewUpdatedAt")))
                 .thenReturn(Date.from(Instant.parse("2026-10-18T09:00:00Z")));
         assertEquals(1, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,
                 null, "10001", "all", 0, 25).total());
+        assertEquals(0, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,
+                null, "10002", "all", 0, 25).total());
         when(nodes.getProperty(document,qname("presidentReviewUpdatedAt")))
                 .thenReturn(Date.from(Instant.parse("2026-10-18T07:00:00Z")));
         assertEquals(0, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,

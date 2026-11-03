@@ -93,7 +93,8 @@ public final class OfficeDistributionService {
         PresidentSignatureDrawing signature = signatureStore == null ? null
                 : signatureStore.loadForReview(command.technicalId()).orElse(null);
         var printContext = new OfficeActionSheetPrintContext(
-                LocalDate.ofInstant(now, ZoneId.of("Asia/Riyadh")), java.util.Map.of(), signature);
+                LocalDate.ofInstant(now, ZoneId.of("Asia/Riyadh")), java.util.Map.of(), signature,
+                java.time.LocalTime.ofInstant(now, ZoneId.of("Asia/Riyadh")));
         byte[] pdf = renderer.render(source, plan, to, copy, printContext);
         if (pdf == null || pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P'
                 || pdf[2] != 'D' || pdf[3] != 'F' || pdf[4] != '-') {

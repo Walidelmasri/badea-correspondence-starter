@@ -435,6 +435,7 @@ export class CorrespondenceApiService {
   uploadDocument(
     technicalId: string,
     file: File,
+    followUp = false,
   ): Observable<CorrespondenceDocumentUpload> {
     const encodedId =
       encodeURIComponent(technicalId);
@@ -444,7 +445,7 @@ export class CorrespondenceApiService {
 
     const url =
       `${CORRESPONDENCE_URL}/${encodedId}` +
-      `/documents?filename=${encodedFilename}`;
+      `/documents?filename=${encodedFilename}${followUp ? '&followUp=true' : ''}`;
 
     return this.http.post<CorrespondenceDocumentUpload>(
       url,

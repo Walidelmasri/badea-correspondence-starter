@@ -233,6 +233,41 @@ class TarasolAccessServiceTest {
     }
 
     @Test
+    void currentManagerAssignsDepartmentSecretaryNotDelegation() throws SQLException {
+        activeEmployee("24428");
+        lockedUnit();
+        PreparedStatement authority = mock(PreparedStatement.class);
+        ResultSet authorized = mock(ResultSet.class);
+        when(connection.prepareStatement(contains("SELECT 1 FROM TARASOL_UNIT_ASSIGNMENTS WHERE UNIT_CODE = ?")))
+            .thenReturn(authority);
+        when(authority.executeQuery()).thenReturn(authorized);
+        when(authorized.next()).thenReturn(true);
+        PreparedStatement duplicateQuery = mock(PreparedStatement.class);
+        ResultSet noDuplicate = mock(ResultSet.class);
+        when(connection.prepareStatement(contains("SELECT 1 FROM TARASOL_SECRETARY_ASSIGNMENTS")))
+            .thenReturn(duplicateQuery);
+        when(duplicateQuery.executeQuery()).thenReturn(noDuplicate);
+        when(noDuplicate.next()).thenReturn(false);
+        PreparedStatement insert = mock(PreparedStatement.class);
+        ResultSet keys = mock(ResultSet.class);
+        when(connection.prepareStatement(startsWith("INSERT INTO TARASOL_SECRETARY_ASSIGNMENTS"),
+                any(String[].class))).thenReturn(insert);
+        when(insert.getGeneratedKeys()).thenReturn(keys);
+        when(keys.next()).thenReturn(true);
+        when(keys.getLong(1)).thenReturn(30L);
+
+        long id = service.changeTeam(new TarasolAccessService.TeamChange(
+            "ASSIGN_SECRETARY", "118", 0, 0, "24428", null, null, START, null, null),
+            new EmployeeId("18284"));
+        assertEquals(30L, id);
+        verify(insert).setString(1, "118");
+        verify(insert).setString(2, "24428");
+        verify(connection, never()).prepareStatement(startsWith("INSERT INTO TARASOL_DELEGATIONS"),
+                any(String[].class));
+        verify(connection).commit();
+    }
+
+    @Test
     void administratorCanAssignSecretaryWithoutAnyManagerAppointment() throws SQLException {
         activeEmployee("24428");
         lockedUnit();

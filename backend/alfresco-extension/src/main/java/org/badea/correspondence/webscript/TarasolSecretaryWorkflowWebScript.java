@@ -51,19 +51,23 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 if (!"mine".equals(view) && !"pending".equals(view)) {
                     throw new IllegalArgumentException("Unknown secretary workflow view");
                 }
-                var entries = "mine".equals(view)
-                    ? workflow.mine(employee, unit) : workflow.pending(employee, unit);
+                int offset = pageParameter(request.getParameter("offset"), 0, 1000000);
+                int limit = pageParameter(request.getParameter("limit"), 20, 50);
+                var page = workflow.page(employee, unit, "pending".equals(view), offset, limit);
                 JSONArray items = new JSONArray();
-                for (var item : entries) {
+                for (var item : page.items()) {
                     items.put(new JSONObject()
                         .put("technicalId", item.technicalId())
                         .put("unitCode", item.unitCode())
                         .put("subject", item.subject())
                         .put("bodyText", item.bodyText() == null ? JSONObject.NULL : item.bodyText())
                         .put("ownerEmployeeId", item.ownerEmployeeId())
-                        .put("approvalStatus", item.approvalStatus()));
+                        .put("approvalStatus", item.approvalStatus())
+                        .put("returnReason", item.returnReason() == null
+                            ? JSONObject.NULL : item.returnReason()));
                 }
-                result.put("items", items);
+                result.put("items", items).put("total", page.total())
+                    .put("offset", offset).put("limit", limit);
             } else {
                 String action = required(input, "action");
                 switch (action) {
@@ -105,6 +109,18 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
         }
         // Never catch repository/Oracle runtime failures here: an Alfresco
         // REQUIRED transaction must roll back all content and history writes.
+    }
+
+    private static int pageParameter(String raw, int defaultValue, int max) {
+        if (raw == null || raw.isBlank()) return defaultValue;
+        try {
+            int value = Integer.parseInt(raw);
+            if (value < 0 || value > max) throw new IllegalArgumentException("Invalid pagination");
+            if (max == 50 && value < 1) throw new IllegalArgumentException("Invalid page size");
+            return value;
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("Invalid pagination", invalid);
+        }
     }
 
     private static JSONObject readBody(WebScriptRequest request) throws IOException {

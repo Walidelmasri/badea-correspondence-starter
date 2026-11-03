@@ -461,28 +461,76 @@ public final class AlfrescoCorrespondenceRepository
     }
 
     public record SecretaryDraft(String technicalId, String unitCode, String subject,
-            String bodyText, String ownerEmployeeId, String approvalStatus) { }
+            String bodyText, String ownerEmployeeId, String approvalStatus, String returnReason) {
+        // Existing tests and the narrow approval workflow retain this constructor.
+        public SecretaryDraft(String technicalId, String unitCode, String subject,
+                String bodyText, String ownerEmployeeId, String approvalStatus) {
+            this(technicalId, unitCode, subject, bodyText, ownerEmployeeId, approvalStatus, null);
+        }
+    }
 
-    /** This method never authorizes a user; call the scoped service first. */
-    public SecretaryDraft readSecretaryDraft(String technicalId) {
+    public record SecretaryPage(List<SecretaryDraft> items, int total) {
+        public SecretaryPage {
+            items = List.copyOf(items);
+        }
+    }
+
+    /** Owner-scoped reader supports issued correspondence; transition methods still require DRAFT. */
+    public SecretaryDraft readSecretaryCase(String technicalId) {
         NodeRef node = nodeLocator.locate(technicalId);
-        if (!TYPE_CORRESPONDENCE.equals(nodeService.getType(node))
-                || !CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))) {
-            throw new CorrespondenceRepositoryException("Not an active secretary draft");
+        if (!TYPE_CORRESPONDENCE.equals(nodeService.getType(node))) {
+            throw new CorrespondenceRepositoryException("Not secretary correspondence");
         }
         String status = (String) nodeService.getProperty(node, PROP_SECRETARY_STATUS);
         String owner = (String) nodeService.getProperty(node, PROP_SECRETARY_OWNER);
-        if (!java.util.Set.of("DRAFT", "PENDING", "RETURNED").contains(status == null ? "" : status)
-                || owner == null || owner.isBlank()) {
-            throw new CorrespondenceRepositoryException("Not a secretary draft");
+        Object state = nodeService.getProperty(node, PROP_STATE);
+        boolean draft = CorrespondenceState.DRAFT.name().equals(state);
+        if (owner == null || owner.isBlank() || (!draft && !"APPROVED".equals(status))
+                || (draft && !java.util.Set.of("DRAFT", "PENDING", "RETURNED").contains(
+                    status == null ? "" : status))) {
+            throw new CorrespondenceRepositoryException("Not secretary correspondence");
         }
+        return secretaryCase(node, status, owner);
+    }
+
+    /** Transition-only reader must never allow editing an approved or routed case. */
+    public SecretaryDraft readSecretaryDraft(String technicalId) {
+        SecretaryDraft draft = readSecretaryCase(technicalId);
+        NodeRef node = nodeLocator.locate(technicalId);
+        if (!CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))) {
+            throw new CorrespondenceRepositoryException("Not an active secretary draft");
+        }
+        return draft;
+    }
+
+    private SecretaryDraft secretaryCase(NodeRef node, String status, String owner) {
         return new SecretaryDraft(
             requiredSecretaryString(node, PROP_TECHNICAL_ID),
             requiredSecretaryString(node, PROP_ORIGIN_DEPARTMENT_CODE),
             requiredSecretaryString(node, PROP_SUBJECT),
-            (String) nodeService.getProperty(node, PROP_BODY_TEXT), owner, status);
+            (String) nodeService.getProperty(node, PROP_BODY_TEXT), owner, status,
+            "RETURNED".equals(status) ? latestSecretaryReturnReason(node) : null);
     }
 
+    private String latestSecretaryReturnReason(NodeRef node) {
+        long latest = -1;
+        String reason = null;
+        for (ChildAssociationRef link : nodeService.getChildAssocs(node)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(link.getTypeQName())) continue;
+            NodeRef action = link.getChildRef();
+            if (action == null || !TYPE_WORKFLOW_ACTION.equals(nodeService.getType(action))
+                    || !CorrespondenceAction.RETURN_TO_SECRETARY.name().equals(
+                        nodeService.getProperty(action, PROP_ACTION_TYPE))) continue;
+            Object sequence = nodeService.getProperty(action, PROP_ACTION_SEQUENCE);
+            if (!(sequence instanceof Number number) || number.longValue() <= latest) continue;
+            latest = number.longValue();
+            Object explanation = nodeService.getProperty(action, PROP_EXPLANATION);
+            reason = explanation instanceof String text ? text : null;
+        }
+        return reason;
+    }
+
+    /** Old internal caller contract remains draft-only; do not broaden manager visibility. */
     public List<SecretaryDraft> listSecretaryDrafts(
             DepartmentCode unit, String ownerEmployeeId, boolean pendingOnly) {
         NodeRef folder = folderLocator.locateDepartmentFolder(unit);
@@ -498,14 +546,49 @@ public final class AlfrescoCorrespondenceRepository
                     || !unit.value().equals(nodeService.getProperty(child, PROP_ORIGIN_DEPARTMENT_CODE))
                     || (pendingOnly && !"PENDING".equals(status))
                     || (!pendingOnly && !owner.equals(ownerEmployeeId))) continue;
-            drafts.add(new SecretaryDraft(
-                requiredSecretaryString(child, PROP_TECHNICAL_ID), unit.value(),
-                requiredSecretaryString(child, PROP_SUBJECT),
-                (String) nodeService.getProperty(child, PROP_BODY_TEXT), owner, status));
+            drafts.add(secretaryCase(child, status, owner));
         }
         drafts.sort(Comparator.comparing(SecretaryDraft::technicalId));
-        // Avoid an unbounded payload; introduce pagination before broad rollout.
         return List.copyOf(drafts.subList(0, Math.min(drafts.size(), 100)));
+    }
+
+    private record SecretaryDatedCase(SecretaryDraft item, long modifiedAt) { }
+
+    /** Bounded, newest-first personal and manager queues. Only personal view includes issued cases. */
+    public SecretaryPage pageSecretaryCases(DepartmentCode unit, String ownerEmployeeId,
+            boolean pendingOnly, int offset, int pageSize) {
+        if (offset < 0 || pageSize < 1 || pageSize > 50 || (pendingOnly == (ownerEmployeeId != null))) {
+            throw new IllegalArgumentException("Invalid secretary listing page");
+        }
+        NodeRef folder = folderLocator.locateDepartmentFolder(unit);
+        List<SecretaryDatedCase> cases = new ArrayList<>();
+        for (ChildAssociationRef link : nodeService.getChildAssocs(folder)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(link.getTypeQName())) continue;
+            var child = link.getChildRef();
+            if (!TYPE_CORRESPONDENCE.equals(nodeService.getType(child))) continue;
+            String owner = (String) nodeService.getProperty(child, PROP_SECRETARY_OWNER);
+            String status = (String) nodeService.getProperty(child, PROP_SECRETARY_STATUS);
+            Object state = nodeService.getProperty(child, PROP_STATE);
+            if (owner == null || owner.isBlank()
+                    || !unit.value().equals(nodeService.getProperty(child, PROP_ORIGIN_DEPARTMENT_CODE))
+                    || (pendingOnly && (!"PENDING".equals(status)
+                        || !CorrespondenceState.DRAFT.name().equals(state)))
+                    || (!pendingOnly && (!owner.equals(ownerEmployeeId)
+                        || !("APPROVED".equals(status) && !CorrespondenceState.DRAFT.name().equals(state)
+                            || java.util.Set.of("DRAFT", "PENDING", "RETURNED").contains(
+                                status == null ? "" : status)
+                                && CorrespondenceState.DRAFT.name().equals(state))))) continue;
+            Object modified = nodeService.getProperty(child, ContentModel.PROP_MODIFIED);
+            long stamp = modified instanceof java.util.Date date ? date.getTime() : 0L;
+            cases.add(new SecretaryDatedCase(secretaryCase(child, status, owner), stamp));
+        }
+        cases.sort(Comparator.comparingLong(SecretaryDatedCase::modifiedAt).reversed()
+            .thenComparing(row -> row.item().technicalId()));
+        int total = cases.size();
+        if (offset >= total) return new SecretaryPage(List.of(), total);
+        int end = (int) Math.min((long) total, (long) offset + pageSize);
+        return new SecretaryPage(cases.subList(offset, end).stream()
+            .map(SecretaryDatedCase::item).toList(), total);
     }
 
     public void reviseSecretaryDraft(TransitionCorrespondenceCommand command,

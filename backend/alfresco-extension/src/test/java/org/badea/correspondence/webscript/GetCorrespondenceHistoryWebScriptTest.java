@@ -30,7 +30,7 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 class GetCorrespondenceHistoryWebScriptTest {
     private static final String ID="11111111-1111-1111-1111-111111111111";
     private final CurrentEmployeeService employees=mock(CurrentEmployeeService.class);
-    private final CorrespondenceActorRoleResolver roles=mock(CorrespondenceActorRoleResolver.class);
+    private final CorrespondenceActorRoleResolver roles=mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
     private final CorrespondenceDetailsService details=mock(CorrespondenceDetailsService.class);
     private final AlfrescoCorrespondenceHistoryReader reader=mock(AlfrescoCorrespondenceHistoryReader.class);
     private final WebScriptRequest request=mock(WebScriptRequest.class);
@@ -62,7 +62,7 @@ class GetCorrespondenceHistoryWebScriptTest {
         endpoint.execute(request,response);
         writer.flush();
         verify(details).getDetails(ID,CorrespondenceActorRole.PRESIDENT_OFFICE,
-            new DepartmentCode("117"), "10001");
+            new DepartmentCode("101"), "10001");
         verify(response).setStatus(Status.STATUS_OK);
         JSONObject result=new JSONObject(output.toString());
         assertEquals(1,result.getInt("total"));
@@ -72,7 +72,7 @@ class GetCorrespondenceHistoryWebScriptTest {
     @Test
     void neverReadsHistoryAfterAuthorizationFailure() throws Exception {
         when(details.getDetails(ID,CorrespondenceActorRole.PRESIDENT_OFFICE,
-            new DepartmentCode("117"), "10001"))
+            new DepartmentCode("101"), "10001"))
             .thenThrow(new CorrespondenceAuthorizationException("Access denied"));
         endpoint.execute(request,response);
         writer.flush();

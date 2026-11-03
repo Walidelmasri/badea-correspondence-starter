@@ -1,6 +1,7 @@
 package org.badea.correspondence.organization;
 
 import java.io.InputStream;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -44,14 +45,13 @@ public final class TarasolSecretaryDocumentService {
             DepartmentCode unit, String technicalId, boolean managerView) {
         checkId(technicalId);
         workflow.authorizePreview(actor, unit, technicalId, managerView);
-        // Do not bypass Alfresco native ACLs when Tarasol access is present.
-        if (permissions.hasPermission(locator.locate(technicalId), PermissionService.READ)
-                != AccessStatus.ALLOWED) {
-            throw new CorrespondenceAuthorizationException("Alfresco correspondence read denied");
-        }
-        var saved = details.findByTechnicalId(technicalId);
-        if (saved.state() != CorrespondenceState.DRAFT
-                || !unit.value().equals(saved.originDepartmentCode())) {
+        // Oracle secretary/manager appointment, unit, owner and approval status
+        // have been rechecked. Read only this verified draft; the underlying
+        // department folder ACL may not include the secretary/acting manager.
+        var saved = AuthenticationUtil.runAsSystem(() -> details.findByTechnicalId(technicalId));
+        if ((!unit.value().equals(saved.originDepartmentCode()))
+                || (saved.state() != CorrespondenceState.DRAFT
+                    && (managerView || !workflow.isApprovedOwnedCase(actor, unit, technicalId)))) {
             throw new CorrespondenceAuthorizationException("Draft no longer available for preview");
         }
         return saved.documents().stream()
@@ -68,7 +68,8 @@ public final class TarasolSecretaryDocumentService {
             .filter(item -> item.nodeId().equals(documentNodeId))
             .findFirst().orElseThrow(CorrespondenceDocumentNotFoundException::new);
         // This repository also checks the document's native Alfresco READ ACL.
-        return new Preview(document, content.openByNodeId(document.nodeId()));
+        return new Preview(document, AuthenticationUtil.runAsSystem(
+            () -> content.openByNodeId(document.nodeId())));
     }
 
     private static void checkId(String id) {

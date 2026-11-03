@@ -19,6 +19,20 @@ import org.badea.correspondence.workflow.CorrespondenceActorRole;
 public final class InstitutionalMailboxReadScope {
     private InstitutionalMailboxReadScope() { }
 
+    /**
+     * Called ONLY after CorrespondenceWorkspaceContext validates the active
+     * Director Oracle manager appointment and chooses its unit. The supplied
+     * service still checks the persisted case assignment before returning data.
+     * Without both checks, this method must never be used for Directors.
+     */
+    public static <T> T readValidatedWorkspace(CorrespondenceActorRole verifiedRole,
+            Supplier<T> authorizedCaseRead) {
+        if (verifiedRole == CorrespondenceActorRole.DIRECTOR) {
+            return AuthenticationUtil.runAsSystem(authorizedCaseRead::get);
+        }
+        return read(verifiedRole, authorizedCaseRead);
+    }
+
     public static <T> T read(CorrespondenceActorRole authenticatedRole, Supplier<T> authorizedRead) {
         Objects.requireNonNull(authenticatedRole);
         Objects.requireNonNull(authorizedRead);

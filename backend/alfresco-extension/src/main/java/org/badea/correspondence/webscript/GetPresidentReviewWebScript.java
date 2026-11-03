@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;

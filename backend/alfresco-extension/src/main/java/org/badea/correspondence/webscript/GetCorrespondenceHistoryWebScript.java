@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -50,17 +52,20 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
             EmployeeDirectoryEntry employee = employees.getCurrentEmployee();
             DepartmentCode department = employee.department()
                     .map(d -> d.code()).orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                role = selectedWorkspace.role();
-                department = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            department = authorizedWorkspace.unit();
             // Authenticated role + persisted correspondence participation grant
             // institutional visibility, while private drafts remain private.
             final var approvedRole = role;
             final var approvedDepartment = department;
             List<AlfrescoCorrespondenceHistoryReader.ActionEntry> history =
-                    InstitutionalMailboxReadScope.read(approvedRole, () -> {
+                    InstitutionalMailboxReadScope.readValidatedWorkspace(approvedRole, () -> {
                         details.getDetails(id, approvedRole, approvedDepartment,
                                 employee.employeeId().value());
                         return reader.list(id);

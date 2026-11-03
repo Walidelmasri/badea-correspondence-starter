@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -104,11 +106,14 @@ public final class TransitionCorrespondenceWebScript
                             : employee.department()
                                     .map(department -> department.code())
                                     .orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                actorRole = selectedWorkspace.role();
-                actorDepartmentCode = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(actorRoleResolver,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            actorRole = authorizedWorkspace.role();
+
+            actorDepartmentCode = authorizedWorkspace.unit();
 
             TransitionCorrespondenceCommand command =
                     new TransitionCorrespondenceCommand(

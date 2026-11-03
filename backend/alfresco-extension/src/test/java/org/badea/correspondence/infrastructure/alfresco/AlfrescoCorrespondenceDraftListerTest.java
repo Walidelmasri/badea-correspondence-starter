@@ -74,7 +74,7 @@ class AlfrescoCorrespondenceDraftListerTest {
     @Test
     void listsDraftsFromOwnDepartment() {
 
-        var page = lister.list(DEPARTMENT, 0, 25);
+        var page = lister.list(DEPARTMENT, "10001", 0, 25);
 
         assertEquals(1, page.total());
         assertEquals(1, page.items().size());
@@ -92,10 +92,23 @@ class AlfrescoCorrespondenceDraftListerTest {
     }
 
     @Test
+    void neverListsAnotherManagersDraftEvenInSameDepartment() {
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10002");
+        assertEquals(0, lister.list(DEPARTMENT, "10001", 0, 25).total());
+    }
+
+    @Test
+    void requiresActorIdentityForPersonalDrafts() {
+        assertThrows(IllegalArgumentException.class,
+                () -> lister.list(DEPARTMENT, null, 0, 25));
+    }
+
+    @Test
     void excludesExecutivesDraftsEvenFromSameDepartment() {
         when(nodeService.getProperty(correspondence,
                 qname("createdByCorrespondenceRole"))).thenReturn("PRESIDENT_OFFICE");
-        assertEquals(0, lister.list(DEPARTMENT, 0, 25).total());
+        assertEquals(0, lister.list(DEPARTMENT, "10001", 0, 25).total());
     }
 
     @Test
@@ -106,7 +119,7 @@ class AlfrescoCorrespondenceDraftListerTest {
                 qname("state")))
                 .thenReturn("WITH_PRESIDENT_OFFICE");
 
-        var page = lister.list(DEPARTMENT, 0, 25);
+        var page = lister.list(DEPARTMENT, "10001", 0, 25);
 
         assertTrue(page.items().isEmpty());
         assertEquals(0, page.total());
@@ -120,7 +133,7 @@ class AlfrescoCorrespondenceDraftListerTest {
                 qname("originDepartmentCode")))
                 .thenReturn("118");
 
-        var page = lister.list(DEPARTMENT, 0, 25);
+        var page = lister.list(DEPARTMENT, "10001", 0, 25);
 
         assertTrue(page.items().isEmpty());
     }
@@ -133,7 +146,7 @@ class AlfrescoCorrespondenceDraftListerTest {
                 PermissionService.READ))
                 .thenReturn(AccessStatus.DENIED);
 
-        var page = lister.list(DEPARTMENT, 0, 25);
+        var page = lister.list(DEPARTMENT, "10001", 0, 25);
 
         assertTrue(page.items().isEmpty());
     }
@@ -164,7 +177,7 @@ class AlfrescoCorrespondenceDraftListerTest {
                         firstAssociation,
                         secondAssociation));
 
-        var firstPage = lister.list(DEPARTMENT, 0, 1);
+        var firstPage = lister.list(DEPARTMENT, "10001", 0, 1);
 
         assertEquals(2, firstPage.total());
         assertEquals(1, firstPage.items().size());
@@ -173,7 +186,7 @@ class AlfrescoCorrespondenceDraftListerTest {
                 "draft-2",
                 firstPage.items().getFirst().technicalId());
 
-        var secondPage = lister.list(DEPARTMENT, 1, 1);
+        var secondPage = lister.list(DEPARTMENT, "10001", 1, 1);
 
         assertEquals(
                 "draft-1",
@@ -185,15 +198,15 @@ class AlfrescoCorrespondenceDraftListerTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> lister.list(DEPARTMENT, -1, 25));
+                () -> lister.list(DEPARTMENT, "10001", -1, 25));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> lister.list(DEPARTMENT, 0, 0));
+                () -> lister.list(DEPARTMENT, "10001", 0, 0));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> lister.list(DEPARTMENT, 0, 101));
+                () -> lister.list(DEPARTMENT, "10001", 0, 101));
     }
 
     private void draft(
@@ -205,6 +218,8 @@ class AlfrescoCorrespondenceDraftListerTest {
 
         when(nodeService.getType(node))
                 .thenReturn(qname("correspondence"));
+        when(nodeService.getProperty(node, qname("createdByEmployeeId")))
+                .thenReturn("10001");
 
         when(nodeService.getProperty(
                 node,

@@ -2,14 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  signal,
 } from '@angular/core';
 
 import {
   toSignal,
+  takeUntilDestroyed,
 } from '@angular/core/rxjs-interop';
 
 import {
   NavigationEnd,
+  NavigationError,
   Router,
   RouterLink,
   RouterLinkActive,
@@ -57,6 +60,23 @@ import { MAIN_NAVIGATION,
 export class AppComponent {
   private readonly router =
     inject(Router);
+
+  // A tab kept open across deployment can request a no-longer-published lazy
+  // chunk. Never reload automatically: it could discard an unsaved draft.
+  readonly staleRelease = signal(false);
+  constructor() {
+    this.router.events.pipe(
+      filter((event): event is NavigationError => event instanceof NavigationError),
+      takeUntilDestroyed(),
+    ).subscribe((event) => {
+      const message = String(event.error ?? '');
+      if (/Failed to fetch dynamically imported module|Loading chunk .* failed|Importing a module script failed/i.test(message)) {
+        this.staleRelease.set(true);
+      }
+    });
+  }
+
+  reloadCurrentRelease(): void { window.location.reload(); }
 
   readonly auth =
     inject(AuthService);

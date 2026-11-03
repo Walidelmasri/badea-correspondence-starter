@@ -139,28 +139,20 @@ public final class AlfrescoCorrespondenceDraftUpdater {
             throw forbidden();
         }
 
-        // Enhanced Director drafts are creator-bound like executive drafts,
-        // even if the originating unit has multiple acting managers.
-        if (command.actorRole() == CorrespondenceActorRole.DIRECTOR
-                && nodeService.getProperty(correspondence, PROP_EXECUTIVE_COMPOSE) != null) {
-            Serializable creator = nodeService.getProperty(
-                    correspondence, PROP_CREATED_BY_EMPLOYEE);
-            if (!command.actorEmployeeId().value().equals(creator)) {
-                throw forbidden();
-            }
+        // Drafts are personal for every role, even when multiple managers
+        // share the same department inbox. Submitted secretary work uses its
+        // separate approval workflow and is never a shared personal draft.
+        Serializable creator = nodeService.getProperty(correspondence, PROP_CREATED_BY_EMPLOYEE);
+        if (!command.actorEmployeeId().value().equals(creator)) {
+            throw forbidden();
         }
-
-        // Retain the existing Director department-scoped editing policy.
-        // Executive drafts are private to their authenticated creator and role.
-        if (command.actorRole() != CorrespondenceActorRole.DIRECTOR) {
-            Serializable creationRole = nodeService.getProperty(
-                    correspondence, PROP_CREATION_ROLE);
-            Serializable creator = nodeService.getProperty(
-                    correspondence, PROP_CREATED_BY_EMPLOYEE);
-            if (!command.actorRole().name().equals(creationRole)
-                    || !command.actorEmployeeId().value().equals(creator)) {
+        Serializable creationRole = nodeService.getProperty(correspondence, PROP_CREATION_ROLE);
+        if (command.actorRole() == CorrespondenceActorRole.DIRECTOR) {
+            if (creationRole != null && !CorrespondenceActorRole.DIRECTOR.name().equals(creationRole)) {
                 throw forbidden();
             }
+        } else if (!command.actorRole().name().equals(creationRole)) {
+            throw forbidden();
         }
 
         if (permissionService.hasPermission(

@@ -48,8 +48,6 @@ class TarasolDelegatedCaseServiceTest {
             CorrespondenceActorRole.DIRECTOR, unit, List.of(), List.of(), null, null));
         when(access.findActiveDelegation(eq(actor.employeeId()), eq(unit), eq(ID), any()))
             .thenReturn(Optional.of(new TarasolEffectiveAccessReader.Delegation(51, 42, "CASE_HANDOFF")));
-        when(permissions.hasPermission(node, PermissionService.READ)).thenReturn(AccessStatus.ALLOWED);
-        when(permissions.hasPermission(node, PermissionService.WRITE)).thenReturn(AccessStatus.ALLOWED);
         when(details.findByTechnicalId(ID)).thenReturn(new CorrespondenceDetails(ID,
             CorrespondenceState.WITH_DIRECTOR, "Test", null, null, null, null,
             "101", "Creator", null, List.of()));
@@ -74,11 +72,9 @@ class TarasolDelegatedCaseServiceTest {
         verifyNoInteractions(access, details);
     }
 
-    @Test void alfrescoReadAclMustAlsoAllowCase() {
-        when(permissions.hasPermission(node, PermissionService.READ)).thenReturn(AccessStatus.DENIED);
-        assertThrows(CorrespondenceAuthorizationException.class,
-            () -> service.read(actor, unit, ID));
-        verifyNoInteractions(details);
+    @Test void caseScopedGrantWorksWhenOriginFolderBelongsToAnotherUnit() {
+        assertEquals("Test", service.read(actor, unit, ID).subject());
+        verify(permissions, never()).hasPermission(node, PermissionService.READ);
     }
 
     @Test void onlyCurrentDirectorActionsCanBeDelegatedAndActorIsAudited() {
@@ -91,7 +87,7 @@ class TarasolDelegatedCaseServiceTest {
         assertEquals(unit, command.getValue().actorDepartmentCode());
         assertEquals(CorrespondenceActorRole.DIRECTOR, command.getValue().actorRole());
         assertTrue(command.getValue().explanation().contains("delegation ID 51"));
-        verify(permissions).hasPermission(node, PermissionService.WRITE);
+        verify(permissions, never()).hasPermission(node, PermissionService.WRITE);
     }
 
     @Test void cannotUseDelegationToReachPresidentOrOtherActions() {
@@ -100,8 +96,9 @@ class TarasolDelegatedCaseServiceTest {
         verifyNoInteractions(workflow);
     }
 
-    @Test void noWriteAclMeansNoTransition() {
-        when(permissions.hasPermission(node, PermissionService.WRITE)).thenReturn(AccessStatus.DENIED);
+    @Test void revokedGrantCannotTransitionRegardlessOfRepositoryAcl() {
+        when(access.findActiveDelegation(eq(actor.employeeId()), eq(unit), eq(ID), any()))
+            .thenReturn(Optional.empty());
         assertThrows(CorrespondenceAuthorizationException.class,
             () -> service.act(actor, unit, ID, CorrespondenceAction.SEND_TO_OFFICE));
         verifyNoInteractions(workflow);
@@ -120,4 +117,20 @@ class TarasolDelegatedCaseServiceTest {
             () -> service.read(actor, unit, "../../another"));
         verifyNoInteractions(details, access);
     }
+    @Test void activeCaseHandoffIsDiscoverableOnlyAfterIndividualAuthorization() {
+        when(access.findCurrentCaseHandoffs(actor.employeeId(), unit)).thenReturn(List.of(ID));
+        var result = service.caseHandoffs(actor, unit);
+        assertEquals(1, result.size());
+        assertEquals(ID, result.getFirst().technicalId());
+        assertEquals("Test", result.getFirst().subject());
+    }
+
+    @Test void expiredOrRevokedCaseHandoffDoesNotAppearInDiscovery() {
+        when(access.findCurrentCaseHandoffs(actor.employeeId(), unit)).thenReturn(List.of(ID));
+        when(access.findActiveDelegation(eq(actor.employeeId()), eq(unit), eq(ID), any()))
+            .thenReturn(Optional.empty());
+        assertTrue(service.caseHandoffs(actor, unit).isEmpty());
+        verifyNoInteractions(details);
+    }
+
 }

@@ -184,4 +184,16 @@ class PdfBoxOfficeActionSheetRendererTest {
         }
     }
 
+    @Test void generationTimestampPreservesOfficialDepartmentRecipientRule() {
+        var stamp = new OfficeActionSheetPrintContext(LocalDate.of(2026, 11, 3),
+            java.util.Map.of(), null, java.time.LocalTime.of(14, 7, 45));
+        assertEquals("03/11/2026 14:07", stamp.generatedAtLabel());
+        assertEquals("03/11/2026", new OfficeActionSheetPrintContext(
+            LocalDate.of(2026, 11, 3), java.util.Map.of()).generatedAtLabel());
+        assertEquals("مدير إدارة التحول الرقمي", PdfBoxOfficeActionSheetRenderer.recipientHeader(
+            List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation", "إدارة التحول الرقمي")), stamp));
+    }
+
+
 }

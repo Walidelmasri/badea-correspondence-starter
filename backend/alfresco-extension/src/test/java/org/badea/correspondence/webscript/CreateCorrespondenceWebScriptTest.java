@@ -57,7 +57,7 @@ class CreateCorrespondenceWebScriptTest {
                 mock(CurrentEmployeeService.class);
 
         actorRoleResolver =
-                mock(CorrespondenceActorRoleResolver.class);
+                mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         repository =
                 mock(AlfrescoCorrespondenceRepository.class);
@@ -148,7 +148,7 @@ class CreateCorrespondenceWebScriptTest {
                         """);
 
         assertEquals(
-                Status.STATUS_CONFLICT,
+                Status.STATUS_FORBIDDEN,
                 response.status());
 
         verify(repository, never())
@@ -183,6 +183,9 @@ class CreateCorrespondenceWebScriptTest {
     void rejectsOfficeDraftWithoutExecutiveComposePayload()
             throws Exception {
 
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(employeeWithDepartment());
+
         when(actorRoleResolver.resolveCurrentUserRole())
                 .thenReturn(
                         CorrespondenceActorRole.PRESIDENT_OFFICE);
@@ -201,6 +204,9 @@ class CreateCorrespondenceWebScriptTest {
     @Test
     void rejectsPresidentDraftWithoutExecutiveComposePayload()
             throws Exception {
+
+        when(currentEmployeeService.getCurrentEmployee())
+                .thenReturn(employeeWithDepartment());
 
         when(actorRoleResolver.resolveCurrentUserRole())
                 .thenReturn(

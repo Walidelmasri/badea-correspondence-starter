@@ -42,9 +42,11 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private static final QName PROP_CREATED_BY_ID = q("createdByEmployeeId");
     private static final QName PROP_PRESIDENT_REVISION = q("presidentReviewRevision");
     private static final QName PROP_PRESIDENT_UPDATED = q("presidentReviewUpdatedAt");
+    private static final QName PROP_PRESIDENT_REVIEW_OWNER = q("presidentReviewUpdatedByEmployeeId");
     private static final QName PROP_OFFICE_REVISION = q("officeCompletionCurrentRevision");
     private static final QName PROP_OFFICE_SNAPSHOT_REVISION = q("officeSnapshotRevision");
     private static final QName PROP_OFFICE_UPDATED = q("officeActedAt");
+    private static final QName PROP_OFFICE_SNAPSHOT_OWNER = q("officeActorEmployeeId");
 
     private final NodeService nodes;
     private final PermissionService permissions;
@@ -166,7 +168,9 @@ public final class AlfrescoCorrespondenceMailboxLister {
             boolean included = switch (box) {
                 case "inbox" -> active || received;
                 case "sent" -> sent;
-                case "drafts" -> isDraft(node, role, department, state, actions);
+                // Saved President reviews and Office completion work are
+                // creator-private even though their underlying case is shared.
+                case "drafts" -> isDraft(node, role, department, state, actions, employeeId);
                 default -> false;
             };
             if (!included) continue;
@@ -197,13 +201,12 @@ public final class AlfrescoCorrespondenceMailboxLister {
 
     private boolean isDraft(NodeRef node, CorrespondenceActorRole role,
             DepartmentCode department, CorrespondenceState state,
-            List<CorrespondenceParticipation> actions) {
-        if (role == CorrespondenceActorRole.DIRECTOR)
-            return state == CorrespondenceState.DRAFT && department != null
-                    && department.value().equals(required(node, PROP_ORIGIN));
+            List<CorrespondenceParticipation> actions, String employeeId) {
+        if (employeeId == null || role == CorrespondenceActorRole.DIRECTOR) return false;
         if (!isAssigned(node, state, role, department)) return false;
         if (role == CorrespondenceActorRole.PRESIDENT) {
-            if (revision(node, PROP_PRESIDENT_REVISION) < 1) return false;
+            if (!employeeId.equals(optional(node, PROP_PRESIDENT_REVIEW_OWNER))
+                    || revision(node, PROP_PRESIDENT_REVISION) < 1) return false;
             Instant saved = optionalDate(node, PROP_PRESIDENT_UPDATED);
             Instant entered = latestReceived(actions, CorrespondenceActorRole.PRESIDENT);
             return saved != null && entered != null && !saved.isBefore(entered);
@@ -220,11 +223,11 @@ public final class AlfrescoCorrespondenceMailboxLister {
         // An Office draft must belong to the latest Office handoff, not a prior cycle.
         Instant lastOfficeReceipt = latestReceived(actions, CorrespondenceActorRole.PRESIDENT_OFFICE);
         if (returned == null || !returned.equals(lastOfficeReceipt)) return false;
-        Instant saved = latestOfficeSnapshotAt(node);
+        Instant saved = latestOfficeSnapshotAt(node, employeeId);
         return saved != null && !saved.isBefore(returned);
     }
 
-    private Instant latestOfficeSnapshotAt(NodeRef correspondence) {
+    private Instant latestOfficeSnapshotAt(NodeRef correspondence, String employeeId) {
         long head = revision(correspondence, PROP_OFFICE_REVISION);
         Instant time = null;
         for (ChildAssociationRef assoc : nodes.getChildAssocs(correspondence)) {
@@ -232,6 +235,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
             NodeRef child = assoc.getChildRef();
             if (!TYPE_OFFICE_SNAPSHOT.equals(nodes.getType(child))) continue;
             if (revision(child, PROP_OFFICE_SNAPSHOT_REVISION) != head) continue;
+            if (!employeeId.equals(optional(child, PROP_OFFICE_SNAPSHOT_OWNER))) return null;
             Instant updated = optionalDate(child, PROP_OFFICE_UPDATED);
             if (updated == null) throw new CorrespondenceRepositoryException("Office snapshot timestamp is missing");
             if (time != null) throw new CorrespondenceRepositoryException("Duplicate Office HEAD snapshot");

@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -66,15 +68,18 @@ public final class GetCorrespondenceDetailsWebScript
                     employee.department()
                             .map(department -> department.code())
                             .orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                actorRole = selectedWorkspace.role();
-                actorDepartmentCode = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(actorRoleResolver,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            actorRole = authorizedWorkspace.role();
+
+            actorDepartmentCode = authorizedWorkspace.unit();
 
             final var approvedRole = actorRole;
             final var approvedDepartment = actorDepartmentCode;
-            CorrespondenceDetails details = InstitutionalMailboxReadScope.read(approvedRole,
+            CorrespondenceDetails details = InstitutionalMailboxReadScope.readValidatedWorkspace(approvedRole,
                     () -> detailsService.getDetails(technicalId, approvedRole,
                             approvedDepartment, employee.employeeId().value()));
 

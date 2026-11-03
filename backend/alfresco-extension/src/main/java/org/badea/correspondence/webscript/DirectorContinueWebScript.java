@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 import org.badea.correspondence.application.CurrentEmployeeService;
@@ -41,11 +43,14 @@ public final class DirectorContinueWebScript extends AbstractWebScript {
             var employee = employees.getCurrentEmployee();
             CorrespondenceActorRole role = roles.resolveCurrentUserRole();
             var department = employee.department().map(d -> d.code()).orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var workspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                role = workspace.role();
-                department = workspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            department = authorizedWorkspace.unit();
             if (role != CorrespondenceActorRole.DIRECTOR || department == null)
                 throw new CorrespondenceAuthorizationException("A Director with department is required");
             var command = new TransitionCorrespondenceCommand(id, role,

@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -86,9 +88,9 @@ public final class CreateCorrespondenceWebScript
             EmployeeDirectoryEntry employee =
                     currentEmployeeService.getCurrentEmployee();
             var requestedWorkspace = request.getParameter("workspaceUnit");
-            var workspace = requestedWorkspace == null ? null
-                : actorRoleResolver.resolveWorkspace(requestedWorkspace, employee);
-            if (workspace != null) actorRole = workspace.role();
+            var workspace = CorrespondenceWorkspaceContext.resolve(
+                actorRoleResolver, requestedWorkspace, employee);
+            actorRole = workspace.role();
             // The workspace role is authoritative; never validate only the
             // caller's old primary role when interpreting executive fields.
             if (actorRole == CorrespondenceActorRole.DIRECTOR) {

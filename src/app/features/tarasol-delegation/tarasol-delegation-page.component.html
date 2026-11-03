@@ -2,11 +2,23 @@
   <h1>Delegated correspondence</h1>
   <p>Access is limited to cases covered by an active Tarasol grant. Previous cases are not automatically available.</p>
   <label for="delegate-unit">Unit</label>
-  <select id="delegate-unit" [(ngModel)]="unitCode" (ngModelChange)="reset()">
+  <select id="delegate-unit" [(ngModel)]="unitCode" (ngModelChange)="changeUnit()">
     @for (unit of units; track unit.code) {
       <option [value]="unit.code">{{ unit.nameEnglish }} ({{ unit.code }})</option>
     }
   </select>
+  <div class="delegation__handoffs">
+    <h2>{{ t('My assigned case handoffs', 'الحالات المحالة إليّ') }}</h2>
+    <button type="button" [disabled]="busy()" (click)="refreshHandoffs()">{{ t('Refresh assignments', 'تحديث التفويضات') }}</button>
+    @for (handoff of handoffCases(); track handoff.technicalId) {
+      <button type="button" [disabled]="busy()" (click)="chooseHandoff(handoff.technicalId)">
+        {{ handoff.subject }} — {{ handoff.state }}
+      </button>
+    } @empty {
+      <p>{{ t('No active named case handoffs. For temporary leave cover, enter a known case ID below.',
+        'لا توجد حالات محالة بالاسم. للتغطية المؤقتة أثناء الإجازات، أدخل معرّف الحالة المعروف أدناه.') }}</p>
+    }
+  </div>
   <label for="delegate-case">Correspondence technical ID</label>
   <input id="delegate-case" type="text" [(ngModel)]="technicalId" (ngModelChange)="reset()" />
   <button type="button" [disabled]="busy()" (click)="lookup()">Open delegated case</button>

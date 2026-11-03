@@ -9,6 +9,7 @@ import {
 
 import { Router } from '@angular/router';
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { composeRouteForRole, MAILBOX_PAGE_SIZE } from '../../../shared/ui/real-mailbox/mailbox-navigation';
 import { CorrespondenceDocumentPreviewComponent } from '../../../shared/ui/correspondence-document-preview/correspondence-document-preview.component';
 import { OfficeCompletionEditorComponent } from '../../../shared/ui/office-completion/office-completion-editor.component';
 import { firstValueFrom } from 'rxjs';
@@ -27,7 +28,7 @@ import {
   CorrespondenceWorkspaceComponent,
 } from '../../../shared/ui/correspondence-workspace/correspondence-workspace.component';
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
 @Component({
   selector: 'app-drafts-page',
@@ -235,7 +236,7 @@ export class DraftsPageComponent implements OnInit {
   closePreview(): void { this.previewDocument.set(null); }
 
   openCompose(): void {
-    void this.router.navigate([this.currentRole() === 'PRESIDENT_OFFICE' ? '/office/new' : '/compose']);
+    void this.router.navigate([composeRouteForRole(this.currentRole())]);
   }
 
   previousPage(): void {

@@ -170,4 +170,26 @@ class TarasolSecretaryWorkflowServiceTest {
             "Please revise the figures".equals(c.explanation())),
             eq("PENDING"), eq("RETURNED"), eq(CorrespondenceActorRole.SECRETARY));
     }
+    @Test
+    void secretaryCanSeeOnlyOwnPagedSubmittedAndApprovedCases() {
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        var sent = new AlfrescoCorrespondenceRepository.SecretaryDraft(CASE, hr.value(),
+            "Sent report", "Body", "300", "APPROVED");
+        when(repo.pageSecretaryCases(hr, "300", false, 0, 20))
+            .thenReturn(new AlfrescoCorrespondenceRepository.SecretaryPage(List.of(sent), 1));
+        var page = service.page(secretary, hr, false, 0, 20);
+        assertEquals(1, page.total());
+        assertEquals("APPROVED", page.items().getFirst().approvalStatus());
+        verify(repo).pageSecretaryCases(hr, "300", false, 0, 20);
+    }
+
+    @Test
+    void expiredSecretaryCannotListPersonalSentCases() {
+        var secretary = employee("300");
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.page(secretary, hr, false, 0, 20));
+        verifyNoInteractions(repo);
+    }
+
 }

@@ -113,6 +113,15 @@ public final class CorrespondenceTransitionService {
                         accessContext.state(), command.actorRole(), command.action());
             }
         } else {
+            // Older Director drafts have no createdByRole tag. They still
+            // belong exclusively to their authenticated creator.
+            if (accessContext.state() == CorrespondenceState.DRAFT
+                    && (accessContext.createdByEmployeeId() == null
+                        || !accessContext.createdByEmployeeId().equals(
+                            command.actorEmployeeId().value()))) {
+                throw new CorrespondenceAuthorizationException(
+                    "Only the draft creator may send this correspondence");
+            }
             accessAuthorizer.authorizeTransition(
                     accessContext, command.actorRole(), command.actorDepartmentCode());
         }

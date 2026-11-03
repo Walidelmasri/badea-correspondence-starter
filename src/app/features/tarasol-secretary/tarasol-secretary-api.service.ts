@@ -8,7 +8,8 @@ export interface SecretaryDraft {
   readonly subject: string;
   readonly bodyText: string | null;
   readonly ownerEmployeeId: string;
-  readonly approvalStatus: 'DRAFT' | 'PENDING' | 'RETURNED';
+  readonly approvalStatus: 'DRAFT' | 'PENDING' | 'RETURNED' | 'APPROVED';
+  readonly returnReason?: string | null;
 }
 
 export interface SecretaryPdf {
@@ -18,7 +19,12 @@ export interface SecretaryPdf {
   readonly sizeBytes: number;
 }
 
-interface DraftList { readonly items: readonly SecretaryDraft[]; }
+interface DraftList {
+  readonly items: readonly SecretaryDraft[];
+  readonly total: number;
+  readonly offset: number;
+  readonly limit: number;
+}
 interface WorkflowResponse {
   readonly ok: boolean;
   readonly technicalId?: string;
@@ -41,6 +47,12 @@ export class TarasolSecretaryApiService {
       file, { params, headers: { 'Content-Type': 'application/pdf' } });
   }
 
+  deletePdf(unitCode: string, technicalId: string, nodeId: string): Observable<void> {
+    return this.http.delete<void>(
+      `/alfresco/service/badea/tarasol/secretary/${encodeURIComponent(technicalId)}/documents/${encodeURIComponent(nodeId)}`,
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
   documents(unitCode: string, technicalId: string, view: 'mine' | 'pending'):
     Observable<{ readonly items: readonly SecretaryPdf[] }> {
     return this.http.get<{ readonly items: readonly SecretaryPdf[] }>(
@@ -55,9 +67,10 @@ export class TarasolSecretaryApiService {
       { params: new HttpParams().set('unitCode', unitCode).set('view', view), responseType: 'blob' });
   }
 
-  list(unitCode: string, view: 'mine' | 'pending'): Observable<DraftList> {
+  list(unitCode: string, view: 'mine' | 'pending', offset = 0, limit = 20): Observable<DraftList> {
     return this.http.get<DraftList>(this.url, {
-      params: new HttpParams().set('unitCode', unitCode).set('view', view),
+      params: new HttpParams().set('unitCode', unitCode).set('view', view)
+        .set('offset', offset).set('limit', limit),
     });
   }
 

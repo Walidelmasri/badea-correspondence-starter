@@ -53,7 +53,7 @@ class ListCorrespondenceWebScriptTest {
     void setUp() throws IOException {
 
         employeeService = mock(CurrentEmployeeService.class);
-        roleResolver = mock(CorrespondenceActorRoleResolver.class);
+        roleResolver = mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         draftLister = mock(AlfrescoCorrespondenceDraftLister.class);
         mailboxLister = mock(AlfrescoCorrespondenceMailboxLister.class);
 
@@ -105,7 +105,7 @@ class ListCorrespondenceWebScriptTest {
                         10,
                         11);
 
-        when(draftLister.list(DEPARTMENT, 5, 10))
+        when(draftLister.list(DEPARTMENT, "10001", 5, 10))
                 .thenReturn(page);
 
         JSONObject result = execute();
@@ -128,13 +128,13 @@ class ListCorrespondenceWebScriptTest {
                         .getJSONObject(0)
                         .getString("modifiedAt"));
 
-        verify(draftLister).list(DEPARTMENT, 5, 10);
+        verify(draftLister).list(DEPARTMENT, "10001", 5, 10);
     }
 
     @Test
     void returnsEmptyListWhenNoDraftsExist() throws IOException {
 
-        when(draftLister.list(DEPARTMENT, 0, 25))
+        when(draftLister.list(DEPARTMENT, "10001", 0, 25))
                 .thenReturn(
                         new AlfrescoCorrespondenceDraftLister.DraftPage(
                                 List.of(),
@@ -155,7 +155,7 @@ class ListCorrespondenceWebScriptTest {
         when(roleResolver.resolveCurrentUserRole())
                 .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
         when(mailboxLister.list("drafts", CorrespondenceActorRole.PRESIDENT_OFFICE,
-                DEPARTMENT, "10001", "all", 0, 25))
+                new DepartmentCode("101"), "10001", "all", 0, 25))
                 .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
                         List.of(), 0, 25, 0));
         assertEquals(0, execute().getInt("total"));
@@ -245,7 +245,7 @@ class ListCorrespondenceWebScriptTest {
     @Test
     void handlesRepositoryFailure() throws IOException {
 
-        when(draftLister.list(DEPARTMENT, 0, 25))
+        when(draftLister.list(DEPARTMENT, "10001", 0, 25))
                 .thenThrow(
                         new CorrespondenceRepositoryException(
                                 "Department folder unavailable."));
@@ -271,7 +271,7 @@ class ListCorrespondenceWebScriptTest {
                 Instant.parse("2026-10-18T08:00:00Z"),
                 Instant.parse("2026-10-18T09:00:00Z"));
         when(mailboxLister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
-                DEPARTMENT, "10001", "all", 0, 25))
+                new DepartmentCode("101"), "10001", "all", 0, 25))
                 .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
                         List.of(summary), 0, 25, 1));
 
@@ -300,7 +300,7 @@ class ListCorrespondenceWebScriptTest {
                 .thenReturn(CorrespondenceActorRole.PRESIDENT_OFFICE);
         when(request.getParameter("box")).thenReturn("sent");
         when(mailboxLister.list("sent", CorrespondenceActorRole.PRESIDENT_OFFICE,
-                DEPARTMENT, "10001", "all", 0, 25))
+                new DepartmentCode("101"), "10001", "all", 0, 25))
                 .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
                         List.of(), 0, 25, 0));
         JSONObject result = execute();

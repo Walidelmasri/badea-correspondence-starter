@@ -20,19 +20,22 @@ public final class CorrespondenceAccessAuthorizer {
         Objects.requireNonNull(correspondence, "correspondence must not be null");
         Objects.requireNonNull(actorRole, "actorRole must not be null");
 
-        // Unsubmitted executive drafts belong to their creator, not to every
-        // employee sharing the originating department or executive role.
-        if (correspondence.state() == CorrespondenceState.DRAFT
-                && correspondence.createdByRole() != null) {
-            if (correspondence.createdByRole() == actorRole
-                    && authenticatedEmployeeId != null
-                    && authenticatedEmployeeId.equals(correspondence.createdByEmployeeId())) {
+        // ALL drafts are private to their authenticated creator, including
+        // historical Director drafts without a creation-role property.
+        if (correspondence.state() == CorrespondenceState.DRAFT) {
+            if (authenticatedEmployeeId != null
+                    && authenticatedEmployeeId.equals(correspondence.createdByEmployeeId())
+                    && (correspondence.createdByRole() == actorRole
+                        || (correspondence.createdByRole() == null
+                            && actorRole == CorrespondenceActorRole.DIRECTOR
+                            && actorDepartmentCode != null
+                            && actorDepartmentCode.equals(correspondence.originDepartmentCode())))) {
                 return;
             }
             throw forbidden();
         }
 
-        // Preserve the established origin-department permission, including its drafts.
+        // Historical correspondence belonging to a managed unit is readable.
         if (actorRole == CorrespondenceActorRole.DIRECTOR
                 && actorDepartmentCode != null
                 && actorDepartmentCode.equals(correspondence.originDepartmentCode())) return;

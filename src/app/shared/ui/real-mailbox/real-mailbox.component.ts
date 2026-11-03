@@ -34,9 +34,10 @@ import { queueFollowUpFiles } from './follow-up-file-queue';
 import { groupSourceDocuments, sourceDocumentsForRound } from './source-document-rounds';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
+import { composeRouteForRole, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
 @Component({
   selector: 'app-real-mailbox',
@@ -420,7 +421,7 @@ export class RealMailboxComponent implements OnInit {
   }
 
   openCompose(): void {
-    void this.router.navigate(['/compose']);
+    void this.router.navigate([composeRouteForRole(this.session.effectiveRole())]);
   }
 
   openDocument(document: CorrespondenceDetails['documents'][number]): void {
@@ -752,10 +753,10 @@ export class RealMailboxComponent implements OnInit {
     this.sendingFollowUp.set(true);
     this.followUpNotice.set(null);
     try {
-      // Upload first so Office does not receive a new cycle with missing evidence.
-      // Never retry a binary upload automatically following a lost response.
+      // Stage evidence under the NEXT cycle, without silently assigning it to
+      // the previous round. The backend deduplicates an identical retry.
       for (const file of this.followUpFiles()) {
-        await firstValueFrom(this.api.uploadDocument(id, file));
+        await firstValueFrom(this.api.uploadDocument(id, file, true));
       }
       await firstValueFrom(this.api.continueDirectorCycle(id, reason));
       await this.loadPage(0);

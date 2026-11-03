@@ -68,7 +68,7 @@ class GetCorrespondenceDetailsWebScriptTest {
                 mock(CurrentEmployeeService.class);
 
         actorRoleResolver =
-                mock(CorrespondenceActorRoleResolver.class);
+                mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         detailsService =
                 mock(CorrespondenceDetailsService.class);

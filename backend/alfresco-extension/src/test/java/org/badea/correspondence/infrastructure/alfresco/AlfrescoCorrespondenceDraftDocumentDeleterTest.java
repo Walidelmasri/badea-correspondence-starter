@@ -84,6 +84,9 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
                 qname("originDepartmentCode")))
                 .thenReturn("117");
 
+        when(nodeService.getProperty(correspondence,
+                qname("createdByEmployeeId"))).thenReturn("10001");
+
         when(permissionService.hasPermission(
                 correspondence,
                 PermissionService.WRITE))
@@ -116,15 +119,28 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
     }
 
     @Test
-    void allowsReplacementDirectorFromSameDepartment() {
+    void directorMayDeleteOnlyTheirOwnDraft() {
 
-        /*
-         * Authorization is department-based, not tied
-         * to the employee who originally created the draft.
-         */
         deleteAsDirector();
 
         verify(nodeService).deleteNode(document);
+    }
+
+    @Test
+    void anotherManagerCannotDeletePersonalDraftAttachment() {
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                    CorrespondenceActorRole.DIRECTOR, DEPARTMENT,
+                    new EmployeeId("10002")));
+        verifyNoDeletion();
+    }
+
+    @Test
+    void rejectsDirectorDeletionWithoutAuthenticatedEmployeeIdentity() {
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> deleter.deleteDocument(TECHNICAL_ID, DOCUMENT_ID,
+                        CorrespondenceActorRole.DIRECTOR, DEPARTMENT));
+        verifyNoDeletion();
     }
 
     @Test
@@ -273,7 +289,7 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
                         TECHNICAL_ID,
                         DOCUMENT_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        new DepartmentCode("118")));
+                        new DepartmentCode("118"), CREATOR));
 
         verifyNoDeletion();
     }
@@ -332,7 +348,7 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
                         TECHNICAL_ID,
                         OTHER_DOCUMENT_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT));
+                        DEPARTMENT, CREATOR));
 
         verifyNoDeletion();
     }
@@ -390,7 +406,7 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
                         TECHNICAL_ID,
                         "../other-document",
                         CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT));
+                        DEPARTMENT, CREATOR));
 
         verifyNoDeletion();
     }
@@ -401,7 +417,8 @@ class AlfrescoCorrespondenceDraftDocumentDeleterTest {
                 TECHNICAL_ID,
                 DOCUMENT_ID,
                 CorrespondenceActorRole.DIRECTOR,
-                DEPARTMENT);
+                DEPARTMENT,
+                CREATOR);
     }
 
     private void verifyNoDeletion() {

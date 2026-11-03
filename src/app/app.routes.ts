@@ -113,18 +113,6 @@ export const routes: Routes = [
       },
 
       {
-        path: 'pdf-spike',
-
-        loadComponent: () =>
-          import(
-            './features/pdf-spike/presentation/pdf-spike-page.component'
-          ).then(
-            (module) =>
-              module.PdfSpikePageComponent,
-          ),
-      },
-
-      {
         path: 'president-review/:technicalId',
 
         loadComponent: () =>

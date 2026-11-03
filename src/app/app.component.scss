@@ -452,3 +452,25 @@
   .app-navigation__item--active::after { inset-block-end: -.2rem; }
   .app-workspace-picker { min-width: 9rem; }
 }
+
+/* Deployment recovery: explicit rather than discarding an open draft. */
+.app-release-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-block: 1px solid #c69e44;
+  background: #fff7df;
+  color: #513c10;
+  font-size: 0.88rem;
+}
+.app-release-notice button {
+  border: 1px solid currentColor;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}

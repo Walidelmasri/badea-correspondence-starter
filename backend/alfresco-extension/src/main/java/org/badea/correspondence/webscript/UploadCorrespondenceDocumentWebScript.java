@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
@@ -100,11 +102,14 @@ public final class UploadCorrespondenceDocumentWebScript
                             : employee.department()
                                     .map(department -> department.code())
                                     .orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                actorRole = selectedWorkspace.role();
-                departmentCode = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(actorRoleResolver,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            actorRole = authorizedWorkspace.role();
+
+            departmentCode = authorizedWorkspace.unit();
 
             if (departmentCode == null) {
                 writeError(
@@ -131,14 +136,15 @@ public final class UploadCorrespondenceDocumentWebScript
              */
             byte[] pdfBytes = readPdfBytes(request);
 
-            CorrespondenceDocument document =
-                    uploader.uploadPdf(
-                            technicalId,
-                            actorRole,
-                            departmentCode,
-                            employee.employeeId(),
-                            filename,
-                            pdfBytes);
+            String followUp = request.getParameter("followUp");
+            if (followUp != null && !"true".equals(followUp)) {
+                throw new IllegalArgumentException("Invalid followUp flag");
+            }
+            CorrespondenceDocument document = "true".equals(followUp)
+                ? uploader.uploadDirectorFollowUpPdf(technicalId, actorRole, departmentCode,
+                    employee.employeeId(), filename, pdfBytes)
+                : uploader.uploadPdf(technicalId, actorRole, departmentCode,
+                    employee.employeeId(), filename, pdfBytes);
 
             JSONObject result = new JSONObject();
 

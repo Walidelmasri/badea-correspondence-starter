@@ -181,13 +181,16 @@ public final class AlfrescoCorrespondenceDraftDocumentDeleter {
             throw forbidden();
         }
 
-        if (actorRole != CorrespondenceActorRole.DIRECTOR) {
-            if (!actorEmployeeId.value().equals(nodeService.getProperty(
-                    correspondence, PROP_CREATED_BY_EMPLOYEE))
-                    || !actorRole.name().equals(nodeService.getProperty(
-                            correspondence, PROP_CREATION_ROLE))) {
-                throw forbidden();
-            }
+        // Departmental management never grants another person's draft access.
+        if (actorEmployeeId == null || !actorEmployeeId.value().equals(nodeService.getProperty(
+                correspondence, PROP_CREATED_BY_EMPLOYEE))) {
+            throw forbidden();
+        }
+        Serializable creationRole = nodeService.getProperty(correspondence, PROP_CREATION_ROLE);
+        if (actorRole == CorrespondenceActorRole.DIRECTOR) {
+            if (creationRole != null && !actorRole.name().equals(creationRole)) throw forbidden();
+        } else if (!actorRole.name().equals(creationRole)) {
+            throw forbidden();
         }
 
         if (permissionService.hasPermission(

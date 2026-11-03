@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -76,11 +78,14 @@ public final class ListCorrespondenceWebScript
                     currentEmployeeService.getCurrentEmployee();
             DepartmentCode department = employee.department()
                     .map(entry -> entry.code()).orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                role = selectedWorkspace.role();
-                department = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(actorRoleResolver,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            department = authorizedWorkspace.unit();
 
             String view = request.getParameter("view");
             if (view == null) view = "all";
@@ -88,14 +93,14 @@ public final class ListCorrespondenceWebScript
             if ("drafts".equals(box) && role == CorrespondenceActorRole.DIRECTOR) {
                 if (department == null) throw new CorrespondenceAuthorizationException(
                         "Director department required for drafts");
-                result = serialize(draftLister.list(department, offset, limit));
+                result = serialize(draftLister.list(department, employee.employeeId().value(), offset, limit));
             } else {
                 // Role and workspace have been resolved from the authenticated
                 // Alfresco account BEFORE any shared-mailbox projection.
                 final var approvedRole = role;
                 final var approvedDepartment = department;
                 final var approvedView = view;
-                result = serializeMailbox(InstitutionalMailboxReadScope.read(approvedRole,
+                result = serializeMailbox(InstitutionalMailboxReadScope.readValidatedWorkspace(approvedRole,
                         () -> mailboxLister.list(box, approvedRole, approvedDepartment,
                                 employee.employeeId().value(), approvedView, offset, limit)));
             }

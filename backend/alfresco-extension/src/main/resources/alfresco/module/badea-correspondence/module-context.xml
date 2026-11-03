@@ -1063,6 +1063,18 @@
         <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
         <constructor-arg ref="badeaTarasolSecretaryDocumentService" />
     </bean>
+    <bean id="badeaTarasolSecretaryPdfDeletionService"
+          class="org.badea.correspondence.organization.TarasolSecretaryPdfDeletionService" lazy-init="true">
+        <constructor-arg ref="badeaTarasolSecretaryWorkflowService" />
+        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+        <constructor-arg ref="nodeService" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-document.delete"
+          class="org.badea.correspondence.webscript.TarasolSecretaryDeleteWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryPdfDeletionService" />
+    </bean>
     <!-- Delegated case access is isolated from normal Director/Office APIs.
          Do not assign delegates the Directors group or expose a broad mailbox. -->
     <bean id="badeaTarasolDelegatedCaseService"
@@ -1076,6 +1088,13 @@
         <constructor-arg ref="badeaCorrespondenceNodeLocator" />
         <constructor-arg ref="nodeService" />
         <constructor-arg ref="permissionService" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-delegated-cases.get"
+          class="org.badea.correspondence.webscript.TarasolDelegatedCaseWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolDelegatedCaseService" />
+        <constructor-arg value="false" />
     </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-delegated-case.get"
           class="org.badea.correspondence.webscript.TarasolDelegatedCaseWebScript"

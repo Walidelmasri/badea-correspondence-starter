@@ -178,7 +178,7 @@ class AlfrescoCorrespondenceDraftDocumentUploaderTest {
         }
 
         @Test
-        void replacementDirectorInSameDepartmentCanUpload() {
+        void anotherDirectorCannotUploadIntoPersonalDraft() {
 
                 ChildAssociationRef association = mock(ChildAssociationRef.class);
 
@@ -199,17 +199,15 @@ class AlfrescoCorrespondenceDraftDocumentUploaderTest {
                                 true))
                                 .thenReturn(writer);
 
-                CorrespondenceDocument result = uploader.uploadPdf(
+                assertThrows(CorrespondenceAuthorizationException.class,
+                    () -> uploader.uploadPdf(
                                 TECHNICAL_ID,
                                 CorrespondenceActorRole.DIRECTOR,
                                 DEPARTMENT,
                                 new EmployeeId("different-employee"),
                                 "main-letter.pdf",
-                                PDF_BYTES);
-
-                assertEquals(document.getId(), result.nodeId());
-
-                verify(writer).setMimetype("application/pdf");
+                                PDF_BYTES));
+                verifyNoDocumentCreated();
         }
 
         @Test

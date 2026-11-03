@@ -952,6 +952,47 @@ class AlfrescoCorrespondenceRepositoryTest {
         verify(nodeService, never()).setProperty(parent, qname("state"), "ARCHIVED");
     }
 
+    @Test
+    void secretaryPersonalPageIncludesOwnApprovedAndDraftButNotOtherEmployees() {
+        DepartmentCode unit = new DepartmentCode("118");
+        NodeRef folder = nodeRef("00000000-0000-0000-0000-000000000910");
+        NodeRef sent = nodeRef("00000000-0000-0000-0000-000000000911");
+        NodeRef foreign = nodeRef("00000000-0000-0000-0000-000000000912");
+        when(folderLocator.locateDepartmentFolder(unit)).thenReturn(folder);
+        var sentLink = mock(ChildAssociationRef.class);
+        var otherLink = mock(ChildAssociationRef.class);
+        when(sentLink.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(otherLink.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(sentLink.getChildRef()).thenReturn(sent);
+        when(otherLink.getChildRef()).thenReturn(foreign);
+        when(nodeService.getChildAssocs(folder)).thenReturn(java.util.List.of(sentLink, otherLink));
+        when(nodeService.getType(sent)).thenReturn(qname("correspondence"));
+        when(nodeService.getType(foreign)).thenReturn(qname("correspondence"));
+        when(nodeService.getProperty(sent, qname("secretaryOwnerEmployeeId"))).thenReturn("300");
+        when(nodeService.getProperty(foreign, qname("secretaryOwnerEmployeeId"))).thenReturn("999");
+        when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("APPROVED");
+        when(nodeService.getProperty(sent, qname("state"))).thenReturn("WITH_PRESIDENT_OFFICE");
+        when(nodeService.getProperty(sent, qname("originDepartmentCode"))).thenReturn("118");
+        when(nodeService.getProperty(sent, qname("technicalId"))).thenReturn(TECHNICAL_ID);
+        when(nodeService.getProperty(sent, qname("subject"))).thenReturn("Approved draft");
+        when(nodeService.getProperty(sent, ContentModel.PROP_MODIFIED))
+            .thenReturn(Date.from(FIXED_INSTANT));
+        var page = repository.pageSecretaryCases(unit, "300", false, 0, 20);
+        assertEquals(1, page.total());
+        assertEquals("APPROVED", page.items().getFirst().approvalStatus());
+        assertEquals(TECHNICAL_ID, page.items().getFirst().technicalId());
+        assertEquals(0, repository.pageSecretaryCases(unit, null, true, 0, 20).total(),
+            "Issued secretary work must never appear in the manager's pending queue");
+    }
+
+    @Test
+    void secretaryPaginationRejectsUnboundedPages() {
+        assertThrows(IllegalArgumentException.class,
+            () -> repository.pageSecretaryCases(new DepartmentCode("118"), "300", false, 0, 500));
+        assertThrows(IllegalArgumentException.class,
+            () -> repository.pageSecretaryCases(new DepartmentCode("118"), "300", false, -1, 20));
+    }
+
     private static TransitionCorrespondenceCommand transitionCommand(
             CorrespondenceActorRole actorRole,
             CorrespondenceAction action,

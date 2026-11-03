@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { AuthSessionStore } from '../../core/auth/auth-session.store';
+import { TranslationService } from '../../core/i18n/translation.service';
 import { DelegatedCase, TarasolDelegationApiService } from './tarasol-delegation-api.service';
 
 @Component({
@@ -17,6 +18,9 @@ import { DelegatedCase, TarasolDelegationApiService } from './tarasol-delegation
 export class TarasolDelegationPageComponent implements OnDestroy {
   private readonly api = inject(TarasolDelegationApiService);
   private readonly session = inject(AuthSessionStore);
+  private readonly translation = inject(TranslationService);
+  t(en: string, ar: string): string { return this.translation.language() === 'ar' ? ar : en; }
+  readonly handoffCases = signal<readonly {technicalId: string; subject: string; state: string}[]>([]);
   private readonly sanitizer = inject(DomSanitizer);
   readonly units = this.session.currentUser()?.employeeProfile?.delegationUnits ?? [];
   unitCode = this.units[0]?.code ?? '';
@@ -28,6 +32,29 @@ export class TarasolDelegationPageComponent implements OnDestroy {
   readonly pendingConfirmation = signal<'SEND_TO_OFFICE' | 'MARK_DONE' | null>(null);
   readonly previewUrl = signal<SafeResourceUrl | null>(null);
   private objectUrl: string | null = null;
+
+  async refreshHandoffs(): Promise<void> {
+    this.handoffCases.set([]);
+    if (!this.unitCode) return;
+    try {
+      const result = await firstValueFrom(this.api.handoffs(this.unitCode));
+      this.handoffCases.set(result.items);
+    } catch {
+      this.error.set(this.t('Could not load active case handoffs.', 'تعذر تحميل الحالات المفوضة الحالية.'));
+    }
+  }
+
+  chooseHandoff(id: string): void {
+    this.technicalId = id;
+    void this.lookup();
+  }
+
+  changeUnit(): void {
+    this.reset();
+    void this.refreshHandoffs();
+  }
+
+  constructor() { void this.refreshHandoffs(); }
 
   reset(): void {
     this.current.set(null);

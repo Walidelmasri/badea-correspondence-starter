@@ -169,6 +169,16 @@
     </div>
   </header>
 
+  @if (staleRelease()) {
+    <aside class="app-release-notice" role="alert">
+      <span>{{ translation.language() === 'ar'
+        ? 'تم تحديث تراسل. احفظ أي تعديلات غير محفوظة ثم أعد تحميل الصفحة.'
+        : 'Tarasol has been updated. Save any unsaved work before reloading.' }}</span>
+      <button type="button" (click)="reloadCurrentRelease()">
+        {{ translation.language() === 'ar' ? 'إعادة تحميل' : 'Reload' }}
+      </button>
+    </aside>
+  }
   <main class="app-content">
     <router-outlet />
   </main>

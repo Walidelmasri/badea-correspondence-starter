@@ -5,9 +5,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.Objects;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import org.alfresco.model.ContentModel;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.service.cmr.repository.NodeService;
 import org.alfresco.service.cmr.security.AccessStatus;
 import org.alfresco.service.cmr.security.PermissionService;
@@ -31,8 +34,10 @@ import org.badea.correspondence.workflow.CorrespondenceState;
 /**
  * Exclusive entry point for individual delegated cases. Never used by the
  * ordinary mailbox, Director workspace resolver or generic document endpoints.
- * Oracle eligibility, persisted Alfresco case metadata AND native Alfresco ACLs
- * must all be valid for each read/write, including after revocation.
+ * Oracle eligibility, a current case-specific grant and persisted case state
+ * must all be valid on every operation, including after revocation. A narrowly
+ * scoped repository operation must not depend on WRITE rights to another
+ * department's originating folder.
  */
 public final class TarasolDelegatedCaseService {
     private final TarasolEffectiveAccessReader access;
@@ -57,14 +62,35 @@ public final class TarasolDelegatedCaseService {
         this.workflow = Objects.requireNonNull(workflow);
         this.locator = Objects.requireNonNull(locator);
         this.nodes = Objects.requireNonNull(nodes);
-        this.permissions = Objects.requireNonNull(permissions);
+        this.permissions = Objects.requireNonNull(permissions); // Keep existing Spring bean wiring
     }
 
     /** No role/group escalation; exact correspondence selected by technical UUID. */
     public CorrespondenceDetails read(EmployeeDirectoryEntry employee,
             DepartmentCode unit, String technicalId) {
-        authorize(employee, unit, technicalId, false);
-        return details.findByTechnicalId(technicalId);
+        return AuthenticationUtil.runAsSystem(() -> {
+            authorize(employee, unit, technicalId);
+            return details.findByTechnicalId(technicalId);
+        });
+    }
+
+    public record HandoffSummary(String technicalId, String subject, String state) { }
+
+    /** Discover only explicitly granted case handoffs; each result is reauthorized. */
+    public List<HandoffSummary> caseHandoffs(EmployeeDirectoryEntry employee, DepartmentCode unit) {
+        Objects.requireNonNull(employee);
+        Objects.requireNonNull(unit);
+        var summaries = new ArrayList<HandoffSummary>();
+        for (String id : access.findCurrentCaseHandoffs(employee.employeeId(), unit)) {
+            try {
+                CorrespondenceDetails saved = read(employee, unit, id);
+                summaries.add(new HandoffSummary(saved.technicalId(), saved.subject(),
+                    saved.state().name()));
+            } catch (CorrespondenceAuthorizationException | IllegalArgumentException rejected) {
+                // Revoked or obsolete handoff is not disclosed to a former delegate.
+            }
+        }
+        return List.copyOf(summaries);
     }
 
     public record Preview(CorrespondenceDocument document, InputStream stream) { }
@@ -77,7 +103,8 @@ public final class TarasolDelegatedCaseService {
             .filter(d -> d.nodeId().equals(documentNodeId)
                     && "application/pdf".equalsIgnoreCase(d.mimeType()))
             .findFirst().orElseThrow(CorrespondenceDocumentNotFoundException::new);
-        return new Preview(document, content.openByNodeId(document.nodeId()));
+        return new Preview(document, AuthenticationUtil.runAsSystem(
+            () -> content.openByNodeId(document.nodeId())));
     }
 
     /** Delegation never gives Office/President powers or permits a draft send. */
@@ -87,27 +114,29 @@ public final class TarasolDelegatedCaseService {
                 && action != CorrespondenceAction.MARK_DONE) {
             throw new CorrespondenceAuthorizationException("Delegation action is outside the permitted scope");
         }
-        ValidatedCase authorization = authorize(employee, unit, technicalId, true);
-        CorrespondenceAccessContext persisted = authorization.context();
-        if (persisted.state() != CorrespondenceState.WITH_DIRECTOR
-                || persisted.assignedRole() != CorrespondenceActorRole.DIRECTOR
-                || !unit.equals(persisted.assignedDepartmentCode())
-                || !persisted.assignments().isEmpty()) {
-            throw new CorrespondenceAuthorizationException("This case has no delegated parent Director action");
-        }
-        return workflow.transition(new TransitionCorrespondenceCommand(technicalId,
-            CorrespondenceActorRole.DIRECTOR, action, employee.employeeId(), unit,
-            employee.nameEnglish(), employee.nameArabic(), null,
-            "Tarasol delegated action; delegation ID " + authorization.grant().id()
-                + "; manager assignment ID " + authorization.grant().parentManagerAssignmentId(),
-            null));
+        return AuthenticationUtil.runAsSystem(() -> {
+            ValidatedCase authorization = authorize(employee, unit, technicalId);
+            CorrespondenceAccessContext persisted = authorization.context();
+            if (persisted.state() != CorrespondenceState.WITH_DIRECTOR
+                    || persisted.assignedRole() != CorrespondenceActorRole.DIRECTOR
+                    || !unit.equals(persisted.assignedDepartmentCode())
+                    || !persisted.assignments().isEmpty()) {
+                throw new CorrespondenceAuthorizationException("This case has no delegated parent Director action");
+            }
+            return workflow.transition(new TransitionCorrespondenceCommand(technicalId,
+                CorrespondenceActorRole.DIRECTOR, action, employee.employeeId(), unit,
+                employee.nameEnglish(), employee.nameArabic(), null,
+                "Tarasol delegated action; delegation ID " + authorization.grant().id()
+                    + "; manager assignment ID " + authorization.grant().parentManagerAssignmentId(),
+                null));
+        });
     }
 
     private record ValidatedCase(CorrespondenceAccessContext context,
             TarasolEffectiveAccessReader.Delegation grant) { }
 
     private ValidatedCase authorize(EmployeeDirectoryEntry employee,
-            DepartmentCode unit, String technicalId, boolean write) {
+            DepartmentCode unit, String technicalId) {
         Objects.requireNonNull(employee, "employee");
         Objects.requireNonNull(unit, "unit");
         validateId(technicalId);
@@ -126,9 +155,6 @@ public final class TarasolDelegatedCaseService {
         var grant = access.findActiveDelegation(employee.employeeId(), unit, technicalId, createdAt)
             .orElseThrow(TarasolDelegatedCaseService::denied);
         if (!currentDirector && !"CASE_HANDOFF".equals(grant.type())) throw denied();
-        if (permissions.hasPermission(node, PermissionService.READ) != AccessStatus.ALLOWED
-                || (write && permissions.hasPermission(node, PermissionService.WRITE)
-                    != AccessStatus.ALLOWED)) throw denied();
         return new ValidatedCase(context, grant);
     }
 

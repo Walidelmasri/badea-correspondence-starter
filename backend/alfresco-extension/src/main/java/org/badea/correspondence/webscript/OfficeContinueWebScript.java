@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
@@ -44,11 +46,14 @@ public final class OfficeContinueWebScript extends AbstractWebScript {
             var employee = employees.getCurrentEmployee();
             var role = roles.resolveCurrentUserRole();
             var department = employee.department().map(d -> d.code()).orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var workspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                role = workspace.role();
-                department = workspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            department = authorizedWorkspace.unit();
             var command = new TransitionCorrespondenceCommand(id, role,
                     CorrespondenceAction.CONTINUE_CORRESPONDENCE, employee.employeeId(),
                     department,

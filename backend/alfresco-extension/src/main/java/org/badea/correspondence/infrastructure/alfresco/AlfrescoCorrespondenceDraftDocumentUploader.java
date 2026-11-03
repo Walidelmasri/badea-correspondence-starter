@@ -1,7 +1,10 @@
 package org.badea.correspondence.infrastructure.alfresco;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -9,7 +12,9 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.alfresco.model.ContentModel;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.service.cmr.repository.ChildAssociationRef;
+import org.alfresco.service.cmr.repository.ContentReader;
 import org.alfresco.service.cmr.repository.ContentService;
 import org.alfresco.service.cmr.repository.ContentWriter;
 import org.alfresco.service.cmr.repository.NodeRef;
@@ -107,7 +112,51 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
             EmployeeId actorEmployeeId,
             String filename,
             byte[] pdfBytes) {
+        // Departmental correspondence lives under its originating unit, which
+        // can differ from the recipient Director's unit. A non-draft upload is
+        // therefore handled under a narrowly scoped system context, with TO
+        // assignment and state checked by the repository before any write.
+        if (actorRole == CorrespondenceActorRole.DIRECTOR) {
+            boolean distributed = AuthenticationUtil.runAsSystem(() -> {
+                NodeRef node = nodeLocator.locate(technicalId);
+                return CorrespondenceState.WITH_DIRECTOR.name().equals(
+                    nodeService.getProperty(node, PROP_STATE));
+            });
+            if (distributed) return AuthenticationUtil.runAsSystem(() ->
+                uploadPdfInternal(technicalId, actorRole, actorDepartmentCode,
+                    actorEmployeeId, filename, pdfBytes, false));
+        }
+        return uploadPdfInternal(technicalId, actorRole, actorDepartmentCode,
+                actorEmployeeId, filename, pdfBytes, false);
+    }
 
+    /**
+     * Stage a completed TO Director's follow-up PDFs for the NEXT cycle.
+     * A repeated identical upload returns the original node, making retries
+     * safe after a lost HTTP response or a failed continuation. The cycle
+     * transition remains separate and only starts after every upload succeeds.
+     */
+    public CorrespondenceDocument uploadDirectorFollowUpPdf(
+            String technicalId,
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode,
+            EmployeeId actorEmployeeId,
+            String filename,
+            byte[] pdfBytes) {
+        if (actorRole != CorrespondenceActorRole.DIRECTOR
+                || actorDepartmentCode == null || actorEmployeeId == null) throw forbidden();
+        return AuthenticationUtil.runAsSystem(() -> uploadPdfInternal(technicalId,
+            actorRole, actorDepartmentCode, actorEmployeeId, filename, pdfBytes, true));
+    }
+
+    private CorrespondenceDocument uploadPdfInternal(
+            String technicalId,
+            CorrespondenceActorRole actorRole,
+            DepartmentCode actorDepartmentCode,
+            EmployeeId actorEmployeeId,
+            String filename,
+            byte[] pdfBytes,
+            boolean nextCycle) {
         Objects.requireNonNull(
                 technicalId,
                 "technicalId");
@@ -142,14 +191,24 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
                     "The resolved node is not correspondence.");
         }
 
-        authorizeDraftUpload(
-                correspondence,
-                actorRole,
-                actorDepartmentCode,
-                actorEmployeeId);
+        if (nextCycle) {
+            authorizeDirectorContinuationUpload(correspondence, actorDepartmentCode);
+        } else {
+            authorizeDraftUpload(correspondence, actorRole,
+                actorDepartmentCode, actorEmployeeId);
+        }
 
-        long workflowCycle = new AlfrescoCorrespondenceCycleReader(nodeService)
+        long currentCycle = new AlfrescoCorrespondenceCycleReader(nodeService)
                 .current(correspondence);
+        if (nextCycle && currentCycle == Long.MAX_VALUE) {
+            throw new IllegalStateException("Workflow cycle counter exhausted");
+        }
+        long workflowCycle = currentCycle + (nextCycle ? 1 : 0);
+        if (nextCycle) {
+            CorrespondenceDocument previous = findStagedFollowUp(
+                correspondence, validatedFilename, pdfBytes, workflowCycle);
+            if (previous != null) return previous;
+        }
 
         /*
          * A unique association name provides stable document
@@ -213,6 +272,54 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
                 workflowCycle);
     }
 
+    private void authorizeDirectorContinuationUpload(NodeRef correspondence,
+            DepartmentCode unit) {
+        if (!CorrespondenceState.WITH_DIRECTOR.name().equals(
+                nodeService.getProperty(correspondence, PROP_STATE))
+                || !CorrespondenceActorRole.DIRECTOR.name().equals(
+                    nodeService.getProperty(correspondence, qname("assignedRole")))) {
+            throw forbidden();
+        }
+        var assignments = new AlfrescoDepartmentAssignmentReader(nodeService)
+                .readCurrent(correspondence);
+        if (assignments.isEmpty() || assignments.stream().anyMatch(item ->
+                item.recipientType() == org.badea.correspondence.application.DepartmentRecipientType.TO
+                && item.status() != org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED)
+                || assignments.stream().noneMatch(item ->
+                    item.recipientType() == org.badea.correspondence.application.DepartmentRecipientType.TO
+                    && item.status() == org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED
+                    && unit.equals(item.departmentCode()))) {
+            throw forbidden();
+        }
+    }
+
+    /** Return an existing matching staged PDF without creating a duplicate. */
+    private CorrespondenceDocument findStagedFollowUp(NodeRef correspondence,
+            String filename, byte[] pdfBytes, long cycle) {
+        for (ChildAssociationRef assoc : nodeService.getChildAssocs(correspondence)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())
+                    || assoc.getQName() == null
+                    || !NAMESPACE_URI.equals(assoc.getQName().getNamespaceURI())
+                    || !assoc.getQName().getLocalName().startsWith("source-document-")) continue;
+            NodeRef child = assoc.getChildRef();
+            if (!ContentModel.TYPE_CONTENT.equals(nodeService.getType(child))
+                    || !Long.valueOf(cycle).equals(
+                        nodeService.getProperty(child, SOURCE_DOCUMENT_CYCLE))
+                    || !filename.equals(nodeService.getProperty(child, ContentModel.PROP_NAME))) continue;
+            ContentReader reader = contentService.getReader(child, ContentModel.PROP_CONTENT);
+            if (reader == null || !reader.exists()) continue;
+            try (InputStream stream = reader.getContentInputStream()) {
+                if (stream != null && Arrays.equals(pdfBytes, stream.readAllBytes())) {
+                    return new CorrespondenceDocument(child.getId(), filename, PDF_MIME_TYPE,
+                        pdfBytes.length, cycle);
+                }
+            } catch (IOException failure) {
+                throw new CorrespondenceRepositoryException("Cannot verify staged PDF idempotency", failure);
+            }
+        }
+        return null;
+    }
+
     private void authorizeDraftUpload(
             NodeRef correspondence,
             CorrespondenceActorRole actorRole,
@@ -261,8 +368,8 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
             boolean assigned = new AlfrescoDepartmentAssignmentReader(nodeService)
                     .readCurrent(correspondence).stream().anyMatch(item ->
                             item.recipientType() == org.badea.correspondence.application.DepartmentRecipientType.TO
-                            && item.status() == org.badea.correspondence.application.DepartmentAssignmentStatus.COMPLETED
-                            && item.departmentCode().equals(actorDepartmentCode));
+                            && item.departmentCode().equals(actorDepartmentCode)
+                            && item.status() == org.badea.correspondence.application.DepartmentAssignmentStatus.PENDING);
             if (!assigned || permissionService.hasPermission(correspondence,
                     PermissionService.WRITE) != AccessStatus.ALLOWED) throw forbidden();
             return;
@@ -284,20 +391,11 @@ public final class AlfrescoCorrespondenceDraftDocumentUploader {
             throw forbidden();
         }
 
-        /*
-         * Canonical Oracle employee ID comparison.
-         *
-         * Another employee in the same department must
-         * not be allowed to modify this person's draft.
-         */
-        // Serializable createdBy =
-        //         nodeService.getProperty(
-        //                 correspondence,
-        //                 PROP_CREATED_BY_EMPLOYEE_ID);
-
-        // if (!actorEmployeeId.value().equals(createdBy)) {
-        //     throw forbidden();
-        // }
+        // All unsent drafts are personal, including ordinary Director drafts.
+        if (!actorEmployeeId.value().equals(nodeService.getProperty(
+                correspondence, PROP_CREATED_BY_EMPLOYEE_ID))) {
+            throw forbidden();
+        }
 
         /*
          * Application-level authorization does not

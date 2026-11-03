@@ -1,5 +1,7 @@
  package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
@@ -84,18 +86,21 @@ public final class GetCorrespondenceDocumentContentWebScript
                     employee.department()
                             .map(department -> department.code())
                             .orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                actorRole = selectedWorkspace.role();
-                departmentCode = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(actorRoleResolver,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            actorRole = authorizedWorkspace.role();
+
+            departmentCode = authorizedWorkspace.unit();
 
             final var approvedRole = actorRole;
             final var approvedDepartment = departmentCode;
             // The content service verifies the correspondence assignment,
             // persisted participation AND that the requested node belongs to
             // this correspondence before opening it. No arbitrary DMS nodes.
-            document = InstitutionalMailboxReadScope.read(approvedRole,
+            document = InstitutionalMailboxReadScope.readValidatedWorkspace(approvedRole,
                     () -> contentService.open(technicalId, nodeId, approvedRole,
                             approvedDepartment, employee.employeeId().value()));
 

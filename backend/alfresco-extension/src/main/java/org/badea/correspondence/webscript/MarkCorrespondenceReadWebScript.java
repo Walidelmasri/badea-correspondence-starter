@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 import org.badea.correspondence.application.CorrespondenceDetailsService;
@@ -48,16 +50,19 @@ public final class MarkCorrespondenceReadWebScript extends AbstractWebScript {
             var employee = employees.getCurrentEmployee();
             CorrespondenceActorRole role = roles.resolveCurrentUserRole();
             DepartmentCode department = employee.department().map(d -> d.code()).orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = roles.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                role = selectedWorkspace.role();
-                department = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            department = authorizedWorkspace.unit();
             String employeeId = employee.employeeId().value();
             // Mandatory existing authorization check before any write.
             final var approvedRole = role;
             final var approvedDepartment = department;
-            InstitutionalMailboxReadScope.read(approvedRole,
+            InstitutionalMailboxReadScope.readValidatedWorkspace(approvedRole,
                     () -> details.getDetails(id, approvedRole, approvedDepartment, employeeId));
             // The repository checks incoming target role and department.
             // The existing details service has already authorized this employee.

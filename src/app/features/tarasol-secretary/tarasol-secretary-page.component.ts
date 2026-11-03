@@ -6,6 +6,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { firstValueFrom, interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthSessionStore } from '../../core/auth/auth-session.store';
+import { TranslationService } from '../../core/i18n/translation.service';
 import { SecretaryDraft, SecretaryPdf, TarasolSecretaryApiService } from './tarasol-secretary-api.service';
 
 @Component({
@@ -18,6 +19,10 @@ import { SecretaryDraft, SecretaryPdf, TarasolSecretaryApiService } from './tara
 })
 export class TarasolSecretaryPageComponent implements OnDestroy {
   private readonly session = inject(AuthSessionStore);
+  private readonly translation = inject(TranslationService);
+  t(english: string, arabic: string): string {
+    return this.translation.language() === 'ar' ? arabic : english;
+  }
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(TarasolSecretaryApiService);
   private readonly sanitizer = inject(DomSanitizer);
@@ -33,6 +38,9 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
     ? (this.session.workspaceUnit() ?? this.availableUnits[0]?.code ?? '')
     : (this.availableUnits[0]?.code ?? ''));
   readonly items = signal<readonly SecretaryDraft[]>([]);
+  readonly total = signal(0);
+  readonly pageOffset = signal(0);
+  readonly pageSize = 20;
   readonly busy = signal(false);
   readonly message = signal('');
   readonly error = signal('');
@@ -55,6 +63,7 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
   changeUnit(code: string): void {
     if (!this.availableUnits.some(unit => unit.code === code)) return;
     this.unitCode.set(code);
+    this.pageOffset.set(0);
     this.selectedDraft = null;
     this.clearPreview();
     this.documents.set([]);
@@ -69,13 +78,36 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
     this.busy.set(true);
     try {
       const result = await firstValueFrom(this.api.list(
-        this.unitCode(), this.managerMode ? 'pending' : 'mine'));
+        this.unitCode(), this.managerMode ? 'pending' : 'mine', this.pageOffset(), this.pageSize));
       this.items.set(result.items);
+      this.total.set(result.total);
     } catch {
-      this.error.set('Could not load the latest approvals. No changes were made.');
+      this.error.set(this.t('Could not load the latest approvals. No changes were made.', 'تعذر تحميل الاعتمادات الحالية. لم تُجرَ أي تغييرات.'));
     } finally {
       this.busy.set(false);
     }
+  }
+
+  previousPage(): void {
+    if (this.busy() || this.pageOffset() === 0) return;
+    this.pageOffset.set(Math.max(0, this.pageOffset() - this.pageSize));
+    void this.reload();
+  }
+
+  nextPage(): void {
+    if (this.busy() || this.pageOffset() + this.pageSize >= this.total()) return;
+    this.pageOffset.set(this.pageOffset() + this.pageSize);
+    void this.reload();
+  }
+
+  clearSelection(): void {
+    this.selectedDraft = null;
+    this.subject = '';
+    this.bodyText = '';
+    this.explanation = '';
+    this.clearPreview();
+    this.documents.set([]);
+    this.documentsLoaded.set(false);
   }
 
   open(draft: SecretaryDraft): void {
@@ -103,7 +135,7 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
         this.documentsLoaded.set(true);
       }
     } catch {
-      this.error.set('Could not load this draft’s PDFs. Do not approve before reviewing the documents.');
+      this.error.set(this.t('Could not load this draft’s PDFs. Do not approve before reviewing the documents.', 'تعذر تحميل ملفات PDF للمسودة. لا تعتمدها قبل مراجعة المستندات.'));
     }
   }
 
@@ -117,14 +149,14 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
         this.managerMode ? 'pending' : 'mine'));
       if (this.selectedDraft?.technicalId !== draft.technicalId) return;
       if (blob.type.toLowerCase() !== 'application/pdf') {
-        this.error.set('The preview response was not a PDF.');
+        this.error.set(this.t('The preview response was not a PDF.', 'الملف المعروض ليس بصيغة PDF.'));
         return;
       }
       this.clearPreview();
       this.objectUrl = URL.createObjectURL(blob);
       this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.objectUrl));
     } catch {
-      this.error.set('Unable to open this PDF with your current access.');
+      this.error.set(this.t('Unable to open this PDF with your current access.', 'تعذر فتح ملف PDF بصلاحياتك الحالية.'));
     }
   }
 
@@ -139,14 +171,16 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
   }
 
   async createDraft(): Promise<void> {
-    if (!this.subject.trim()) { this.error.set('Subject is required'); return; }
+    if (!this.subject.trim()) { this.error.set(this.t('Subject is required', 'الموضوع مطلوب')); return; }
     await this.perform('CREATE_DRAFT', {
       subject: this.subject.trim(), bodyText: this.bodyText.trim() || null,
     });
   }
 
   async revise(): Promise<void> {
-    if (!this.selectedDraft || !this.subject.trim()) return;
+    if (!this.selectedDraft || !this.subject.trim()
+        || this.selectedDraft.approvalStatus === 'APPROVED'
+        || this.selectedDraft.approvalStatus === 'PENDING') return;
     await this.perform('REVISE', {
       technicalId: this.selectedDraft.technicalId, subject: this.subject.trim(),
       bodyText: this.bodyText.trim() || null,
@@ -154,27 +188,48 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
   }
 
   async uploadPdf(event: Event): Promise<void> {
-    if (!this.selectedDraft || this.selectedDraft.approvalStatus === 'PENDING') return;
+    if (!this.selectedDraft || this.selectedDraft.approvalStatus === 'PENDING'
+        || this.selectedDraft.approvalStatus === 'APPROVED') return;
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
     this.error.set('');
     this.message.set('');
     if (file.type !== 'application/pdf' || file.size > 25 * 1024 * 1024) {
-      this.error.set('Choose a PDF under 25 MiB.');
+      this.error.set(this.t('Choose a PDF under 25 MiB.', 'اختر ملف PDF لا يتجاوز 25 ميغابايت.'));
       input.value = '';
       return;
     }
     this.busy.set(true);
     try {
-      await firstValueFrom(this.api.uploadPdf(this.unitCode(), this.selectedDraft.technicalId, file));
-      this.message.set('PDF attached to your draft.');
+      const draft = this.selectedDraft;
+      await firstValueFrom(this.api.uploadPdf(this.unitCode(), draft.technicalId, file));
+      if (this.selectedDraft?.technicalId === draft.technicalId) await this.loadDocuments(draft);
+      this.message.set(this.t('PDF attached to your draft.', 'تم إرفاق ملف PDF بمسودتك.'));
     } catch {
-      this.error.set('PDF upload was not confirmed. Check your draft before trying again.');
+      this.error.set(this.t('PDF upload was not confirmed. Check your draft before trying again.', 'لم يتأكد رفع الملف. راجع المسودة قبل إعادة المحاولة.'));
     } finally {
       this.busy.set(false);
       input.value = '';
     }
+  }
+
+  async removePdf(doc: SecretaryPdf): Promise<void> {
+    const draft = this.selectedDraft;
+    if (!draft || this.managerMode || !['DRAFT', 'RETURNED'].includes(draft.approvalStatus)) return;
+    if (!window.confirm(this.t(`Remove ${doc.filename} from this personal draft?`,
+        `هل تريد حذف ${doc.filename} من هذه المسودة الشخصية؟`))) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.message.set('');
+    try {
+      await firstValueFrom(this.api.deletePdf(draft.unitCode, draft.technicalId, doc.nodeId));
+      if (this.selectedDraft?.technicalId === draft.technicalId) await this.loadDocuments(draft);
+      this.message.set(this.t('PDF removed from your draft.', 'تم حذف ملف PDF من مسودتك.'));
+    } catch {
+      this.error.set(this.t('Deletion was not confirmed. Reload the files before retrying.',
+        'لم يتأكد حذف الملف. أعد تحميل المرفقات قبل المحاولة مجددًا.'));
+    } finally { this.busy.set(false); }
   }
 
   async submit(draft: SecretaryDraft): Promise<void> {
@@ -182,7 +237,7 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
   }
 
   async returnDraft(draft: SecretaryDraft): Promise<void> {
-    if (!this.explanation.trim()) { this.error.set('Please enter a return reason'); return; }
+    if (!this.explanation.trim()) { this.error.set(this.t('Please enter a return reason', 'يرجى كتابة سبب الإرجاع')); return; }
     await this.perform('RETURN', {
       technicalId: draft.technicalId, explanation: this.explanation.trim(),
     });
@@ -190,7 +245,7 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
 
   async approve(draft: SecretaryDraft): Promise<void> {
     if (!this.documentsLoaded() || this.selectedDraft?.technicalId !== draft.technicalId) {
-      this.error.set('Review the correspondence and its documents before approving.');
+      this.error.set(this.t('Review the correspondence and its documents before approving.', 'راجع المراسلة ومرفقاتها قبل الاعتماد.'));
       return;
     }
     await this.perform('APPROVE_AND_SEND', { technicalId: draft.technicalId });
@@ -206,20 +261,19 @@ export class TarasolSecretaryPageComponent implements OnDestroy {
       const response = await firstValueFrom(this.api.change(this.unitCode(), action, fields));
       this.message.set(action === 'APPROVE_AND_SEND'
         ? `Approved and sent: ${response.state ?? 'submitted'}`
-        : 'Saved successfully');
-      this.selectedDraft = null;
-      this.clearPreview();
-      this.documents.set([]);
-    this.documentsLoaded.set(false);
+        : this.t('Saved successfully', 'تم الحفظ بنجاح'));
+      this.clearSelection();
+      this.pageOffset.set(0);
       if (action === 'CREATE_DRAFT') {
         this.subject = '';
         this.bodyText = '';
       }
       const listing = await firstValueFrom(this.api.list(
-        this.unitCode(), this.managerMode ? 'pending' : 'mine'));
+        this.unitCode(), this.managerMode ? 'pending' : 'mine', this.pageOffset(), this.pageSize));
       this.items.set(listing.items);
+      this.total.set(listing.total);
     } catch {
-      this.error.set('The operation could not be confirmed. Reload before retrying to avoid duplicates.');
+      this.error.set(this.t('The operation could not be confirmed. Reload before retrying to avoid duplicates.', 'لم يتأكد نجاح العملية. حدّث البيانات قبل تكرارها لتجنب التكرار.'));
     } finally { this.busy.set(false); }
   }
 }

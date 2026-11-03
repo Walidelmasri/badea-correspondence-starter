@@ -90,6 +90,41 @@ public final class TarasolEffectiveAccessReader {
         ORDER BY access.DELEGATION_ID
         """;
 
+    private static final String HANDOFF_CASES_SQL = """
+        SELECT DISTINCT access.CASE_TECHNICAL_ID
+        FROM TARASOL_DELEGATIONS access
+        """ + ACTIVE_PARENT + """
+          AND access.DELEGATE_EMP_ID = ?
+          AND access.UNIT_CODE = ?
+          AND manager.EMP_ID <> access.DELEGATE_EMP_ID
+          AND access.DELEGATION_TYPE = 'CASE_HANDOFF'
+          AND access.CASE_TECHNICAL_ID IS NOT NULL
+        ORDER BY access.CASE_TECHNICAL_ID
+        """;
+
+    /** Enumeration is restricted to active exact-case handoffs, not all unit correspondence. */
+    public List<String> findCurrentCaseHandoffs(EmployeeId actor, DepartmentCode unit) {
+        Objects.requireNonNull(actor, "actor");
+        Objects.requireNonNull(unit, "unit");
+        if (!isActiveEmployee(actor)) return List.of();
+        List<String> ids = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement query = connection.prepareStatement(HANDOFF_CASES_SQL)) {
+            query.setQueryTimeout(8);
+            query.setString(1, actor.value());
+            query.setString(2, unit.value());
+            try (ResultSet rows = query.executeQuery()) {
+                while (rows.next() && ids.size() < 100) {
+                    String id = rows.getString("CASE_TECHNICAL_ID");
+                    if (id != null) ids.add(id);
+                }
+            }
+            return List.copyOf(ids);
+        } catch (SQLException failure) {
+            throw new IllegalStateException("Tarasol delegated case discovery unavailable", failure);
+        }
+    }
+
     private final DataSource dataSource;
     private final EmployeeDirectory employees;
 

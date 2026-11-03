@@ -66,7 +66,7 @@ class UpdateCorrespondenceDraftWebScriptTest {
     void setUp() throws IOException {
 
         employeeService = mock(CurrentEmployeeService.class);
-        roleResolver = mock(CorrespondenceActorRoleResolver.class);
+        roleResolver = mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         updater = mock(AlfrescoCorrespondenceDraftUpdater.class);
 
         request = mock(WebScriptRequest.class);
@@ -205,10 +205,10 @@ class UpdateCorrespondenceDraftWebScriptTest {
 
         JSONObject result = execute();
 
-        verify(response).setStatus(Status.STATUS_CONFLICT);
+        verify(response).setStatus(Status.STATUS_FORBIDDEN);
 
         assertEquals(
-                "EMPLOYEE_DEPARTMENT_REQUIRED",
+                "CORRESPONDENCE_FORBIDDEN",
                 result.getString("code"));
 
         verifyNoUpdates();

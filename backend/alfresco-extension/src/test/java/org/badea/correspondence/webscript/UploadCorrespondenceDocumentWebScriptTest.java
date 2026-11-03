@@ -88,7 +88,7 @@ class UploadCorrespondenceDocumentWebScriptTest {
                 mock(CurrentEmployeeService.class);
 
         actorRoleResolver =
-                mock(CorrespondenceActorRoleResolver.class);
+                mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         uploader =
                 mock(AlfrescoCorrespondenceDraftDocumentUploader.class);
@@ -291,10 +291,10 @@ class UploadCorrespondenceDocumentWebScriptTest {
         JSONObject result = execute();
 
         verify(response)
-                .setStatus(Status.STATUS_CONFLICT);
+                .setStatus(Status.STATUS_FORBIDDEN);
 
         assertEquals(
-                "EMPLOYEE_DEPARTMENT_REQUIRED",
+                "CORRESPONDENCE_FORBIDDEN",
                 result.getString("code"));
 
         verifyNoUpload();
@@ -319,6 +319,33 @@ class UploadCorrespondenceDocumentWebScriptTest {
         verify(content, never())
                 .getInputStream();
 
+        verifyNoUpload();
+    }
+
+    @Test
+    void directorContinuationUploadsToNextCycle() throws IOException {
+        when(request.getParameter("followUp")).thenReturn("true");
+        when(uploader.uploadDirectorFollowUpPdf(
+                eq(TECHNICAL_ID), eq(CorrespondenceActorRole.DIRECTOR),
+                eq(DEPARTMENT), eq(EMPLOYEE_ID), eq("main-letter.pdf"), any(byte[].class)))
+                .thenReturn(new CorrespondenceDocument(DOCUMENT_ID,
+                        "main-letter.pdf", "application/pdf", PDF_BYTES.length, 2L));
+
+        JSONObject result = execute();
+
+        verify(response).setStatus(Status.STATUS_CREATED);
+        assertEquals(2, result.getLong("workflowCycle"));
+        verify(uploader, never()).uploadPdf(eq(TECHNICAL_ID),
+                eq(CorrespondenceActorRole.DIRECTOR), eq(DEPARTMENT), eq(EMPLOYEE_ID),
+                eq("main-letter.pdf"), any(byte[].class));
+    }
+
+    @Test
+    void rejectsUnknownFollowUpFlagWithoutSavingPdf() throws IOException {
+        when(request.getParameter("followUp")).thenReturn("false");
+        JSONObject result = execute();
+        verify(response).setStatus(Status.STATUS_BAD_REQUEST);
+        assertEquals("INVALID_REQUEST", result.getString("code"));
         verifyNoUpload();
     }
 

@@ -51,7 +51,7 @@ class CurrentEmployeeWebScriptTest {
     @BeforeEach
     void setUp() throws IOException {
         employeeService = mock(CurrentEmployeeService.class);
-        roleResolver = mock(CorrespondenceActorRoleResolver.class);
+        roleResolver = mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         request = mock(WebScriptRequest.class);
         response = mock(WebScriptResponse.class);

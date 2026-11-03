@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Objects;
 import org.apache.commons.logging.Log;
@@ -48,11 +50,14 @@ public final class ShareCorrespondenceDocumentWebScript extends AbstractWebScrip
             var employee = employees.getCurrentEmployee();
             var role = roles.resolveCurrentUserRole();
             DepartmentCode department = employee.department().map(d -> d.code()).orElse(null);
-            if (req.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee);
-                role = selectedWorkspace.role();
-                department = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
+
+                req.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            department = authorizedWorkspace.unit();
             String employeeId = employee.employeeId().value();
             JSONObject body = new JSONObject();
             if ("email".equals(operation)) {

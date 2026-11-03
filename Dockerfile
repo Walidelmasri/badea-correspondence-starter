@@ -21,7 +21,8 @@ COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=build /site/ /usr/share/nginx/html/
 
-RUN mkdir -p /usr/share/nginx/html/pdf/local
+# Do not include the bundled PDF demo fixture in the executive release.
+RUN rm -rf /usr/share/nginx/html/pdf/local
 
 EXPOSE 80
 

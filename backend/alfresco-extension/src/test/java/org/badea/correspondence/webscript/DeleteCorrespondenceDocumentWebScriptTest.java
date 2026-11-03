@@ -65,7 +65,7 @@ class DeleteCorrespondenceDocumentWebScriptTest {
                 mock(CurrentEmployeeService.class);
 
         roleResolver =
-                mock(CorrespondenceActorRoleResolver.class);
+                mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         deleter =
                 mock(AlfrescoCorrespondenceDraftDocumentDeleter.class);
@@ -115,7 +115,8 @@ class DeleteCorrespondenceDocumentWebScriptTest {
                 TECHNICAL_ID,
                 DOCUMENT_ID,
                 CorrespondenceActorRole.DIRECTOR,
-                DEPARTMENT);
+                DEPARTMENT,
+                new EmployeeId("10001"));
 
         verify(response).setStatus(204);
 
@@ -161,10 +162,10 @@ class DeleteCorrespondenceDocumentWebScriptTest {
 
         JSONObject result = executeError();
 
-        verify(response).setStatus(Status.STATUS_CONFLICT);
+        verify(response).setStatus(Status.STATUS_FORBIDDEN);
 
         assertEquals(
-                "EMPLOYEE_DEPARTMENT_REQUIRED",
+                "CORRESPONDENCE_FORBIDDEN",
                 result.getString("code"));
 
         verifyNoInteractions(deleter);
@@ -199,7 +200,8 @@ class DeleteCorrespondenceDocumentWebScriptTest {
                         TECHNICAL_ID,
                         DOCUMENT_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT);
+                        DEPARTMENT,
+                        new EmployeeId("10001"));
 
         JSONObject result = executeError();
 
@@ -221,7 +223,8 @@ class DeleteCorrespondenceDocumentWebScriptTest {
                         TECHNICAL_ID,
                         DOCUMENT_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT);
+                        DEPARTMENT,
+                        new EmployeeId("10001"));
 
         JSONObject result = executeError();
 
@@ -243,7 +246,8 @@ class DeleteCorrespondenceDocumentWebScriptTest {
                         TECHNICAL_ID,
                         DOCUMENT_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT);
+                        DEPARTMENT,
+                        new EmployeeId("10001"));
 
         JSONObject result = executeError();
 
@@ -265,7 +269,8 @@ class DeleteCorrespondenceDocumentWebScriptTest {
                         TECHNICAL_ID,
                         DOCUMENT_ID,
                         CorrespondenceActorRole.DIRECTOR,
-                        DEPARTMENT);
+                        DEPARTMENT,
+                        new EmployeeId("10001"));
 
         JSONObject result = executeError();
 

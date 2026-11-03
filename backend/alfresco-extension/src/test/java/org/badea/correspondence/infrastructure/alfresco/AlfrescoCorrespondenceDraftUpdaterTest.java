@@ -98,7 +98,7 @@ class AlfrescoCorrespondenceDraftUpdaterTest {
         }
 
         @Test
-        void replacementDirectorInSameDepartmentCanUpdateDraft() {
+        void anotherDirectorInSameDepartmentCannotEditPersonalDraft() {
 
                 UpdateCorrespondenceDraftCommand command = new UpdateCorrespondenceDraftCommand(
                                 TECHNICAL_ID,
@@ -111,12 +111,9 @@ class AlfrescoCorrespondenceDraftUpdaterTest {
                                 null,
                                 null);
 
-                updater.updateDraft(command);
-
-                verify(nodeService).setProperty(
-                                correspondence,
-                                qname("subject"),
-                                "Updated subject");
+                assertThrows(CorrespondenceAuthorizationException.class,
+                                () -> updater.updateDraft(command));
+                verifyNoWrites();
         }
 
         @Test

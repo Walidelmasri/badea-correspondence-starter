@@ -159,7 +159,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     }
                     // Distinct from the document's original date above; this is when
                     // the Office generated the immutable action-sheet artifact.
-                    outline(canvas,"تاريخ إعداد ورقة الإجراء: " + printContext.generatedOn().format(DATE),
+                    outline(canvas,"تاريخ إعداد ورقة الإجراء: " + printContext.generatedAtLabel(),
                             530,786,9,h,true);
                 }
                 // The official form is a single cover page when its actual fields fit.
@@ -302,7 +302,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         lines.add("الموضوع: " + source.subject());
         lines.add("الجهة: " + Objects.toString(source.sourceText(), ""));
         lines.add("رقم الوثيقة: " + Objects.toString(source.documentNumber(),""));
-        lines.add("تاريخ إعداد ورقة الإجراء: " + printContext.generatedOn().format(DATE));
+        lines.add("تاريخ إعداد ورقة الإجراء: " + printContext.generatedAtLabel());
         lines.add("إلى:");
         for (var recipient : to) {
             lines.add("• " + recipientDisplay(recipient, printContext)

@@ -42,7 +42,6 @@ class TarasolSecretaryDocumentServiceTest {
     private void approvedRead(boolean manager) {
         var node = mock(NodeRef.class);
         when(locator.locate(CASE)).thenReturn(node);
-        when(permissions.hasPermission(node, PermissionService.READ)).thenReturn(AccessStatus.ALLOWED);
         when(details.findByTechnicalId(CASE)).thenReturn(new CorrespondenceDetails(
             CASE, CorrespondenceState.DRAFT, "Report", null, null, null, null,
             "118", "Secretary", null,
@@ -74,13 +73,11 @@ class TarasolSecretaryDocumentServiceTest {
     }
 
     @Test
-    void nativeAlfrescoReadDenialRemainsEffective() {
-        var node = mock(NodeRef.class);
-        when(locator.locate(CASE)).thenReturn(node);
-        when(permissions.hasPermission(node, PermissionService.READ)).thenReturn(AccessStatus.DENIED);
-        assertThrows(CorrespondenceAuthorizationException.class,
-            () -> service.list(employee, unit, CASE, false));
-        verifyNoInteractions(details, content);
+    void explicitAuthorizedSecretaryPreviewDoesNotRequireOriginFolderRead() {
+        approvedRead(false);
+        assertEquals(1, service.list(employee, unit, CASE, false).size());
+        verify(workflow).authorizePreview(employee, unit, CASE, false);
+        verify(permissions, never()).hasPermission(any(), eq(PermissionService.READ));
     }
 
     @Test
@@ -89,4 +86,16 @@ class TarasolSecretaryDocumentServiceTest {
             () -> service.list(employee, unit, "../../", false));
         verifyNoInteractions(workflow, details, content);
     }
+    @Test
+    void approvedOwnCorrespondenceIsReadOnlyButItsPdfCanStillBePreviewed() {
+        when(workflow.isApprovedOwnedCase(employee, unit, CASE)).thenReturn(true);
+        when(details.findByTechnicalId(CASE)).thenReturn(new CorrespondenceDetails(
+            CASE, CorrespondenceState.WITH_PRESIDENT_OFFICE, "Sent report", null, null,
+            null, null, "118", "Secretary", null,
+            List.of(new CorrespondenceDocument(PDF, "report.pdf", "application/pdf", 12L))));
+        assertEquals(1, service.list(employee, unit, CASE, false).size());
+        verify(workflow).authorizePreview(employee, unit, CASE, false);
+        verify(workflow).isApprovedOwnedCase(employee, unit, CASE);
+    }
+
 }

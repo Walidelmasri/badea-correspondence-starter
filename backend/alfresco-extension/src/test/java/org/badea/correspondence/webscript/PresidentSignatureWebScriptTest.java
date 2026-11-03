@@ -15,7 +15,7 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 
 class PresidentSignatureWebScriptTest {
     @Test void neitherRegistrationNorStatusAreAvailableToOfficeUsers() throws Exception {
-        var roles = mock(CorrespondenceActorRoleResolver.class);
+        var roles = mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         var employee = mock(CurrentEmployeeService.class);
         var store = mock(PresidentSignatureStore.class);
         var request = mock(WebScriptRequest.class);
@@ -32,7 +32,7 @@ class PresidentSignatureWebScriptTest {
     }
 
     @Test void authorizedPresidentCanCheckStatusWithoutExposingStoredStrokes() throws Exception {
-        var roles = mock(CorrespondenceActorRoleResolver.class);
+        var roles = mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         var employee = mock(CurrentEmployeeService.class);
         var store = mock(PresidentSignatureStore.class);
         var request = mock(WebScriptRequest.class);

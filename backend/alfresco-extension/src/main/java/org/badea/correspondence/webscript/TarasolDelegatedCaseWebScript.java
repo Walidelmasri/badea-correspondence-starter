@@ -62,6 +62,15 @@ public final class TarasolDelegatedCaseWebScript extends AbstractWebScript {
                 var state = delegated.act(employee, unit, technicalId, action);
                 json(response, Status.STATUS_OK, new JSONObject()
                     .put("ok", true).put("state", state.name()));
+            } else if (technicalId == null) {
+                var results = new JSONArray();
+                for (var item : delegated.caseHandoffs(employee, unit)) {
+                    results.put(new JSONObject()
+                        .put("technicalId", item.technicalId())
+                        .put("subject", item.subject())
+                        .put("state", item.state()));
+                }
+                json(response, Status.STATUS_OK, new JSONObject().put("items", results));
             } else if (documentNodeId != null) {
                 var preview = delegated.openPdf(employee, unit, technicalId, documentNodeId);
                 String filename = URLEncoder.encode(preview.document().filename(), StandardCharsets.UTF_8)

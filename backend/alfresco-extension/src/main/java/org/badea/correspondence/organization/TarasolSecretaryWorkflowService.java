@@ -1,6 +1,7 @@
 package org.badea.correspondence.organization;
 
 import java.util.List;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import java.util.Objects;
 import java.util.Set;
 
@@ -44,22 +45,42 @@ public final class TarasolSecretaryWorkflowService {
         if (subject == null || subject.isBlank() || subject.length() > 500) {
             throw new IllegalArgumentException("Subject must be 1-500 characters");
         }
-        return correspondence.createSecretaryDraft(new CreateCorrespondenceCommand(
+        return AuthenticationUtil.runAsSystem(() -> correspondence.createSecretaryDraft(
+            new CreateCorrespondenceCommand(
             unit, subject, bodyText, null, null, null,
             secretary.employeeId(), secretary.nameEnglish(), secretary.nameArabic(),
-            CorrespondenceActorRole.DIRECTOR, null));
+            CorrespondenceActorRole.DIRECTOR, null)));
     }
 
     public List<AlfrescoCorrespondenceRepository.SecretaryDraft> mine(
             EmployeeDirectoryEntry secretary, DepartmentCode unit) {
         requireSecretary(secretary, unit);
-        return correspondence.listSecretaryDrafts(unit, secretary.employeeId().value(), false);
+        return AuthenticationUtil.runAsSystem(() ->
+            correspondence.listSecretaryDrafts(unit, secretary.employeeId().value(), false));
+    }
+
+    public AlfrescoCorrespondenceRepository.SecretaryPage page(EmployeeDirectoryEntry actor,
+            DepartmentCode unit, boolean managerView, int offset, int pageSize) {
+        if (managerView) requireManager(actor, unit);
+        else requireSecretary(actor, unit);
+        return AuthenticationUtil.runAsSystem(() -> correspondence.pageSecretaryCases(unit,
+            managerView ? null : actor.employeeId().value(), managerView, offset, pageSize));
+    }
+
+    public boolean isApprovedOwnedCase(EmployeeDirectoryEntry actor, DepartmentCode unit,
+            String technicalId) {
+        requireSecretary(actor, unit);
+        var saved = AuthenticationUtil.runAsSystem(() -> correspondence.readSecretaryCase(technicalId));
+        return unit.value().equals(saved.unitCode())
+            && actor.employeeId().value().equals(saved.ownerEmployeeId())
+            && "APPROVED".equals(saved.approvalStatus());
     }
 
     public List<AlfrescoCorrespondenceRepository.SecretaryDraft> pending(
             EmployeeDirectoryEntry manager, DepartmentCode unit) {
         requireManager(manager, unit);
-        return correspondence.listSecretaryDrafts(unit, null, true);
+        return AuthenticationUtil.runAsSystem(() ->
+            correspondence.listSecretaryDrafts(unit, null, true));
     }
 
     /** Manager preview is allowed only while pending; personal preview is owner-only. */
@@ -67,7 +88,9 @@ public final class TarasolSecretaryWorkflowService {
             String technicalId, boolean managerView) {
         if (managerView) requireManager(actor, unit);
         else requireSecretary(actor, unit);
-        var draft = correspondence.readSecretaryDraft(technicalId);
+        var draft = AuthenticationUtil.runAsSystem(() -> managerView
+            ? correspondence.readSecretaryDraft(technicalId)
+            : correspondence.readSecretaryCase(technicalId));
         if (!draft.unitCode().equals(unit.value())) throw denied();
         if (managerView) {
             if (!"PENDING".equals(draft.approvalStatus())) throw denied();
@@ -79,7 +102,8 @@ public final class TarasolSecretaryWorkflowService {
     public void authorizePdfUpload(EmployeeDirectoryEntry secretary, DepartmentCode unit,
             String technicalId) {
         requireSecretary(secretary, unit);
-        var draft = correspondence.readSecretaryDraft(technicalId);
+        var draft = AuthenticationUtil.runAsSystem(() ->
+            correspondence.readSecretaryDraft(technicalId));
         if (!draft.unitCode().equals(unit.value())
                 || !draft.ownerEmployeeId().equals(secretary.employeeId().value())
                 || (!"DRAFT".equals(draft.approvalStatus())
@@ -89,7 +113,8 @@ public final class TarasolSecretaryWorkflowService {
     public void submit(EmployeeDirectoryEntry secretary, DepartmentCode unit,
             String technicalId) {
         requireSecretary(secretary, unit);
-        var draft = correspondence.readSecretaryDraft(technicalId);
+        var draft = AuthenticationUtil.runAsSystem(() ->
+            correspondence.readSecretaryDraft(technicalId));
         if (!draft.unitCode().equals(unit.value())
                 || !draft.ownerEmployeeId().equals(secretary.employeeId().value())) {
             throw denied();
@@ -97,31 +122,39 @@ public final class TarasolSecretaryWorkflowService {
         if (!"DRAFT".equals(draft.approvalStatus()) && !"RETURNED".equals(draft.approvalStatus())) {
             throw new IllegalArgumentException("This secretary draft has already been submitted");
         }
-        correspondence.changeSecretaryStatus(command(technicalId, secretary, unit,
-            CorrespondenceActorRole.SECRETARY, CorrespondenceAction.SUBMIT_FOR_MANAGER_APPROVAL,
-            "101".equals(unit.value()) ? null : unit, null), draft.approvalStatus(), "PENDING",
-            "101".equals(unit.value()) ? CorrespondenceActorRole.PRESIDENT_OFFICE
-                : CorrespondenceActorRole.DIRECTOR);
+        AuthenticationUtil.runAsSystem(() -> {
+            correspondence.changeSecretaryStatus(command(technicalId, secretary, unit,
+                CorrespondenceActorRole.SECRETARY, CorrespondenceAction.SUBMIT_FOR_MANAGER_APPROVAL,
+                "101".equals(unit.value()) ? null : unit, null), draft.approvalStatus(), "PENDING",
+                "101".equals(unit.value()) ? CorrespondenceActorRole.PRESIDENT_OFFICE
+                    : CorrespondenceActorRole.DIRECTOR);
+            return null;
+        });
     }
 
     public void revise(EmployeeDirectoryEntry secretary, DepartmentCode unit,
             String technicalId, String subject, String bodyText) {
         requireSecretary(secretary, unit);
-        var draft = correspondence.readSecretaryDraft(technicalId);
+        var draft = AuthenticationUtil.runAsSystem(() ->
+            correspondence.readSecretaryDraft(technicalId));
         if (!draft.unitCode().equals(unit.value())
                 || !draft.ownerEmployeeId().equals(secretary.employeeId().value())) throw denied();
         if (subject == null || subject.isBlank() || subject.length() > 500) {
             throw new IllegalArgumentException("Subject must be 1-500 characters");
         }
-        correspondence.reviseSecretaryDraft(command(technicalId, secretary, unit,
-            CorrespondenceActorRole.SECRETARY, CorrespondenceAction.REVISE_SECRETARY_DRAFT,
-            unit, null), subject, bodyText);
+        AuthenticationUtil.runAsSystem(() -> {
+            correspondence.reviseSecretaryDraft(command(technicalId, secretary, unit,
+                CorrespondenceActorRole.SECRETARY, CorrespondenceAction.REVISE_SECRETARY_DRAFT,
+                unit, null), subject, bodyText);
+            return null;
+        });
     }
 
     public void returnForRevision(EmployeeDirectoryEntry manager, DepartmentCode unit,
             String technicalId, String explanation) {
         var workspace = requireManager(manager, unit);
-        var draft = correspondence.readSecretaryDraft(technicalId);
+        var draft = AuthenticationUtil.runAsSystem(() ->
+            correspondence.readSecretaryDraft(technicalId));
         if (!draft.unitCode().equals(unit.value())) throw denied();
         if (!"PENDING".equals(draft.approvalStatus())) {
             throw new IllegalArgumentException("This draft is not pending approval");
@@ -129,15 +162,19 @@ public final class TarasolSecretaryWorkflowService {
         if (explanation == null || explanation.isBlank()) {
             throw new IllegalArgumentException("A return explanation is required");
         }
-        correspondence.changeSecretaryStatus(command(technicalId, manager, unit,
-            workspace.role(), CorrespondenceAction.RETURN_TO_SECRETARY,
-            null, explanation), "PENDING", "RETURNED", CorrespondenceActorRole.SECRETARY);
+        AuthenticationUtil.runAsSystem(() -> {
+            correspondence.changeSecretaryStatus(command(technicalId, manager, unit,
+                workspace.role(), CorrespondenceAction.RETURN_TO_SECRETARY,
+                null, explanation), "PENDING", "RETURNED", CorrespondenceActorRole.SECRETARY);
+            return null;
+        });
     }
 
     public CorrespondenceState approveAndSend(EmployeeDirectoryEntry manager,
             DepartmentCode unit, String technicalId) {
         var workspace = requireManager(manager, unit);
-        var draft = correspondence.readSecretaryDraft(technicalId);
+        var draft = AuthenticationUtil.runAsSystem(() ->
+            correspondence.readSecretaryDraft(technicalId));
         if (!draft.unitCode().equals(unit.value())) throw denied();
         if (!"PENDING".equals(draft.approvalStatus())) {
             throw new IllegalArgumentException("This draft is not pending approval");
@@ -167,8 +204,11 @@ public final class TarasolSecretaryWorkflowService {
         CorrespondenceActorRole recipient = directPresident
             ? CorrespondenceActorRole.PRESIDENT : CorrespondenceActorRole.PRESIDENT_OFFICE;
 
-        correspondence.approveSecretaryDraft(command(technicalId, manager, unit,
-            actorRole, action, null, null), toState, recipient);
+        AuthenticationUtil.runAsSystem(() -> {
+            correspondence.approveSecretaryDraft(command(technicalId, manager, unit,
+                actorRole, action, null, null), toState, recipient);
+            return null;
+        });
         return toState;
     }
 

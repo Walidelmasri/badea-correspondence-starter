@@ -287,6 +287,11 @@ public final class TarasolAccessService {
                 return revokeTeam(c, false, change.recordId(), change.managerAssignmentId(),
                     manager.value(), change.reason());
             }
+            // Secretaries are department-level appointments, never delegations.
+            if (secretaryAction) {
+                ensureNoDuplicateTeam(c, change, true);
+                return insertSecretary(c, change, manager);
+            }
             ensureNoDuplicateTeam(c, change, false);
             String sql = "INSERT INTO TARASOL_DELEGATIONS"
                 + " (UNIT_CODE, MANAGER_ASSIGNMENT_ID, DELEGATE_EMP_ID, STARTS_AT,"

@@ -121,6 +121,10 @@ class TransitionCorrespondenceWebScriptTest {
                 .thenReturn(
                         employee);
 
+        when(actorRoleResolver.resolveWorkspace(null, employee))
+                .thenReturn(new CorrespondenceActorRoleResolver.Workspace(
+                        CorrespondenceActorRole.DIRECTOR, new DepartmentCode("117")));
+
         when(transitionService.transition(
                 any(TransitionCorrespondenceCommand.class)))
                 .thenReturn(

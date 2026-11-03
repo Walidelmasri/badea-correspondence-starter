@@ -44,6 +44,8 @@ public final class AlfrescoCorrespondenceDraftLister {
 
     private static final QName PROP_CREATION_ROLE =
             qname("createdByCorrespondenceRole");
+    private static final QName PROP_CREATED_BY =
+            qname("createdByEmployeeId");
 
     private static final QName PROP_SUBJECT =
             qname("subject");
@@ -70,12 +72,16 @@ public final class AlfrescoCorrespondenceDraftLister {
 
     public DraftPage list(
             DepartmentCode departmentCode,
+            String employeeId,
             int offset,
             int limit) {
 
         Objects.requireNonNull(
                 departmentCode,
                 "departmentCode must not be null");
+        if (employeeId == null || employeeId.isBlank()) {
+            throw new IllegalArgumentException("Authenticated employee ID required for personal drafts");
+        }
 
         if (offset < 0) {
             throw new IllegalArgumentException(
@@ -132,6 +138,11 @@ public final class AlfrescoCorrespondenceDraftLister {
 
             if (!departmentCode.value()
                     .equals(originDepartment)) {
+                continue;
+            }
+
+            // Never list another employee's draft, even if both manage this unit.
+            if (!employeeId.equals(nodeService.getProperty(correspondence, PROP_CREATED_BY))) {
                 continue;
             }
 

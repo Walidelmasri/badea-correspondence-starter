@@ -144,12 +144,7 @@ class CorrespondenceTransitionServiceTest {
                         null,
                         null);
 
-        CorrespondenceAccessContext context =
-                new CorrespondenceAccessContext(
-                        CorrespondenceState.DRAFT,
-                        new DepartmentCode("117"),
-                        null,
-                        null);
+        CorrespondenceAccessContext context = directorDraft("117", "18280");
 
         when(repository.getAccessContext(
                 TECHNICAL_ID))

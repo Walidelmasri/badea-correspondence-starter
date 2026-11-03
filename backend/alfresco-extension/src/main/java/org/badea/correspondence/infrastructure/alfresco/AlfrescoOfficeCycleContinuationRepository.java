@@ -11,6 +11,7 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.Objects;
 import org.alfresco.model.ContentModel;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.ContentReader;
 import org.alfresco.service.cmr.repository.ContentService;
@@ -71,6 +72,15 @@ public final class AlfrescoOfficeCycleContinuationRepository implements OfficeCy
 
     @Override
     public long continueToNextCycle(TransitionCorrespondenceCommand command) {
+        // The group role and active managerial workspace have been checked by
+        // DirectorContinue/OfficeContinue. The repository rechecks the persisted
+        // TO assignment, workflow state and cycle before any system-scoped write.
+        // An original 101 folder's native WRITE ACL must not reject a valid 117
+        // recipient; no global Alfresco permissions are granted to the user.
+        return AuthenticationUtil.runAsSystem(() -> continueAuthorized(command));
+    }
+
+    private long continueAuthorized(TransitionCorrespondenceCommand command) {
         boolean office = command.actorRole() == CorrespondenceActorRole.PRESIDENT_OFFICE
                 && command.action() == CorrespondenceAction.CONTINUE_CORRESPONDENCE;
         boolean director = command.actorRole() == CorrespondenceActorRole.DIRECTOR
@@ -79,9 +89,6 @@ public final class AlfrescoOfficeCycleContinuationRepository implements OfficeCy
             throw new CorrespondenceAuthorizationException("Invalid continuation role or action");
         }
         NodeRef parent = locator.locate(command.technicalId());
-        if (permissions.hasPermission(parent, PermissionService.WRITE) != AccessStatus.ALLOWED) {
-            throw new CorrespondenceAuthorizationException("Alfresco write permission denied");
-        }
         long current = new AlfrescoCorrespondenceCycleReader(nodes).current(parent);
         if (current == Long.MAX_VALUE) throw new IllegalStateException("Workflow cycle counter exhausted");
         if (!CorrespondenceState.WITH_DIRECTOR.name().equals(nodes.getProperty(parent, STATE))

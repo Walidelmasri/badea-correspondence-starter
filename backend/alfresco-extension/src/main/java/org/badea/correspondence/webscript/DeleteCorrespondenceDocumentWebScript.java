@@ -1,5 +1,7 @@
 package org.badea.correspondence.webscript;
 
+import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -85,11 +87,14 @@ public final class DeleteCorrespondenceDocumentWebScript
                             : employee.department()
                                     .map(department -> department.code())
                                     .orElse(null);
-            if (request.getParameter("workspaceUnit") != null) {
-                var selectedWorkspace = actorRoleResolver.resolveWorkspace(request.getParameter("workspaceUnit"), employee);
-                role = selectedWorkspace.role();
-                departmentCode = selectedWorkspace.unit();
-            }
+
+            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(actorRoleResolver,
+
+                request.getParameter("workspaceUnit"), employee);
+
+            role = authorizedWorkspace.role();
+
+            departmentCode = authorizedWorkspace.unit();
 
             if (departmentCode == null) {
                 writeError(
@@ -110,13 +115,10 @@ public final class DeleteCorrespondenceDocumentWebScript
              * - Alfresco WRITE/DELETE permissions
              * - Direct source-document association
              */
-            if (role == CorrespondenceActorRole.DIRECTOR) {
-                // Preserve the existing Director deletion contract.
-                deleter.deleteDocument(technicalId, nodeId, role, departmentCode);
-            } else {
-                deleter.deleteDocument(technicalId, nodeId, role,
-                        departmentCode, employee.employeeId());
-            }
+            // Personal drafts require authenticated creator identity for every role.
+            // The identity-free legacy overload must never authorize deletion.
+            deleter.deleteDocument(technicalId, nodeId, role,
+                    departmentCode, employee.employeeId());
 
             response.setHeader(
                     "Cache-Control",

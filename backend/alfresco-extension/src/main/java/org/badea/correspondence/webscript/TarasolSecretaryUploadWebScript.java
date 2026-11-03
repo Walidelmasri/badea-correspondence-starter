@@ -2,6 +2,7 @@ package org.badea.correspondence.webscript;
 
 import java.io.IOException;
 import java.io.InputStream;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import java.util.Objects;
 
 import org.badea.correspondence.application.CurrentEmployeeService;
@@ -64,8 +65,12 @@ public final class TarasolSecretaryUploadWebScript extends AbstractWebScript {
             if (bytes.length == 0 || bytes.length > AlfrescoCorrespondenceDraftDocumentUploader.MAX_PDF_BYTES) {
                 throw new IllegalArgumentException("PDF size must be between 1 byte and 25 MiB");
             }
-            var result = uploader.uploadPdf(technicalId, CorrespondenceActorRole.SECRETARY, unit,
-                    employee.employeeId(), filename, bytes);
+            // Active Oracle secretary grant + persisted owner/status have already
+            // been validated. Use a narrowly scoped repository write so native
+            // originating-folder ACLs cannot reject the authorized secretary.
+            var result = AuthenticationUtil.runAsSystem(() ->
+                uploader.uploadPdf(technicalId, CorrespondenceActorRole.SECRETARY, unit,
+                    employee.employeeId(), filename, bytes));
             send(response, Status.STATUS_CREATED, new JSONObject().put("nodeId", result.nodeId())
                 .put("filename", result.filename()).put("sizeBytes", result.sizeBytes()));
         } catch (CorrespondenceAuthorizationException denied) {

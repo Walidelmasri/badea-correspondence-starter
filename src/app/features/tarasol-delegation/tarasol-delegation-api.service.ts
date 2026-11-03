@@ -23,6 +23,16 @@ export class TarasolDelegationApiService {
   private url(technicalId: string): string {
     return `/alfresco/service/badea/tarasol/delegation/case/${encodeURIComponent(technicalId)}`;
   }
+  handoffs(unitCode: string): Observable<{ readonly items: readonly {
+    technicalId: string; subject: string; state: string;
+  }[] }> {
+    return this.http.get<{ readonly items: readonly {
+      technicalId: string; subject: string; state: string;
+    }[] }>(`/alfresco/service/badea/tarasol/delegation/cases`, {
+      params: new HttpParams().set('unitCode', unitCode),
+    });
+  }
+
   open(unitCode: string, technicalId: string): Observable<DelegatedCase> {
     return this.http.get<DelegatedCase>(this.url(technicalId), {
       params: new HttpParams().set('unitCode', unitCode),
