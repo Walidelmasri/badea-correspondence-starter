@@ -33,6 +33,7 @@ import {
 } from './auth.model';
 
 import {
+  AlfrescoCredentialsRejectedError,
   AuthService,
 } from './auth.service';
 
@@ -279,6 +280,25 @@ describe('AuthService', () => {
       session.isAuthenticated(),
     ).toBe(false);
   });
+
+  for (const status of [401, 403]) {
+    it(`classifies an Alfresco ticket rejection (${status}) as invalid credentials`, () => {
+      const error = vi.fn();
+      service.login({ userId: 'test.user', password: 'wrong-password' })
+        .subscribe({ error });
+
+      http.expectOne(ALFRESCO_TICKETS_URL).flush(
+        { error: { briefSummary: 'Authentication failed' } },
+        { status, statusText: status === 401 ? 'Unauthorized' : 'Forbidden' },
+      );
+
+      expect(error).toHaveBeenCalledOnce();
+      expect(error.mock.calls[0][0]).toBeInstanceOf(AlfrescoCredentialsRejectedError);
+      expect(service.accessDenied()).toBe(false);
+      expect(session.ticket()).toBeNull();
+      expect(session.isAuthenticated()).toBe(false);
+    });
+  }
 
   it('fails closed when an employee cannot be resolved', () => {
     const next = vi.fn();

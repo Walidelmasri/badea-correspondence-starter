@@ -34,6 +34,7 @@ import {
 } from '../../../../core/auth/auth.constants';
 
 import {
+  AlfrescoCredentialsRejectedError,
   AuthService,
 } from '../../../../core/auth/auth.service';
 
@@ -245,6 +246,10 @@ export class LoginPageComponent {
         },
 
         error: (error: unknown) => {
+          if (error instanceof AlfrescoCredentialsRejectedError) {
+            this.errorMessage.set(this.translation.text().auth.invalidCredentials);
+            return;
+          }
           if (
             error instanceof HttpErrorResponse &&
             error.status === 403 &&
@@ -294,8 +299,14 @@ export class LoginPageComponent {
   }
 
   private isCredentialRequest(error: HttpErrorResponse): boolean {
-    return (error.url ?? '').split('?')[0] ===
-      ALFRESCO_TICKETS_URL;
+    if (!error.url) {
+      return false;
+    }
+    try {
+      return new URL(error.url, 'http://localhost').pathname === ALFRESCO_TICKETS_URL;
+    } catch {
+      return false;
+    }
   }
 
   private resolveLoginError(

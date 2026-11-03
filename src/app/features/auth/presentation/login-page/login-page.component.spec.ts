@@ -28,6 +28,7 @@ import {
 } from 'vitest';
 
 import {
+  AlfrescoCredentialsRejectedError,
   AuthService,
 } from '../../../../core/auth/auth.service';
 
@@ -280,11 +281,24 @@ describe(
       expect(navigate).toHaveBeenCalledWith('/access-denied');
     });
 
-    it('keeps a rejected Alfresco ticket on the login form instead of showing 403', () => {
+    it('keeps a rejected ticket on the login form even when the error URL is missing', () => {
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      authService.login.mockReturnValue(
+        throwError(() => new AlfrescoCredentialsRejectedError()),
+      );
+      component.form.setValue({ userId: 'test.user', password: 'wrong-password' });
+      component.submit();
+      fixture.detectChanges();
+      expect(navigate).not.toHaveBeenCalledWith('/access-denied');
+      expect(component.errorMessage()).toBe(component.translation.text().auth.invalidCredentials);
+      expect(fixture.nativeElement.querySelector('.login-form')).not.toBeNull();
+    });
+
+    it('keeps a ticket rejection with an absolute browser URL on the login form', () => {
       const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
       authService.login.mockReturnValue(throwError(() => new HttpErrorResponse({
         status: 403,
-        url: '/alfresco/api/-default-/public/authentication/versions/1/tickets',
+        url: 'https://tarasol.internal.badea.org/alfresco/api/-default-/public/authentication/versions/1/tickets',
       })));
       component.form.setValue({ userId: 'test.user', password: 'wrong-password' });
       component.submit();
@@ -292,6 +306,18 @@ describe(
       expect(navigate).not.toHaveBeenCalledWith('/access-denied');
       expect(component.errorMessage()).toBe(component.translation.text().auth.invalidCredentials);
       expect(fixture.nativeElement.querySelector('.login-form')).not.toBeNull();
+    });
+
+    it('preserves the 403 page for a valid ticket followed by forbidden profile access', async () => {
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      authService.login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 403,
+        url: 'https://tarasol.internal.badea.org/alfresco/service/badea/correspondence/me',
+      })));
+      component.form.setValue({ userId: 'test.user', password: 'valid-password' });
+      component.submit();
+      await fixture.whenStable();
+      expect(navigate).toHaveBeenCalledWith('/access-denied');
     });
 
     it('distinguishes valid Alfresco credentials from a missing employee record', () => {

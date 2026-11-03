@@ -42,6 +42,14 @@ import {
   AuthSessionStore,
 } from './auth-session.store';
 
+/** A ticket request was rejected before any Tarasol authorization check. */
+export class AlfrescoCredentialsRejectedError extends Error {
+  constructor() {
+    super('Alfresco rejected the supplied credentials');
+    this.name = 'AlfrescoCredentialsRejectedError';
+  }
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -87,6 +95,18 @@ export class AuthService {
         } satisfies LoginCredentials,
       )
       .pipe(
+        // Classify a rejected ticket at the request that failed. HTTP error
+        // URLs can be absolute, relative, missing, or rewritten by a proxy.
+        catchError((error: unknown) => {
+          if (
+            error instanceof HttpErrorResponse &&
+            (error.status === 401 || error.status === 403)
+          ) {
+            return throwError(() => new AlfrescoCredentialsRejectedError());
+          }
+          return throwError(() => error);
+        }),
+
         tap((response) => {
           this.session.setTicket(
             response.entry.id,
