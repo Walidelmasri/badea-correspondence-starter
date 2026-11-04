@@ -93,6 +93,13 @@ export const officeRoleGuard: CanActivateFn = () => {
   return router.createUrlTree(['/inbox']);
 };
 
+/** Secretary compose uses the normal Director form but never Director write APIs. */
+export const secretaryComposeGuard: CanActivateFn = () => {
+  const session = inject(AuthSessionStore);
+  return session.currentUser()?.employeeProfile?.secretaryUnits?.length
+    ? true : inject(Router).createUrlTree(['/inbox']);
+};
+
 /** Personal Sent/Drafts retain the legacy secretary workflow until their
  * data adapters are implemented. Never call Director endpoints as secretary. */
 export const standardMailboxGuard: CanActivateFn = () => {

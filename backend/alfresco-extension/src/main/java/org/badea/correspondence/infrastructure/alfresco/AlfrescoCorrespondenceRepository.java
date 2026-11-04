@@ -493,6 +493,26 @@ public final class AlfrescoCorrespondenceRepository
         return secretaryCase(node, status, owner);
     }
 
+    /** Optional full Director metadata for an authenticated secretary's personal draft. */
+    public record SecretaryDraftMetadata(String documentNumber, java.time.LocalDate documentDate,
+            String sourceText) { }
+
+    public SecretaryDraftMetadata readSecretaryDraftMetadata(String technicalId) {
+        readSecretaryDraft(technicalId);
+        NodeRef node = nodeLocator.locate(technicalId);
+        Object rawDate = nodeService.getProperty(node, PROP_DOCUMENT_DATE);
+        java.time.LocalDate documentDate = null;
+        if (rawDate instanceof java.sql.Date sqlDate) {
+            documentDate = sqlDate.toLocalDate();
+        } else if (rawDate instanceof java.util.Date date) {
+            documentDate = java.time.Instant.ofEpochMilli(date.getTime())
+                .atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        }
+        return new SecretaryDraftMetadata(
+            (String) nodeService.getProperty(node, PROP_DOCUMENT_NUMBER), documentDate,
+            (String) nodeService.getProperty(node, PROP_SOURCE_TEXT));
+    }
+
     /** Transition-only reader must never allow editing an approved or routed case. */
     public SecretaryDraft readSecretaryDraft(String technicalId) {
         SecretaryDraft draft = readSecretaryCase(technicalId);

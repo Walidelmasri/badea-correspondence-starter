@@ -53,6 +53,30 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 if (!"mine".equals(view) && !"pending".equals(view)) {
                     throw new IllegalArgumentException("Unknown secretary workflow view");
                 }
+                String technicalId = request.getParameter("technicalId");
+                if (technicalId != null) {
+                    if (!"mine".equals(view) || technicalId.isBlank()) {
+                        throw new IllegalArgumentException("Personal draft read requires view=mine");
+                    }
+                    var details = workflow.personalDraft(employee, unit, technicalId);
+                    var item = details.draft();
+                    var metadata = details.metadata();
+                    result.put("technicalId", item.technicalId())
+                        .put("unitCode", item.unitCode())
+                        .put("subject", item.subject())
+                        .put("bodyText", item.bodyText() == null ? JSONObject.NULL : item.bodyText())
+                        .put("ownerEmployeeId", item.ownerEmployeeId())
+                        .put("approvalStatus", item.approvalStatus())
+                        .put("returnReason", item.returnReason() == null ? JSONObject.NULL : item.returnReason())
+                        .put("documentNumber", metadata.documentNumber() == null
+                            ? JSONObject.NULL : metadata.documentNumber())
+                        .put("documentDate", metadata.documentDate() == null
+                            ? JSONObject.NULL : metadata.documentDate().toString())
+                        .put("sourceText", metadata.sourceText() == null
+                            ? JSONObject.NULL : metadata.sourceText());
+                    send(response, Status.STATUS_OK, result);
+                    return;
+                }
                 int offset = pageParameter(request.getParameter("offset"), 0, 1000000);
                 int limit = pageParameter(request.getParameter("limit"), 20, 50);
                 var page = workflow.page(employee, unit, "pending".equals(view), offset, limit);

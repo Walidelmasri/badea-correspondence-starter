@@ -82,6 +82,28 @@ class AlfrescoCorrespondenceRepositoryTest {
     }
 
     @Test
+    void personalSecretaryDraftReadReturnsOriginalDateAndMetadata() {
+        var node = nodeRef("00000000-0000-0000-0000-000000000001");
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(node);
+        when(nodeService.getType(node)).thenReturn(qname("correspondence"));
+        when(nodeService.getProperty(node, qname("secretaryApprovalStatus"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(node, qname("secretaryOwnerEmployeeId"))).thenReturn("300");
+        when(nodeService.getProperty(node, qname("state"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(node, qname("technicalId"))).thenReturn(TECHNICAL_ID);
+        when(nodeService.getProperty(node, qname("originDepartmentCode"))).thenReturn("117");
+        when(nodeService.getProperty(node, qname("subject"))).thenReturn("Report");
+        var date = LocalDate.of(2026, 11, 4);
+        when(nodeService.getProperty(node, qname("documentNumber"))).thenReturn("DOC-117");
+        when(nodeService.getProperty(node, qname("documentDate"))).thenReturn(java.sql.Date.valueOf(date));
+        when(nodeService.getProperty(node, qname("sourceText"))).thenReturn("Digital Transformation");
+
+        var metadata = repository.readSecretaryDraftMetadata(TECHNICAL_ID);
+        assertEquals("DOC-117", metadata.documentNumber());
+        assertEquals(date, metadata.documentDate());
+        assertEquals("Digital Transformation", metadata.sourceText());
+    }
+
+    @Test
     void secretaryFullRevisionUpdatesDirectorMetadataAndAuditsSecretaryActor() {
         var node = nodeRef("00000000-0000-0000-0000-000000000001");
         var actionNode = nodeRef("00000000-0000-0000-0000-000000000002");

@@ -435,7 +435,10 @@ export class RealMailboxComponent implements OnInit {
   }
 
   openCompose(): void {
-    if (this.secretaryMode()) return;
+    if (this.secretaryMode()) {
+      void this.router.navigate(['/secretary/new']);
+      return;
+    }
     void this.router.navigate([composeRouteForRole(this.session.effectiveRole())]);
   }
 

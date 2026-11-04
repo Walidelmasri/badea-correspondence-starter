@@ -70,6 +70,33 @@ class TarasolSecretaryWorkflowServiceTest {
     }
 
     @Test
+    void personalDraftMetadataRequiresSecretaryGroupUnitAndCreator() {
+        var secretary = employee("300");
+        var saved = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", "Body", "300", "RETURNED");
+        when(repo.readSecretaryDraft(CASE)).thenReturn(saved);
+        var metadata = new AlfrescoCorrespondenceRepository.SecretaryDraftMetadata(
+            "DOC-117", LocalDate.of(2026, 11, 4), "Human Resources");
+        when(repo.readSecretaryDraftMetadata(CASE)).thenReturn(metadata);
+
+        // No group is still denied, even with an active Oracle assignment.
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.personalDraft(secretary, hr, CASE));
+        verify(repo, never()).readSecretaryDraft(CASE);
+
+        secretaryGroup();
+        var details = service.personalDraft(secretary, hr, CASE);
+        assertEquals(metadata, details.metadata());
+        assertEquals("300", details.draft().ownerEmployeeId());
+        when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", "Body", "99999", "DRAFT"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.personalDraft(secretary, hr, CASE));
+        verify(repo, times(1)).readSecretaryDraftMetadata(CASE);
+    }
+
+    @Test
     void ordinaryDirectorApprovesAndRoutesToOffice() {
         var actor = employee("200");
         pending(hr, "300");

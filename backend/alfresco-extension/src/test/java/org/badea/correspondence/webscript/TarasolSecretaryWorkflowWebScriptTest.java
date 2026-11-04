@@ -14,6 +14,7 @@ import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.organization.TarasolSecretaryWorkflowService;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceRepository;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.springframework.extensions.surf.util.Content;
@@ -39,6 +40,43 @@ class TarasolSecretaryWorkflowWebScriptTest {
         when(request.getContent()).thenReturn(content);
         when(content.getContent()).thenReturn(json);
         when(response.getWriter()).thenReturn(new PrintWriter(output));
+    }
+
+    @Test
+    void personalDraftReadIncludesSavedMetadataForTheDirectorForm() throws Exception {
+        when(employees.getCurrentEmployee()).thenReturn(secretary);
+        when(request.getParameter("unitCode")).thenReturn("117");
+        when(request.getParameter("view")).thenReturn("mine");
+        when(request.getParameter("technicalId")).thenReturn("case-1");
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        var draft = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+                "case-1", "117", "Subject", "Body", "99999", "RETURNED", "Please revise");
+        var metadata = new AlfrescoCorrespondenceRepository.SecretaryDraftMetadata(
+                "DOC-117", LocalDate.of(2026, 11, 4), "Digital Transformation");
+        when(workflow.personalDraft(eq(secretary), eq(new DepartmentCode("117")), eq("case-1")))
+            .thenReturn(new TarasolSecretaryWorkflowService.PersonalDraftDetails(draft, metadata));
+        var reader = new TarasolSecretaryWorkflowWebScript(employees, workflow, false);
+        reader.execute(request, response);
+        verify(response).setStatus(Status.STATUS_OK);
+        var json = new JSONObject(output.toString());
+        assertEquals("RETURNED", json.getString("approvalStatus"));
+        assertEquals("Please revise", json.getString("returnReason"));
+        assertEquals("DOC-117", json.getString("documentNumber"));
+        assertEquals("2026-11-04", json.getString("documentDate"));
+        assertEquals("Digital Transformation", json.getString("sourceText"));
+    }
+
+    @Test
+    void managerQueueCannotBeUsedAsAnArbitraryDraftDetailsRead() throws Exception {
+        when(employees.getCurrentEmployee()).thenReturn(secretary);
+        when(request.getParameter("unitCode")).thenReturn("117");
+        when(request.getParameter("view")).thenReturn("pending");
+        when(request.getParameter("technicalId")).thenReturn("case-1");
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        new TarasolSecretaryWorkflowWebScript(employees, workflow, false)
+            .execute(request, response);
+        verify(response).setStatus(Status.STATUS_BAD_REQUEST);
+        verifyNoInteractions(workflow);
     }
 
     @Test

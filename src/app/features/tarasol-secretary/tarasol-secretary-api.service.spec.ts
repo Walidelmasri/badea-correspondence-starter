@@ -32,6 +32,21 @@ describe('TarasolSecretaryApiService', () => {
       ownerEmployeeId: '300', approvalStatus: 'APPROVED', returnReason: null }], total: 21, offset: 20, limit: 20 });
   });
 
+  it('loads only a personal draft in the assigned secretary unit', () => {
+    api.personalDraft('117', id).subscribe(result => {
+      expect(result.documentDate).toBe('2026-11-04');
+      expect(result.documentNumber).toBe('DOC-117');
+    });
+    const request = http.expectOne(item => item.url === '/alfresco/service/badea/tarasol/secretary/workflow');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('unitCode')).toBe('117');
+    expect(request.request.params.get('view')).toBe('mine');
+    expect(request.request.params.get('technicalId')).toBe(id);
+    request.flush({ technicalId: id, unitCode: '117', subject: 'Report',
+      bodyText: 'Body', ownerEmployeeId: '99999', approvalStatus: 'DRAFT',
+      documentNumber: 'DOC-117', documentDate: '2026-11-04', sourceText: 'Department' });
+  });
+
   it('deletes only the named draft attachment under its own isolated endpoint', () => {
     api.deletePdf('118', id, pdf).subscribe();
     const req = http.expectOne(`/alfresco/service/badea/tarasol/secretary/${id}/documents/${pdf}?unitCode=118`);

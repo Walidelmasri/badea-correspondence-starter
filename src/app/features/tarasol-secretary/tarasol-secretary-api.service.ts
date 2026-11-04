@@ -12,6 +12,12 @@ export interface SecretaryDraft {
   readonly returnReason?: string | null;
 }
 
+export interface SecretaryPersonalDraft extends SecretaryDraft {
+  readonly documentNumber: string | null;
+  readonly documentDate: string | null;
+  readonly sourceText: string | null;
+}
+
 export interface SecretaryPdf {
   readonly nodeId: string;
   readonly filename: string;
@@ -36,6 +42,13 @@ interface WorkflowResponse {
 export class TarasolSecretaryApiService {
   private readonly http = inject(HttpClient);
   private readonly url = '/alfresco/service/badea/tarasol/secretary/workflow';
+
+  personalDraft(unitCode: string, technicalId: string): Observable<SecretaryPersonalDraft> {
+    return this.http.get<SecretaryPersonalDraft>(this.url, {
+      params: new HttpParams().set('unitCode', unitCode)
+        .set('view', 'mine').set('technicalId', technicalId),
+    });
+  }
 
   uploadPdf(unitCode: string, technicalId: string, file: File): Observable<{nodeId: string; filename: string}> {
     if (file.type !== 'application/pdf') {

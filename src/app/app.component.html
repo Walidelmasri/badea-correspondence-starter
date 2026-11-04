@@ -42,6 +42,12 @@
           </a>
         }
       }
+      @if (auth.currentUser()?.employeeProfile?.secretaryUnits?.length) {
+        <a class="app-navigation__item" routerLink="/secretary/new"
+          routerLinkActive="app-navigation__item--active">
+          {{ translation.language() === 'ar' ? 'مراسلة جديدة' : 'New Correspondence' }}
+        </a>
+      }
       @if (auth.currentUser()?.employeeProfile?.delegationUnits?.length) {
         <a class="app-navigation__item" routerLink="/tarasol/delegated"
           routerLinkActive="app-navigation__item--active">

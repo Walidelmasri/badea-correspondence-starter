@@ -83,6 +83,21 @@ public final class TarasolSecretaryWorkflowService {
             managerView ? null : actor.employeeId().value(), managerView, offset, pageSize));
     }
 
+    public record PersonalDraftDetails(AlfrescoCorrespondenceRepository.SecretaryDraft draft,
+            AlfrescoCorrespondenceRepository.SecretaryDraftMetadata metadata) { }
+
+    public PersonalDraftDetails personalDraft(EmployeeDirectoryEntry actor, DepartmentCode unit,
+            String technicalId) {
+        requireSecretary(actor, unit);
+        return AuthenticationUtil.runAsSystem(() -> {
+            var draft = correspondence.readSecretaryDraft(technicalId);
+            if (!unit.value().equals(draft.unitCode())
+                    || !actor.employeeId().value().equals(draft.ownerEmployeeId())) throw denied();
+            return new PersonalDraftDetails(draft,
+                correspondence.readSecretaryDraftMetadata(technicalId));
+        });
+    }
+
     public boolean isApprovedOwnedCase(EmployeeDirectoryEntry actor, DepartmentCode unit,
             String technicalId) {
         requireSecretary(actor, unit);

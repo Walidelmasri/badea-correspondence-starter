@@ -11,6 +11,7 @@ import {
   directorRoleGuard,
   officeRoleGuard,
   secretaryDashboardGuard,
+  secretaryComposeGuard,
   standardMailboxGuard,
 } from './core/auth/correspondence-role.guard';
 
@@ -133,6 +134,14 @@ export const routes: Routes = [
         path: 'president-review',
         pathMatch: 'full',
         redirectTo: 'inbox',
+      },
+      {
+        path: 'secretary/new',
+        canActivate: [secretaryComposeGuard],
+        data: { secretary: true },
+        loadComponent: () =>
+          import('./features/director/presentation/director-new-page.component')
+            .then(module => module.DirectorNewPageComponent),
       },
       {
         path: 'director/new',

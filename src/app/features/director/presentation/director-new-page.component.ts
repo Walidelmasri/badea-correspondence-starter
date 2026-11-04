@@ -22,6 +22,7 @@ import {
 } from '@angular/forms';
 
 import { firstValueFrom } from 'rxjs';
+import { TarasolSecretaryApiService } from '../../tarasol-secretary/tarasol-secretary-api.service';
 import { CORRESPONDENCE_INSTRUCTION_LABELS } from '../../inbox/presentation/correspondence-instruction.labels';
 import { CorrespondenceInstruction } from '../../inbox/domain/correspondence-instruction.model';
 
@@ -72,11 +73,18 @@ const MAX_PDF_BYTES = 25 * 1024 * 1024;
 })
 export class DirectorNewPageComponent implements OnInit {
   private readonly api = inject(CorrespondenceApiService);
+  private readonly secretaryApi = inject(TarasolSecretaryApiService);
   private readonly session = inject(AuthSessionStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   readonly translation = inject(TranslationService);
+  readonly secretaryMode = this.route.snapshot.data?.['secretary'] === true;
+  private readonly draftSecretaryUnit = signal<string | null>(null);
+  readonly secretaryUnit = computed(() => this.draftSecretaryUnit()
+    ?? this.session.secretaryInboxUnitCode?.()
+    ?? this.session.currentUser()?.employeeProfile?.secretaryUnits?.[0]?.code
+    ?? null);
 
   readonly labels = computed(
     () => this.translation.text().director,
@@ -85,7 +93,7 @@ export class DirectorNewPageComponent implements OnInit {
   readonly directPresidentEligible = computed(() => {
     const active = this.session.activeWorkspace();
     const profile = this.session.currentUser()?.employeeProfile;
-    return active?.role === 'DIRECTOR'
+    return !this.secretaryMode && active?.role === 'DIRECTOR'
       && active.code !== '101'
       && profile?.correspondenceRoles?.includes('DIRECTOR') === true
       && profile?.correspondenceRoles?.includes('PRESIDENT_OFFICE') === true
@@ -101,7 +109,9 @@ export class DirectorNewPageComponent implements OnInit {
     'act-per-phone-call', 'prepare-response', 'apology', 'return-later',
   ];
 
-  readonly sendActionLabel = computed(() => this.directPresidentEligible()
+  readonly sendActionLabel = computed(() => this.secretaryMode
+    ? (this.translation.language() === 'ar' ? 'إرسال للاعتماد' : 'Send for Approval')
+    : this.directPresidentEligible()
     ? (this.translation.language() === 'ar' ? 'إرسال مباشرة إلى الرئيس' : 'Send directly to President')
     : this.labels().send);
 
@@ -176,6 +186,13 @@ export class DirectorNewPageComponent implements OnInit {
   ngOnInit(): void {
     const draftId =
       this.route.snapshot.queryParamMap.get('draft');
+    if (this.secretaryMode) {
+      const requestedUnit = this.route.snapshot.queryParamMap.get('unitCode');
+      if (requestedUnit && this.session.currentUser()?.employeeProfile?.secretaryUnits
+        ?.some(unit => unit.code === requestedUnit)) {
+        this.draftSecretaryUnit.set(requestedUnit);
+      }
+    }
 
     if (draftId) {
       // Existing drafts must retain their saved Source.
@@ -188,7 +205,10 @@ export class DirectorNewPageComponent implements OnInit {
 
   /** Default Source is the active Tarasol capacity, not the SAP home unit. */
   private prefillDepartmentSource(): void {
-    const department = this.session.activeWorkspace()
+    const department = (this.secretaryMode
+      ? this.session.currentUser()?.employeeProfile?.secretaryUnits?.find(
+          unit => unit.code === this.secretaryUnit())
+      : this.session.activeWorkspace())
       ?? this.session.currentUser()?.employeeProfile?.department;
 
     if (!department) {
@@ -234,6 +254,34 @@ export class DirectorNewPageComponent implements OnInit {
     this.form.disable({ emitEvent: false });
 
     try {
+      if (this.secretaryMode) {
+        const unit = this.secretaryUnit();
+        if (!unit) throw new Error('No secretary unit selected');
+        const details = await firstValueFrom(this.secretaryApi.personalDraft(unit, technicalId));
+        const documents = await firstValueFrom(this.secretaryApi.documents(unit, technicalId, 'mine'));
+        this.draftSecretaryUnit.set(unit);
+        this.technicalId.set(details.technicalId);
+        this.form.patchValue({
+          subject: details.subject,
+          documentNumber: details.documentNumber ?? '',
+          documentDate: details.documentDate ?? '',
+          sourceText: details.sourceText ?? '',
+          bodyText: details.bodyText ?? '',
+        });
+        this.form.markAsPristine();
+        this.form.markAsUntouched();
+        this.savedDocuments.set(documents.items);
+        if (details.approvalStatus === 'DRAFT' || details.approvalStatus === 'RETURNED') {
+          this.readOnly.set(false);
+          this.form.enable({ emitEvent: false });
+          if (details.returnReason) {
+            this.notice.set({ type: 'warning', message: details.returnReason });
+          }
+        } else {
+          this.notice.set({ type: 'warning', message: this.labels().notEditable });
+        }
+        return;
+      }
       const details = await firstValueFrom(
         this.api.getDetails(technicalId),
       );
@@ -400,12 +448,13 @@ export class DirectorNewPageComponent implements OnInit {
     this.notice.set(null);
 
     try {
-      await firstValueFrom(
-        this.api.deleteDocument(
-          technicalId,
-          document.nodeId,
-        ),
-      );
+      if (this.secretaryMode) {
+        const unit = this.secretaryUnit();
+        if (!unit) throw new Error('No secretary unit selected');
+        await firstValueFrom(this.secretaryApi.deletePdf(unit, technicalId, document.nodeId));
+      } else {
+        await firstValueFrom(this.api.deleteDocument(technicalId, document.nodeId));
+      }
 
       // Remove from the UI only after Alfresco confirms.
       this.savedDocuments.update(
@@ -446,13 +495,19 @@ export class DirectorNewPageComponent implements OnInit {
        * Do not issue a second DELETE automatically.
        */
       try {
-        const details = await firstValueFrom(
-          this.api.getDetails(technicalId),
-        );
+        const unit = this.secretaryUnit();
+        const details = this.secretaryMode && unit
+          ? await firstValueFrom(this.secretaryApi.personalDraft(unit, technicalId))
+          : await firstValueFrom(this.api.getDetails(technicalId));
+        const documents = this.secretaryMode && unit
+          ? (await firstValueFrom(this.secretaryApi.documents(unit, technicalId, 'mine'))).items
+          : (details as import('../../../shared/data-access/correspondence-api.service').CorrespondenceDetails).documents;
 
-        this.savedDocuments.set(details.documents);
+        this.savedDocuments.set(documents);
 
-        if (details.state !== 'DRAFT') {
+        if (this.secretaryMode
+          ? !('approvalStatus' in details && (details.approvalStatus === 'DRAFT' || details.approvalStatus === 'RETURNED'))
+          : !('state' in details && details.state === 'DRAFT')) {
           this.readOnly.set(true);
           this.form.disable({ emitEvent: false });
 
@@ -464,7 +519,7 @@ export class DirectorNewPageComponent implements OnInit {
           return;
         }
 
-        const stillExists = details.documents.some(
+        const stillExists = documents.some(
           (item) => item.nodeId === document.nodeId,
         );
 
@@ -525,6 +580,10 @@ export class DirectorNewPageComponent implements OnInit {
   }
 
   async saveDraft(sendAfterSave = false): Promise<void> {
+    if (this.secretaryMode) {
+      await this.saveSecretaryDraft(sendAfterSave);
+      return;
+    }
     if (this.modificationsBlocked()) {
       return;
     }
@@ -787,6 +846,145 @@ export class DirectorNewPageComponent implements OnInit {
         this.form.enable({ emitEvent: false });
       }
 
+      this.busy.set(false);
+      this.sending.set(false);
+    }
+  }
+
+  /** The Director form is shared; only the secretary's server-side workflow differs. */
+  private async saveSecretaryDraft(submitForApproval: boolean): Promise<void> {
+    if (this.modificationsBlocked()) return;
+    const unit = this.secretaryUnit();
+    if (!unit) {
+      this.notice.set({ type: 'error', message: 'No authorized secretary unit selected.' });
+      return;
+    }
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.notice.set({ type: 'error', message: this.labels().subjectRequired });
+      return;
+    }
+    if (submitForApproval && !window.confirm(
+      this.translation.language() === 'ar'
+        ? 'إرسال المراسلة للمدير للاعتماد؟'
+        : 'Send this correspondence to your manager for approval?')) return;
+
+    const creating = this.technicalId() === null;
+    this.busy.set(true);
+    this.sending.set(submitForApproval);
+    this.notice.set(null);
+    this.form.disable({ emitEvent: false });
+    try {
+      const values = this.form.getRawValue();
+      const fields: Record<string, string | null> = {
+        subject: values.subject.trim(),
+        bodyText: this.optional(values.bodyText),
+        documentNumber: this.optional(values.documentNumber),
+        documentDate: this.optional(values.documentDate),
+        sourceText: this.optional(values.sourceText),
+      };
+      let id = this.technicalId();
+      if (!id) {
+        const created = await firstValueFrom(
+          this.secretaryApi.change(unit, 'CREATE_DRAFT', fields));
+        if (!created.technicalId) {
+          this.creationUncertain.set(true);
+          throw new Error('Secretary draft ID missing');
+        }
+        id = created.technicalId;
+        this.technicalId.set(id);
+        this.draftSecretaryUnit.set(unit);
+        this.form.markAsPristine();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { draft: id, unitCode: unit }, queryParamsHandling: 'merge', replaceUrl: true,
+        });
+      } else if (this.form.dirty) {
+        await firstValueFrom(this.secretaryApi.change(unit, 'REVISE', {
+          ...fields, technicalId: id,
+        }));
+        this.form.markAsPristine();
+      }
+
+      for (const document of this.documents()) {
+        if (document.status !== 'queued') continue;
+        this.setDocumentStatus(document.id, 'uploading');
+        try {
+          const uploaded = await firstValueFrom(
+            this.secretaryApi.uploadPdf(unit, id, document.file));
+          this.savedDocuments.update(current => [...current, {
+            ...uploaded, mimeType: 'application/pdf', sizeBytes: document.file.size,
+          }]);
+          this.documents.update(current => current.filter(item => item.id !== document.id));
+        } catch (error: unknown) {
+          this.setDocumentStatus(document.id,
+            error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)
+              ? 'verify' : 'failed');
+        }
+      }
+      if (!submitForApproval) {
+        const uncertain = this.documents().some(doc => doc.status === 'verify');
+        const failed = this.documents().some(doc => doc.status === 'failed');
+        this.notice.set({ type: uncertain || failed ? 'warning' : 'success',
+          message: uncertain ? this.labels().uploadUncertain
+            : failed ? this.labels().uploadFailed : this.labels().saved });
+        return;
+      }
+      if (this.documents().length > 0) {
+        this.notice.set({ type: 'warning', message: this.labels().sendBlocked });
+        return;
+      }
+      // Verify the persisted draft and its PDFs before changing workflow state.
+      let details;
+      let saved;
+      try {
+        details = await firstValueFrom(this.secretaryApi.personalDraft(unit, id));
+        saved = await firstValueFrom(this.secretaryApi.documents(unit, id, 'mine'));
+      } catch {
+        this.submissionUncertain.set(true);
+        this.notice.set({ type: 'warning', message: this.labels().sendUncertain });
+        return;
+      }
+      const allSaved = this.savedDocuments().every(item =>
+        saved.items.some(stored => stored.nodeId === item.nodeId));
+      if (!allSaved || !['DRAFT', 'RETURNED'].includes(details.approvalStatus)) {
+        this.submissionUncertain.set(true);
+        this.notice.set({ type: 'warning', message: this.labels().sendUncertain });
+        return;
+      }
+      this.savedDocuments.set(saved.items);
+      try {
+        const response = await firstValueFrom(
+          this.secretaryApi.change(unit, 'SUBMIT', { technicalId: id }));
+        if (response.approvalStatus !== 'PENDING') {
+          this.submissionUncertain.set(true);
+          this.notice.set({ type: 'warning', message: this.labels().sendUncertain });
+          return;
+        }
+        this.readOnly.set(true);
+        this.form.disable({ emitEvent: false });
+        this.notice.set({ type: 'success', message: this.translation.language() === 'ar'
+          ? 'أُرسلت المراسلة للمدير للاعتماد'
+          : 'Sent to manager for approval' });
+      } catch (error: unknown) {
+        const uncertain = error instanceof HttpErrorResponse
+          && (error.status === 0 || error.status >= 500);
+        if (uncertain) this.submissionUncertain.set(true);
+        this.notice.set({ type: uncertain ? 'warning' : 'error',
+          message: uncertain ? this.labels().sendUncertain : this.labels().sendFailed });
+      }
+    } catch (error: unknown) {
+      const uncertain = error instanceof HttpErrorResponse
+        && (error.status === 0 || error.status >= 500);
+      if (creating && uncertain) this.creationUncertain.set(true);
+      this.notice.set({ type: uncertain ? 'warning' : 'error',
+        message: creating ? (uncertain ? this.labels().createUncertain : this.labels().createFailed)
+          : (uncertain ? this.labels().updateUncertain : this.labels().updateFailed) });
+    } finally {
+      if (!this.readOnly() && !this.creationUncertain()
+          && !this.deletionUncertain() && !this.submissionUncertain()) {
+        this.form.enable({ emitEvent: false });
+      }
       this.busy.set(false);
       this.sending.set(false);
     }

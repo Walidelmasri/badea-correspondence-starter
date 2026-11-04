@@ -5,7 +5,7 @@
   [searchLabel]="headings().search.label"
   [searchPlaceholder]="headings().search.placeholder"
   [primaryActionLabel]="headings().newCorrespondence"
-  [showPrimaryAction]="!secretaryMode() && session.effectiveRole() != null"
+  [showPrimaryAction]="secretaryMode() || session.effectiveRole() != null"
   [showSearch]="false"
   [detailOpen]="mobileDetailsOpen()"
   (primaryAction)="openCompose()"

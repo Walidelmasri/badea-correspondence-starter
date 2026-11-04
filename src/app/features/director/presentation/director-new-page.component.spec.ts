@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { CorrespondenceApiService } from '../../../shared/data-access/correspondence-api.service';
+import { TarasolSecretaryApiService } from '../../tarasol-secretary/tarasol-secretary-api.service';
 import { DirectorNewPageComponent } from './director-new-page.component';
 
 const ID = '03e1930c-de08-46d1-8d29-18ae7d2add1d';
@@ -96,6 +97,7 @@ describe('Director Send', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: CorrespondenceApiService, useValue: api },
+        { provide: TarasolSecretaryApiService, useValue: {} },
         { provide: AuthSessionStore, useValue: {
           currentUser: () => ({ employeeProfile: {
             department, correspondenceRoles: roles, managerWorkspaces,
@@ -248,5 +250,131 @@ describe('Director Send', () => {
     await page.sendDraft();
     expect(api.createDraft).not.toHaveBeenCalled();
     expect(api.transitionCorrespondence).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Secretary uses the Director form with approval-only submission', () => {
+  const documents = [{ nodeId: NODE_ID, filename: PDF.name,
+    mimeType: 'application/pdf', sizeBytes: PDF.size }];
+  let page: DirectorNewPageComponent;
+  let pendingDraft: string | null;
+  const directorApi = {
+    createDraft: vi.fn(), updateDraft: vi.fn(), transitionCorrespondence: vi.fn(),
+    uploadDocument: vi.fn(), deleteDocument: vi.fn(), getDetails: vi.fn(),
+  };
+  const secretaryApi = {
+    change: vi.fn(), uploadPdf: vi.fn(), deletePdf: vi.fn(),
+    personalDraft: vi.fn(), documents: vi.fn(),
+  };
+
+  beforeEach(() => {
+    pendingDraft = null;
+    Object.values(directorApi).forEach(mock => mock.mockReset());
+    Object.values(secretaryApi).forEach(mock => mock.mockReset());
+    secretaryApi.change.mockImplementation((_unit, action) => of(action === 'CREATE_DRAFT'
+      ? { technicalId: ID, approvalStatus: 'DRAFT', ok: true }
+      : { approvalStatus: action === 'SUBMIT' ? 'PENDING' : 'DRAFT', ok: true }));
+    secretaryApi.uploadPdf.mockReturnValue(of({ nodeId: NODE_ID, filename: PDF.name }));
+    secretaryApi.personalDraft.mockReturnValue(of({
+      technicalId: ID, unitCode: '117', ownerEmployeeId: '99999',
+      subject: 'Report', bodyText: 'Body', documentNumber: null,
+      documentDate: '2026-11-04', sourceText: 'Digital Transformation', approvalStatus: 'DRAFT',
+    }));
+    secretaryApi.documents.mockReturnValue(of({ items: documents }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const secretaryUnit = { code: '117', nameEnglish: 'Digital Transformation', nameArabic: null };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: directorApi },
+      { provide: TarasolSecretaryApiService, useValue: secretaryApi },
+      { provide: AuthSessionStore, useValue: {
+        currentUser: () => ({ employeeProfile: {
+          correspondenceRole: 'TARASOL_ADMIN', secretaryUnits: [secretaryUnit],
+          department: secretaryUnit, managerWorkspaces: [], correspondenceRoles: [],
+        } }),
+        activeWorkspace: () => null,
+        secretaryInboxUnitCode: () => '117',
+      } },
+      { provide: TranslationService, useValue: {
+        language: () => 'en', text: () => ({ director: labels }),
+      } },
+      { provide: ActivatedRoute, useValue: {
+        snapshot: { data: { secretary: true }, queryParamMap: {
+          get: (name: string) => name === 'draft' ? pendingDraft : null,
+        } },
+      } },
+      { provide: Router, useValue: { navigate: vi.fn(() => Promise.resolve(true)) } },
+    ] });
+    page = TestBed.runInInjectionContext(() => new DirectorNewPageComponent());
+    page.form.controls.subject.setValue('Correspondence from secretary');
+    page.form.controls.documentDate.setValue('2026-11-04');
+    page.form.controls.sourceText.setValue('Digital Transformation');
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('saves a full personal draft without calling any Director write API', async () => {
+    page.onFilesSelected({ target: { files: [PDF], value: 'chosen' } } as unknown as Event);
+    await page.saveDraft();
+    expect(secretaryApi.change).toHaveBeenCalledWith('117', 'CREATE_DRAFT', expect.objectContaining({
+      subject: 'Correspondence from secretary', documentDate: '2026-11-04',
+      sourceText: 'Digital Transformation',
+    }));
+    expect(secretaryApi.uploadPdf).toHaveBeenCalledWith('117', ID, PDF);
+    expect(directorApi.createDraft).not.toHaveBeenCalled();
+    expect(directorApi.uploadDocument).not.toHaveBeenCalled();
+    expect(directorApi.transitionCorrespondence).not.toHaveBeenCalled();
+    expect(page.technicalId()).toBe(ID);
+  });
+
+  it('submits only for manager approval after confirming persisted attachments', async () => {
+    page.onFilesSelected({ target: { files: [PDF], value: 'chosen' } } as unknown as Event);
+    await page.sendDraft();
+    expect(secretaryApi.personalDraft).toHaveBeenCalledWith('117', ID);
+    expect(secretaryApi.documents).toHaveBeenCalledWith('117', ID, 'mine');
+    expect(secretaryApi.change).toHaveBeenLastCalledWith('117', 'SUBMIT', { technicalId: ID });
+    expect(directorApi.transitionCorrespondence).not.toHaveBeenCalled();
+    expect(page.readOnly()).toBe(true);
+  });
+
+  it('blocks approval submission if PDF upload was not confirmed', async () => {
+    secretaryApi.uploadPdf.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+    page.onFilesSelected({ target: { files: [PDF], value: 'chosen' } } as unknown as Event);
+    await page.sendDraft();
+    expect(secretaryApi.change).not.toHaveBeenCalledWith('117', 'SUBMIT', expect.anything());
+    expect(page.documents()[0].status).toBe('verify');
+  });
+
+  it('does not retry an uncertain manager-approval submission', async () => {
+    secretaryApi.documents.mockReturnValue(of({ items: [] }));
+    secretaryApi.change.mockImplementation((_unit, action) => action === 'SUBMIT'
+      ? throwError(() => new HttpErrorResponse({ status: 0 }))
+      : of({ technicalId: ID, approvalStatus: 'DRAFT', ok: true }));
+    await page.sendDraft();
+    expect(page.submissionUncertain()).toBe(true);
+    await page.sendDraft();
+    const submits = secretaryApi.change.mock.calls.filter(([, action]) => action === 'SUBMIT');
+    expect(submits.length).toBe(1);
+    expect(directorApi.transitionCorrespondence).not.toHaveBeenCalled();
+  });
+
+  it('loads returned drafts for editing without querying Director details', async () => {
+    pendingDraft = ID;
+    secretaryApi.personalDraft.mockReturnValue(of({ technicalId: ID, unitCode: '117',
+      ownerEmployeeId: '99999', subject: 'Returned draft', bodyText: 'Needs correction',
+      documentNumber: 'DOC-117', documentDate: '2026-11-02', sourceText: 'Department',
+      approvalStatus: 'RETURNED', returnReason: 'Please revise the PDF',
+    }));
+    page.ngOnInit();
+    await vi.waitFor(() => expect(page.loading()).toBe(false));
+    expect(page.form.controls.subject.value).toBe('Returned draft');
+    expect(page.form.controls.documentDate.value).toBe('2026-11-02');
+    expect(page.readOnly()).toBe(false);
+    expect(directorApi.getDetails).not.toHaveBeenCalled();
+    page.form.controls.subject.setValue('Corrected draft');
+    page.form.controls.subject.markAsDirty();
+    await page.saveDraft();
+    expect(secretaryApi.change).toHaveBeenCalledWith('117', 'REVISE', expect.objectContaining({
+      technicalId: ID, subject: 'Corrected draft', documentNumber: 'DOC-117',
+    }));
   });
 });

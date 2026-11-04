@@ -138,7 +138,9 @@
       }
 
       <div class="director-form__destination">
-        {{ directPresidentEligible()
+        {{ secretaryMode
+          ? (translation.language() === 'ar' ? 'الوجهة: المدير للاعتماد' : 'Destination: Manager approval')
+          : directPresidentEligible()
           ? (translation.language() === 'ar' ? 'الوجهة: الرئيس' : 'Destination: President')
           : labels().destination }}
       </div>
@@ -347,7 +349,9 @@
 
     <footer class="compose-actions">
       <span class="director-form__footer-note">
-        {{ directPresidentEligible()
+        {{ secretaryMode
+          ? (translation.language() === 'ar' ? 'الوجهة: المدير للاعتماد' : 'Destination: Manager approval')
+          : directPresidentEligible()
           ? (translation.language() === 'ar' ? 'الوجهة: الرئيس' : 'Destination: President')
           : labels().destination }}
       </span>
