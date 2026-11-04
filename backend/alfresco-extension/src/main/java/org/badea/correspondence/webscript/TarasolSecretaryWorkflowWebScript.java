@@ -82,7 +82,8 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 int offset = pageParameter(request.getParameter("offset"), 0, 1000000);
                 int limit = pageParameter(request.getParameter("limit"), 20, 50);
                 String personalBox = request.getParameter("box");
-                if (personalBox != null && (!"mine".equals(view) || !"drafts".equals(personalBox))) {
+                if (personalBox != null && (!"mine".equals(view)
+                        || !java.util.Set.of("drafts", "sent").contains(personalBox))) {
                     throw new IllegalArgumentException("Invalid personal mailbox filter");
                 }
                 var page = personalBox == null
@@ -97,6 +98,8 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                         .put("bodyText", item.bodyText() == null ? JSONObject.NULL : item.bodyText())
                         .put("ownerEmployeeId", item.ownerEmployeeId())
                         .put("approvalStatus", item.approvalStatus())
+                        .put("state", item.state() == null ? JSONObject.NULL : item.state())
+                        .put("senderName", item.senderName() == null ? JSONObject.NULL : item.senderName())
                         .put("returnReason", item.returnReason() == null
                             ? JSONObject.NULL : item.returnReason())
                         .put("documentNumber", item.documentNumber() == null

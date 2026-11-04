@@ -48,7 +48,7 @@
               </span>
             }
             <span>{{ item.senderName }}</span>
-            <small>{{ statusLabel(item.state) }}</small>
+            <small>{{ secretaryMode() && box() === 'sent' ? secretarySentLabel(item) : statusLabel(item.state) }}</small>
           </button>
         }
       }
@@ -87,7 +87,7 @@
       <article class="mailbox-detail">
         <header class="mailbox-detail__header">
           <div>
-            <span>{{ statusLabel(item.state) }}</span>
+            <span>{{ secretaryMode() && box() === 'sent' ? secretarySentLabel(item) : statusLabel(item.state) }}</span>
             <h2>{{ item.subject }}</h2>
           </div>
           <button type="button" class="mailbox-history-trigger"
@@ -539,7 +539,8 @@
 @if (previewDocument(); as document) {
   @if (selectedId(); as technicalId) {
     <app-correspondence-document-preview
-      [secretaryUnitCode]="secretaryUnitCode()"
+      [secretaryUnitCode]="box() === 'inbox' ? secretaryUnitCode() : null"
+      [secretaryPersonalSentUnitCode]="secretaryMode() && box() === 'sent' ? secretaryUnitCode() : null"
       [technicalId]="technicalId"
       [document]="document"
       (closed)="closePreview()"

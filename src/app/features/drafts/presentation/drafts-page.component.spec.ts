@@ -80,7 +80,7 @@ describe('Personal secretary Drafts in the existing Drafts page', () => {
     secretary.list.mockReturnValue(of({ items: [{ ...summary,
       unitCode: '117', ownerEmployeeId: '99999', approvalStatus: 'RETURNED',
       bodyText: 'Please revise', returnReason: 'Fix document',
-    }], total: 1, offset: 0, limit: 25 }));
+    }], total: 1, offset: 0, limit: 10 }));
     secretary.personalDraft.mockReturnValue(of({
       technicalId: ID, unitCode: '117', subject: 'Review', bodyText: 'Please revise',
       ownerEmployeeId: '99999', approvalStatus: 'RETURNED', documentNumber: '117-1',
@@ -107,7 +107,7 @@ describe('Personal secretary Drafts in the existing Drafts page', () => {
   it('uses only the owner-scoped secretary list and detail/PDF endpoints', async () => {
     await page.loadPage(0);
     await vi.waitFor(() => expect(page.details()?.documents[0]?.filename).toBe('attachment.pdf'));
-    expect(secretary.list).toHaveBeenCalledWith('117', 'mine', 0, 25, 'drafts');
+    expect(secretary.list).toHaveBeenCalledWith('117', 'mine', 0, 10, 'drafts');
     expect(secretary.personalDraft).toHaveBeenCalledWith('117', ID);
     expect(secretary.documents).toHaveBeenCalledWith('117', ID, 'mine');
     expect(api.listDrafts).not.toHaveBeenCalled();

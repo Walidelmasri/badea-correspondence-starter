@@ -462,7 +462,15 @@ public final class AlfrescoCorrespondenceRepository
 
     public record SecretaryDraft(String technicalId, String unitCode, String subject,
             String bodyText, String ownerEmployeeId, String approvalStatus, String returnReason,
-            String documentNumber, String createdAt, String modifiedAt) {
+            String documentNumber, String createdAt, String modifiedAt,
+            String state, String senderName) {
+        public SecretaryDraft(String technicalId, String unitCode, String subject,
+                String bodyText, String ownerEmployeeId, String approvalStatus, String returnReason,
+                String documentNumber, String createdAt, String modifiedAt) {
+            this(technicalId, unitCode, subject, bodyText, ownerEmployeeId, approvalStatus,
+                returnReason, documentNumber, createdAt, modifiedAt, null, null);
+        }
+
         public SecretaryDraft(String technicalId, String unitCode, String subject,
                 String bodyText, String ownerEmployeeId, String approvalStatus, String returnReason) {
             this(technicalId, unitCode, subject, bodyText, ownerEmployeeId, approvalStatus,
@@ -538,7 +546,9 @@ public final class AlfrescoCorrespondenceRepository
             "RETURNED".equals(status) ? latestSecretaryReturnReason(node) : null,
             (String) nodeService.getProperty(node, PROP_DOCUMENT_NUMBER),
             secretaryTimestamp(node, ContentModel.PROP_CREATED),
-            secretaryTimestamp(node, ContentModel.PROP_MODIFIED));
+            secretaryTimestamp(node, ContentModel.PROP_MODIFIED),
+            (String) nodeService.getProperty(node, PROP_STATE),
+            (String) nodeService.getProperty(node, PROP_CREATED_BY_NAME_ENGLISH));
     }
 
     private String secretaryTimestamp(NodeRef node, QName property) {
@@ -600,7 +610,8 @@ public final class AlfrescoCorrespondenceRepository
     public SecretaryPage pageSecretaryCases(DepartmentCode unit, String ownerEmployeeId,
             boolean pendingOnly, int offset, int pageSize, String personalBox) {
         if (offset < 0 || pageSize < 1 || pageSize > 50 || (pendingOnly == (ownerEmployeeId != null))
-                || (personalBox != null && (pendingOnly || !"drafts".equals(personalBox)))) {
+                || (personalBox != null && (pendingOnly
+                    || !java.util.Set.of("drafts", "sent").contains(personalBox)))) {
             throw new IllegalArgumentException("Invalid secretary listing page");
         }
         NodeRef folder = folderLocator.locateDepartmentFolder(unit);
@@ -622,7 +633,9 @@ public final class AlfrescoCorrespondenceRepository
                     || !unit.value().equals(nodeService.getProperty(child, PROP_ORIGIN_DEPARTMENT_CODE))
                     || (pendingOnly && (!"PENDING".equals(status) || !draftState))
                     || (!pendingOnly && (!owner.equals(ownerEmployeeId) || !personalCase))
-                    || ("drafts".equals(personalBox) && !editableDraft)) continue;
+                    || ("drafts".equals(personalBox) && !editableDraft)
+                    || ("sent".equals(personalBox) && !(draftState && "PENDING".equals(status)
+                        || !draftState && "APPROVED".equals(status)))) continue;
             Object modified = nodeService.getProperty(child, ContentModel.PROP_MODIFIED);
             long stamp = modified instanceof java.util.Date date ? date.getTime() : 0L;
             cases.add(new SecretaryDatedCase(secretaryCase(child, status, owner), stamp));

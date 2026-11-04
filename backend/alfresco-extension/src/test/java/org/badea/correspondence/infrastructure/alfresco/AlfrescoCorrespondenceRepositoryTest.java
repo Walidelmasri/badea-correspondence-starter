@@ -1076,15 +1076,23 @@ class AlfrescoCorrespondenceRepositoryTest {
         assertEquals(FIXED_INSTANT.toString(), page.items().getFirst().modifiedAt());
         assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Approved, forwarded correspondence must never appear in editable Drafts");
+        assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "sent").total(),
+            "Approved and forwarded correspondence must appear in personal Sent");
         when(nodeService.getProperty(sent, qname("state"))).thenReturn("DRAFT");
         when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("RETURNED");
         when(nodeService.getChildAssocs(sent)).thenReturn(java.util.List.of());
         assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Returned work is editable in personal Drafts");
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "sent").total(),
+            "Returned work belongs in Drafts, not Sent");
         when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("PENDING");
+        assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "sent").total(),
+            "Submitted work remains visible while the manager has not approved it");
         assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Pending approvals must not be edited in personal Drafts");
         when(nodeService.getProperty(sent, qname("secretaryOwnerEmployeeId"))).thenReturn("999");
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "sent").total(),
+            "Another secretary's Sent correspondence must never be listed");
         assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Another secretary's returned draft must never leak into this mailbox");
         when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("APPROVED");

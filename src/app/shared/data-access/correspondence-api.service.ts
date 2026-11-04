@@ -10,6 +10,7 @@ import {
 
 import {
   Observable,
+  map,
 } from 'rxjs';
 
 const CORRESPONDENCE_URL =
@@ -20,6 +21,12 @@ const OFFICE_COMPLETION_URL =
 
 const SECRETARY_INBOX_URL =
   '/alfresco/service/badea/tarasol/secretary/inbox';
+
+const SECRETARY_SENT_URL =
+  '/alfresco/service/badea/tarasol/secretary/sent';
+
+const SECRETARY_WORKFLOW_URL =
+  '/alfresco/service/badea/tarasol/secretary/workflow';
 
 export interface CreateCorrespondenceDraft {
   readonly subject: string;
@@ -129,6 +136,8 @@ export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary
   readonly needsAction: boolean;
   readonly unread: boolean;
   readonly incomingSequence: number;
+  /** Only secretary Sent uses this additional presentation status. */
+  readonly approvalStatus?: 'PENDING' | 'APPROVED';
 }
 
 export interface CorrespondenceMailboxPage {
@@ -351,6 +360,64 @@ export class CorrespondenceApiService {
       view: CorrespondenceInboxView = 'needs_action'): Observable<CorrespondenceMailboxPage> {
     return this.http.get<CorrespondenceMailboxPage>(SECRETARY_INBOX_URL,
       { params: { unitCode, offset, limit, view } });
+  }
+
+  /** Personal Sent includes submitted and approved/forwarded cases only.
+   * The backend verifies the creator, secretary group and effective Oracle unit. */
+  listSecretarySent(unitCode: string, offset = 0, limit = 25): Observable<CorrespondenceMailboxPage> {
+    interface SecretarySentItem {
+      readonly technicalId: string;
+      readonly subject: string;
+      readonly documentNumber: string | null;
+      readonly state: CorrespondenceDetails['state'];
+      readonly senderName: string | null;
+      readonly ownerEmployeeId: string;
+      readonly approvalStatus: 'PENDING' | 'APPROVED';
+      readonly createdAt: string;
+      readonly modifiedAt: string;
+    }
+    interface SecretarySentPage {
+      readonly items: readonly SecretarySentItem[];
+      readonly offset: number;
+      readonly limit: number;
+      readonly total: number;
+    }
+    return this.http.get<SecretarySentPage>(SECRETARY_WORKFLOW_URL, {
+      params: { unitCode, view: 'mine', box: 'sent', offset, limit },
+    }).pipe(map(page => ({
+      ...page,
+      items: page.items.map(item => ({
+        technicalId: item.technicalId,
+        subject: item.subject,
+        documentNumber: item.documentNumber,
+        createdAt: item.createdAt,
+        modifiedAt: item.modifiedAt,
+        state: item.state,
+        originDepartmentCode: unitCode,
+        senderName: item.senderName || item.ownerEmployeeId,
+        needsAction: false,
+        unread: false,
+        incomingSequence: 0,
+        approvalStatus: item.approvalStatus,
+      })),
+    })));
+  }
+
+  getSecretarySentDetails(unitCode: string, technicalId: string): Observable<CorrespondenceDetails> {
+    return this.http.get<CorrespondenceDetails>(
+      `${SECRETARY_SENT_URL}/${encodeURIComponent(technicalId)}`, { params: { unitCode } });
+  }
+
+  getSecretarySentHistory(unitCode: string, technicalId: string): Observable<CorrespondenceHistoryPage> {
+    return this.http.get<CorrespondenceHistoryPage>(
+      `${SECRETARY_SENT_URL}/${encodeURIComponent(technicalId)}/history`, { params: { unitCode } });
+  }
+
+  getSecretarySentDocument(unitCode: string, technicalId: string, nodeId: string): Observable<Blob> {
+    return this.http.get(
+      `${SECRETARY_SENT_URL}/${encodeURIComponent(technicalId)}`
+        + `/documents/${encodeURIComponent(nodeId)}/content`,
+      { params: { unitCode }, responseType: 'blob' });
   }
 
   getSecretaryInboxDetails(unitCode: string, technicalId: string): Observable<CorrespondenceDetails> {

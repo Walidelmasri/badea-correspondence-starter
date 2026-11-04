@@ -617,6 +617,53 @@ describe('CorrespondenceApiService', () => {
     document.flush(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
   });
 
+  it('loads owner-scoped secretary Sent, preserving pending and approved states', () => {
+    const id = '7fc41b5b-aceb-48fc-9f36-367e4a36e207';
+    const doc = 'e7c41b5b-aceb-48fc-9f36-367e4a36e207';
+    const root = '/alfresco/service/badea/tarasol/secretary/sent';
+    service.listSecretarySent('117', 10, 10).subscribe(page => {
+      expect(page.total).toBe(2);
+      expect(page.items.map(item => item.approvalStatus)).toEqual(['PENDING', 'APPROVED']);
+      expect(page.items[0].state).toBe('DRAFT');
+      expect(page.items[1].state).toBe('WITH_PRESIDENT_OFFICE');
+      expect(page.items[1].senderName).toBe('Secretary User');
+    });
+    service.getSecretarySentDetails('117', id).subscribe();
+    service.getSecretarySentHistory('117', id).subscribe();
+    service.getSecretarySentDocument('117', id, doc).subscribe();
+
+    const listing = http.expectOne(req => req.url ===
+      '/alfresco/service/badea/tarasol/secretary/workflow');
+    expect(listing.request.method).toBe('GET');
+    for (const [key, value] of Object.entries({ unitCode: '117', view: 'mine', box: 'sent',
+      offset: '10', limit: '10' })) {
+      expect(listing.request.params.get(key)).toBe(value);
+    }
+    const stamp = '2026-11-04T12:00:00Z';
+    listing.flush({ items: [
+      { technicalId: id, subject: 'Pending', documentNumber: null, state: 'DRAFT',
+        senderName: 'Secretary User', ownerEmployeeId: '99999', approvalStatus: 'PENDING',
+        createdAt: stamp, modifiedAt: stamp },
+      { technicalId: doc, subject: 'Forwarded', documentNumber: '117-123',
+        state: 'WITH_PRESIDENT_OFFICE', senderName: 'Secretary User',
+        ownerEmployeeId: '99999', approvalStatus: 'APPROVED',
+        createdAt: stamp, modifiedAt: stamp },
+    ], offset: 10, limit: 10, total: 2 });
+    for (const request of [
+      http.expectOne(req => req.url === `${root}/${id}`),
+      http.expectOne(req => req.url === `${root}/${id}/history`),
+      http.expectOne(req => req.url === `${root}/${id}/documents/${doc}/content`),
+    ]) {
+      expect(request.request.params.get('unitCode')).toBe('117');
+      expect(request.request.method).toBe('GET');
+      if (request.request.responseType === 'blob') {
+        request.flush(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
+      } else {
+        request.flush({ items: [], total: 0 });
+      }
+    }
+  });
+
   it('preserves the ordinary Director mailbox endpoint and does not add secretary parameters', () => {
     service.listMailbox('inbox', 0, 10, 'needs_action').subscribe();
     const req = http.expectOne(request => request.url === '/alfresco/service/badea/correspondence');

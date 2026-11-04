@@ -97,6 +97,36 @@ class TarasolSecretaryWorkflowServiceTest {
     }
 
     @Test
+    void personalSentRequiresCurrentGroupUnitCreatorAndSubmittedState() {
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        when(repo.readSecretaryCase(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", null, "300", "PENDING", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "DRAFT", "Secretary"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.readPersonalSent(secretary, hr, CASE, () -> "ok"));
+        verify(repo, never()).readSecretaryCase(CASE);
+        secretaryGroup();
+        assertEquals("ok", service.readPersonalSent(secretary, hr, CASE, () -> "ok"));
+        when(repo.readSecretaryCase(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", null, "300", "APPROVED", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "WITH_PRESIDENT_OFFICE", "Secretary"));
+        assertEquals("issued", service.readPersonalSent(secretary, hr, CASE, () -> "issued"));
+        when(repo.readSecretaryCase(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", null, "999", "APPROVED", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "WITH_PRESIDENT_OFFICE", "Other"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.readPersonalSent(secretary, hr, CASE, () -> "leak"));
+        when(repo.readSecretaryCase(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", null, "300", "RETURNED", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "DRAFT", "Secretary"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.readPersonalSent(secretary, hr, CASE, () -> "leak"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.readPersonalSent(secretary, office, CASE, () -> "leak"));
+    }
+
+    @Test
     void ordinaryDirectorApprovesAndRoutesToOffice() {
         var actor = employee("200");
         pending(hr, "300");

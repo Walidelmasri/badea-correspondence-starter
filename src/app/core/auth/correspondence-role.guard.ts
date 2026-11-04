@@ -103,8 +103,5 @@ export const secretaryComposeGuard: CanActivateFn = () => {
 /** Drafts uses the same page with an owner-scoped secretary API. */
 export const secretaryDraftsGuard: CanActivateFn = () => true;
 
-/** Personal Sent still needs an owner-scoped detail/history adapter. */
-export const standardMailboxGuard: CanActivateFn = () => {
-  const session = inject(AuthSessionStore);
-  return session.secretaryMailbox() ? inject(Router).createUrlTree(['/inbox']) : true;
-};
+/** Personal secretary Sent now has its own creator-scoped list/detail/PDF APIs. */
+export const standardMailboxGuard: CanActivateFn = () => true;

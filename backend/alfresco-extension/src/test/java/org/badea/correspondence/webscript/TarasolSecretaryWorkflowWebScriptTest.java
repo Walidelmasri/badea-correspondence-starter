@@ -89,6 +89,29 @@ class TarasolSecretaryWorkflowWebScriptTest {
     }
 
     @Test
+    void personalSentExposesActualApprovalAndRoutingState() throws Exception {
+        when(employees.getCurrentEmployee()).thenReturn(secretary);
+        when(request.getParameter("unitCode")).thenReturn("117");
+        when(request.getParameter("view")).thenReturn("mine");
+        when(request.getParameter("box")).thenReturn("sent");
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        var sent = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            "case-1", "117", "Submitted", "Body", "99999", "APPROVED", null,
+            "REF-117", "2026-11-04T07:00:00Z", "2026-11-04T09:00:00Z",
+            "WITH_PRESIDENT_OFFICE", "Secretary User");
+        when(workflow.page(eq(secretary), eq(new DepartmentCode("117")), eq(false),
+            eq(0), eq(20), eq("sent")))
+            .thenReturn(new AlfrescoCorrespondenceRepository.SecretaryPage(java.util.List.of(sent), 1));
+        new TarasolSecretaryWorkflowWebScript(employees, workflow, false)
+            .execute(request, response);
+        verify(response).setStatus(Status.STATUS_OK);
+        var row = new JSONObject(output.toString()).getJSONArray("items").getJSONObject(0);
+        assertEquals("APPROVED", row.getString("approvalStatus"));
+        assertEquals("WITH_PRESIDENT_OFFICE", row.getString("state"));
+        assertEquals("Secretary User", row.getString("senderName"));
+    }
+
+    @Test
     void managerQueueCannotBeUsedAsAnArbitraryDraftDetailsRead() throws Exception {
         when(employees.getCurrentEmployee()).thenReturn(secretary);
         when(request.getParameter("unitCode")).thenReturn("117");

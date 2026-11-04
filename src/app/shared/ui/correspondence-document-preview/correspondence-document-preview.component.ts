@@ -36,6 +36,7 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
   readonly document = input.required<CorrespondenceDocumentUpload>();
   readonly secretaryUnitCode = input<string | null>(null);
   readonly secretaryPersonalDraftUnitCode = input<string | null>(null);
+  readonly secretaryPersonalSentUnitCode = input<string | null>(null);
   readonly closed = output<void>();
 
   readonly loading = signal(true);
@@ -50,8 +51,10 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
     this.dialog().nativeElement.showModal();
     const unit = this.secretaryUnitCode();
     const personalUnit = this.secretaryPersonalDraftUnitCode();
+    const sentUnit = this.secretaryPersonalSentUnitCode();
     this.request = (personalUnit
       ? this.api.getSecretaryPersonalDraftDocument(personalUnit, this.technicalId(), this.document().nodeId)
+      : sentUnit ? this.api.getSecretarySentDocument(sentUnit, this.technicalId(), this.document().nodeId)
       : unit ? this.api.getSecretaryInboxDocument(unit, this.technicalId(), this.document().nodeId)
       : this.api.getDocumentContent(this.technicalId(), this.document().nodeId)
     ).subscribe({

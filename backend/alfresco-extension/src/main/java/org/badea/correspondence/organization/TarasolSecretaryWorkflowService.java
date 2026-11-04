@@ -106,6 +106,27 @@ public final class TarasolSecretaryWorkflowService {
         });
     }
 
+    /** Every personal Sent read rechecks the real secretary's active appointment and
+     * creator ownership before any privileged Alfresco detail/history/PDF access. */
+    public <T> T readPersonalSent(EmployeeDirectoryEntry actor, DepartmentCode unit,
+            String technicalId, java.util.function.Supplier<T> read) {
+        Objects.requireNonNull(read);
+        requireSecretary(actor, unit);
+        if (technicalId == null || !technicalId.matches(
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            throw new IllegalArgumentException("Canonical correspondence ID required");
+        }
+        return AuthenticationUtil.runAsSystem(() -> {
+            var saved = correspondence.readSecretaryCase(technicalId);
+            if (!unit.value().equals(saved.unitCode())
+                    || !actor.employeeId().value().equals(saved.ownerEmployeeId())
+                    || !("PENDING".equals(saved.approvalStatus()) && "DRAFT".equals(saved.state())
+                         || "APPROVED".equals(saved.approvalStatus())
+                            && !"DRAFT".equals(saved.state()))) throw denied();
+            return read.get();
+        });
+    }
+
     public boolean isApprovedOwnedCase(EmployeeDirectoryEntry actor, DepartmentCode unit,
             String technicalId) {
         requireSecretary(actor, unit);

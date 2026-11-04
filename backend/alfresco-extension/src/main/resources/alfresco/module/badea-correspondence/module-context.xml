@@ -1059,6 +1059,36 @@
         <constructor-arg ref="badeaTarasolSecretaryInboxReadService" />
         <constructor-arg value="DOCUMENT" />
     </bean>
+    <!-- Personal Sent is owner-only and distinct from department shared Inbox. -->
+    <bean id="badeaTarasolSecretaryPersonalSentReadService"
+          class="org.badea.correspondence.organization.TarasolSecretaryPersonalSentReadService"
+          lazy-init="true">
+        <constructor-arg ref="badeaTarasolSecretaryWorkflowService" />
+        <constructor-arg ref="badeaCorrespondenceDetailsService" />
+        <constructor-arg ref="badeaCorrespondenceDocumentContentService" />
+        <constructor-arg ref="badeaCorrespondenceHistoryReader" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-sent-details.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryPersonalSentReadWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryPersonalSentReadService" />
+        <constructor-arg value="DETAILS" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-sent-history.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryPersonalSentReadWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryPersonalSentReadService" />
+        <constructor-arg value="HISTORY" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-sent-document.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryPersonalSentReadWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretaryPersonalSentReadService" />
+        <constructor-arg value="DOCUMENT" />
+    </bean>
     <!-- Independent secretary approval lifecycle. Secretary access requires
          group membership and Oracle grants; manager approval retains its
          existing authorized managerial workspace checks. -->

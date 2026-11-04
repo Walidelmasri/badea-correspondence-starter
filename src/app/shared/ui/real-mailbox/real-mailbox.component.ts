@@ -61,7 +61,7 @@ export class RealMailboxComponent implements OnInit {
   private readonly unreadStore = inject(UnreadInboxStore);
   readonly session = inject(AuthSessionStore);
   readonly translation = inject(TranslationService);
-  readonly secretaryMode = computed(() => this.box() === 'inbox' && this.session.secretaryMailbox());
+  readonly secretaryMode = computed(() => this.session.secretaryMailbox());
   readonly secretaryUnitCode = computed(() => this.secretaryMode()
     ? this.session.secretaryInboxUnitCode() : null);
 
@@ -216,7 +216,7 @@ export class RealMailboxComponent implements OnInit {
     && this.page()!.offset + this.page()!.limit < this.page()!.total
     && !this.loading());
   readonly canForwardToPresident = computed(() =>
-    !this.forwarding() && !this.forwardUncertain() &&
+    !this.secretaryMode() && !this.forwarding() && !this.forwardUncertain() &&
     eligibleForInitialOfficeForward(
       this.box(),
       this.session.effectiveRole(),
@@ -301,7 +301,9 @@ export class RealMailboxComponent implements OnInit {
     try {
       const unit = this.secretaryUnitCode();
       const page = await firstValueFrom(this.secretaryMode()
-        ? this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
+        ? this.box() === 'sent'
+          ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
+          : this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
         : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
       if (version !== this.pageVersion) return;
       this.page.set(page);
@@ -366,7 +368,9 @@ export class RealMailboxComponent implements OnInit {
     try {
       const unit = this.secretaryUnitCode();
       const result = await firstValueFrom(this.secretaryMode()
-        ? this.api.getSecretaryInboxDetails(unit!, id)
+        ? this.box() === 'sent'
+          ? this.api.getSecretarySentDetails(unit!, id)
+          : this.api.getSecretaryInboxDetails(unit!, id)
         : this.api.getDetails(id));
       if (version !== this.detailVersion || this.selectedId() !== id) return;
       this.details.set(result);
@@ -386,7 +390,9 @@ export class RealMailboxComponent implements OnInit {
       // History failure must never block correspondence details or PDF viewing.
       try {
         const actionPage = await firstValueFrom(this.secretaryMode()
-          ? this.api.getSecretaryInboxHistory(unit!, id)
+          ? this.box() === 'sent'
+            ? this.api.getSecretarySentHistory(unit!, id)
+            : this.api.getSecretaryInboxHistory(unit!, id)
           : this.api.getHistory(id));
         if (version === this.detailVersion && this.selectedId() === id) {
           this.history.set(actionPage.items);
@@ -888,6 +894,12 @@ export class RealMailboxComponent implements OnInit {
     if (!this.canReview()) return;
     const id = this.selectedId();
     if (id) void this.router.navigate(['/president-review', id]);
+  }
+
+  secretarySentLabel(item: CorrespondenceMailboxPage['items'][number]): string {
+    if (item.approvalStatus === 'PENDING') return this.translation.language() === 'ar'
+      ? 'بانتظار موافقة المدير' : 'Awaiting manager approval';
+    return this.statusLabel(item.state);
   }
 
   statusLabel(state: CorrespondenceDetails['state']): string {
