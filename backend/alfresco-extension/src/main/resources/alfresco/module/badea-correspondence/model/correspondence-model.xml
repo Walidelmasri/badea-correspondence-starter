@@ -127,6 +127,12 @@
                     <mandatory>false</mandatory>
                 </property>
 
+                <!-- Serializes concurrent secretary follow-up requests on this case. -->
+                <property name="bc:roundTwoPendingRequestId">
+                    <type>d:text</type>
+                    <mandatory>false</mandatory>
+                </property>
+
                 <!-- Origin -->
 
                 <property name="bc:originDepartmentCode">
@@ -403,6 +409,21 @@
                 <property name="bc:generatedByEmployeeId"><type>d:text</type><mandatory>true</mandatory></property>
                 <property name="bc:generatedAt"><type>d:datetime</type><mandatory>true</mandatory></property>
                 <property name="bc:generatedSha256"><type>d:text</type><mandatory>true</mandatory></property>
+            </properties>
+        </type>
+
+        <!-- One pending, cycle-bound request per correspondence; does not change routing. -->
+        <type name="bc:secretaryRoundTwoRequest">
+            <title>Secretary Round Two Request</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:roundTwoRequestId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestUnit"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestOwner"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestReason"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestCycle"><type>d:long</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestStatus"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestAt"><type>d:datetime</type><mandatory>true</mandatory></property>
             </properties>
         </type>
 

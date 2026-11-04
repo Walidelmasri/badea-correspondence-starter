@@ -1089,6 +1089,38 @@
         <constructor-arg ref="badeaTarasolSecretaryPersonalSentReadService" />
         <constructor-arg value="DOCUMENT" />
     </bean>
+    <!-- Secretary may request a new round, but cannot advance the cycle. -->
+    <bean id="badeaSecretaryRoundTwoRequestRepository"
+          class="org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryRoundTwoRequestRepository"
+          lazy-init="true">
+        <constructor-arg ref="nodeService" />
+        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+        <constructor-arg><bean class="java.time.Clock" factory-method="systemUTC" /></constructor-arg>
+    </bean>
+    <bean id="badeaSecretaryRoundTwoRequestService"
+          class="org.badea.correspondence.organization.TarasolSecretaryRoundTwoRequestService"
+          lazy-init="true">
+        <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+        <constructor-arg ref="badeaTarasolSecretarySharedInboxService" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestRepository" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-request.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
+        <constructor-arg value="true" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-request.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
+        <constructor-arg value="false" />
+    </bean>
+
     <!-- Independent secretary approval lifecycle. Secretary access requires
          group membership and Oracle grants; manager approval retains its
          existing authorized managerial workspace checks. -->
