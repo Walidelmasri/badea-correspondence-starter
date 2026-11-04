@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
+import { TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
 
 import { TranslationService } from '../../../core/i18n/translation.service';
 import {
@@ -28,6 +29,7 @@ import {
 })
 export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, OnDestroy {
   private readonly api = inject(CorrespondenceApiService);
+  private readonly secretaryApi = inject(TarasolSecretaryApiService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -37,6 +39,7 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
   readonly secretaryUnitCode = input<string | null>(null);
   readonly secretaryPersonalDraftUnitCode = input<string | null>(null);
   readonly secretaryPersonalSentUnitCode = input<string | null>(null);
+  readonly secretaryManagerPendingUnitCode = input<string | null>(null);
   readonly closed = output<void>();
 
   readonly loading = signal(true);
@@ -52,7 +55,10 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
     const unit = this.secretaryUnitCode();
     const personalUnit = this.secretaryPersonalDraftUnitCode();
     const sentUnit = this.secretaryPersonalSentUnitCode();
-    this.request = (personalUnit
+    const managerUnit = this.secretaryManagerPendingUnitCode();
+    this.request = (managerUnit
+      ? this.secretaryApi.preview(managerUnit, this.technicalId(), this.document().nodeId, 'pending')
+      : personalUnit
       ? this.api.getSecretaryPersonalDraftDocument(personalUnit, this.technicalId(), this.document().nodeId)
       : sentUnit ? this.api.getSecretarySentDocument(sentUnit, this.technicalId(), this.document().nodeId)
       : unit ? this.api.getSecretaryInboxDocument(unit, this.technicalId(), this.document().nodeId)

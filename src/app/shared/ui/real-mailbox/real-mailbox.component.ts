@@ -36,6 +36,7 @@ import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/co
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
+import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
 
 const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
@@ -54,6 +55,7 @@ const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 export class RealMailboxComponent implements OnInit {
   readonly box = input.required<CorrespondenceMailboxBox>();
   private readonly api = inject(CorrespondenceApiService);
+  private readonly secretaryApi = inject(TarasolSecretaryApiService);
   private readonly correspondence = inject(CorrespondenceService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -64,6 +66,56 @@ export class RealMailboxComponent implements OnInit {
   readonly secretaryMode = computed(() => this.session.secretaryMailbox());
   readonly secretaryUnitCode = computed(() => this.secretaryMode()
     ? this.session.secretaryInboxUnitCode() : null);
+  // A manager appointment, not Alfresco group membership alone, identifies
+  // the department whose secretary submissions this Inbox may review.
+  readonly managerApprovalUnit = computed(() => {
+    if (this.box() !== 'inbox') return null;
+    const selected = this.session.activeManagerWorkspace();
+    if (selected) return selected.code;
+    const workspaces = this.session.availableWorkspaces();
+    // A single Office manager appointment needs no extra workspace selection.
+    if (workspaces.length === 1) return workspaces[0].code;
+    const code = this.session.effectiveDepartmentCode();
+    return workspaces.find(unit => unit.code === code)?.code ?? null;
+  });
+  readonly pendingApprovals = signal<readonly SecretaryDraft[]>([]);
+  readonly pendingTotal = signal(0);
+  readonly pendingPageSize = PAGE_SIZE;
+  readonly pendingOffset = signal(0);
+  readonly pendingLoadError = signal(false);
+  readonly selectedPending = signal<SecretaryDraft | null>(null);
+  readonly pendingMetadata = signal<SecretaryPersonalDraft | null>(null);
+  readonly pendingDocuments = signal<readonly SecretaryPdf[]>([]);
+  readonly pendingDocumentsLoaded = signal(false);
+  readonly pendingDocumentsError = signal(false);
+  readonly pendingReason = signal('');
+  readonly pendingBusy = signal(false);
+  readonly pendingUncertain = signal(false);
+  readonly pendingNotice = signal<'approved' | 'returned' | 'failed' | 'uncertain' | null>(null);
+  readonly pendingPreviewDocument = signal<SecretaryPdf | null>(null);
+  private pendingDocumentVersion = 0;
+  readonly pendingLabels = computed(() => this.translation.language() === 'ar' ? {
+    heading: 'بانتظار اعتماد المدير', waiting: 'بانتظار الاعتماد',
+    approve: 'اعتماد وإرسال', returning: 'إرجاع للتعديل',
+    reason: 'سبب الإرجاع (إلزامي)', documents: 'المرفقات',
+    noDocuments: 'لا توجد مرفقات', reviewError: 'تعذر تحميل المرفقات. لا تعتمد قبل مراجعتها.',
+    approvalSuccess: 'تم الاعتماد والإرسال', returnSuccess: 'تم الإرجاع للسكرتارية',
+    failed: 'تعذر إتمام الإجراء. راجع حالة المعاملة قبل المحاولة مرة أخرى.',
+    uncertain: 'نتيجة الإرسال غير مؤكدة. راجع حالة المعاملة قبل إعادة المحاولة.',
+    loadError: 'تعذر تحميل اعتمادات السكرتارية',
+    refresh: 'تحديث', previous: 'السابق', next: 'التالي',
+  } : {
+    heading: 'Secretary approvals', waiting: 'Awaiting your approval',
+    approve: 'Approve and Send', returning: 'Return for Revision',
+    reason: 'Return reason (required)', documents: 'Documents',
+    noDocuments: 'No attachments', reviewError: 'Could not load PDFs. Review them before approving.',
+    approvalSuccess: 'Approved and forwarded', returnSuccess: 'Returned to secretary',
+    failed: 'Action failed. Verify the correspondence state before trying again.',
+    uncertain: 'Submission outcome uncertain. Verify the correspondence state before retrying.',
+    loadError: 'Could not load secretary approvals',
+    refresh: 'Refresh', previous: 'Previous', next: 'Next',
+  });
+
 
   readonly headings = computed(() => this.box() === 'inbox'
     ? this.translation.text().inbox
@@ -274,6 +326,7 @@ export class RealMailboxComponent implements OnInit {
   setInboxView(view: CorrespondenceInboxView): void {
     if (this.box() !== 'inbox' || this.inboxView() === view) return;
     this.inboxView.set(view);
+    this.pendingOffset.set(0);
     this.mobileDetailsOpen.set(false);
     this.selectedId.set(null);
     // Invalidate the previous page request so switching filters while loading works.
@@ -289,7 +342,13 @@ export class RealMailboxComponent implements OnInit {
     const version = ++this.pageVersion;
     ++this.detailVersion;
     this.closePreview();
+    this.closePendingPreview();
     this.closeShare();
+    this.selectedPending.set(null);
+    this.pendingDocuments.set([]);
+    this.pendingMetadata.set(null);
+    this.pendingDocumentsLoaded.set(false);
+    ++this.pendingDocumentVersion;
     this.loading.set(true);
     this.listError.set(false);
     this.details.set(null);
@@ -300,21 +359,38 @@ export class RealMailboxComponent implements OnInit {
     this.continueUncertain.set(false);
     try {
       const unit = this.secretaryUnitCode();
-      const page = await firstValueFrom(this.secretaryMode()
-        ? this.box() === 'sent'
-          ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
-          : this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
-        : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
+      const managerUnit = this.managerApprovalUnit();
+      const showPending = !!managerUnit && (this.inboxView() === 'needs_action' || this.inboxView() === 'all');
+      const [page, pending] = await Promise.all([
+        firstValueFrom(this.secretaryMode()
+          ? this.box() === 'sent'
+            ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
+            : this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
+          : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView())),
+        showPending ? firstValueFrom(this.secretaryApi.list(managerUnit!, 'pending',
+          this.pendingOffset(), PAGE_SIZE)).then(result => ({ result, failed: false }))
+          .catch(() => ({ result: null, failed: true }))
+          : Promise.resolve({ result: null, failed: false }),
+      ]);
       if (version !== this.pageVersion) return;
+      this.pendingApprovals.set(pending.result?.items ?? []);
+      this.pendingTotal.set(pending.result?.total ?? 0);
+      this.pendingLoadError.set(pending.failed);
       this.page.set(page);
       const requestedId = this.box() === 'inbox'
         ? this.route.snapshot.queryParamMap.get('open') : null;
       const id = page.items.find(item => item.technicalId === requestedId)?.technicalId
         ?? page.items.find(item => item.technicalId === this.selectedId())?.technicalId
         ?? page.items[0]?.technicalId ?? null;
-      this.selectedId.set(id);
-      if (id) void this.loadDetails(id, id === requestedId &&
-        !!page.items.find(item => item.technicalId === id)?.unread);
+      // A manager's pending secretary item is an actual Inbox action, and
+      // appears before ordinary correspondence in Needs Action / All.
+      if (!requestedId && pending.result?.items.length) {
+        this.selectPending(pending.result.items[0]);
+      } else {
+        this.selectedId.set(id);
+        if (id) void this.loadDetails(id, id === requestedId &&
+          !!page.items.find(item => item.technicalId === id)?.unread);
+      }
     } catch {
       if (version === this.pageVersion) {
         this.page.set(null);
@@ -327,6 +403,12 @@ export class RealMailboxComponent implements OnInit {
   }
 
   select(id: string): void {
+    this.closePendingPreview();
+    this.selectedPending.set(null);
+    this.pendingDocuments.set([]);
+    this.pendingMetadata.set(null);
+    this.pendingDocumentsLoaded.set(false);
+    ++this.pendingDocumentVersion;
     this.closeHistory();
     this.mobileDetailsOpen.set(true);
     if (id === this.selectedId()) {
@@ -345,6 +427,97 @@ export class RealMailboxComponent implements OnInit {
     const id = this.selectedId();
     if (id) void this.loadDetails(id);
   }
+
+  selectPending(item: SecretaryDraft): void {
+    if (!this.managerApprovalUnit() || this.managerApprovalUnit() !== item.unitCode
+        || item.approvalStatus !== 'PENDING') return;
+    this.closeHistory();
+    this.closePreview();
+    this.closeShare();
+    this.closePendingPreview();
+    ++this.detailVersion;
+    this.selectedId.set(null);
+    this.details.set(null);
+    this.history.set(null);
+    this.mobileDetailsOpen.set(true);
+    this.selectedPending.set(item);
+    this.pendingReason.set('');
+    this.pendingDocuments.set([]);
+    this.pendingMetadata.set(null);
+    this.pendingDocumentsLoaded.set(false);
+    this.pendingDocumentsError.set(false);
+    void this.loadPendingDocuments(item);
+  }
+
+  private async loadPendingDocuments(item: SecretaryDraft): Promise<void> {
+    const version = ++this.pendingDocumentVersion;
+    try {
+      const [metadata, documents] = await Promise.all([
+        firstValueFrom(this.secretaryApi.pendingDraft(item.unitCode, item.technicalId)),
+        firstValueFrom(this.secretaryApi.documents(item.unitCode, item.technicalId, 'pending')),
+      ]);
+      if (version !== this.pendingDocumentVersion
+          || this.selectedPending()?.technicalId !== item.technicalId) return;
+      this.pendingMetadata.set(metadata);
+      this.pendingDocuments.set(documents.items);
+      this.pendingDocumentsLoaded.set(true);
+    } catch {
+      if (version === this.pendingDocumentVersion) this.pendingDocumentsError.set(true);
+    }
+  }
+
+  updatePendingReason(event: Event): void {
+    this.pendingReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  async processPending(action: 'APPROVE_AND_SEND' | 'RETURN'): Promise<void> {
+    const item = this.selectedPending();
+    if (!item || item.approvalStatus !== 'PENDING'
+        || item.unitCode !== this.managerApprovalUnit()
+        || this.pendingBusy() || this.pendingUncertain()
+        || !this.pendingDocumentsLoaded()) return;
+    const reason = this.pendingReason().trim();
+    if (action === 'RETURN' && !reason) return;
+    this.pendingBusy.set(true);
+    this.pendingNotice.set(null);
+    try {
+      const fields: Record<string, string | null> = { technicalId: item.technicalId };
+      if (action === 'RETURN') fields['explanation'] = reason;
+      await firstValueFrom(this.secretaryApi.change(item.unitCode, action, fields));
+      this.pendingOffset.set(0);
+      await this.loadPage(0);
+      this.pendingNotice.set(action === 'RETURN' ? 'returned' : 'approved');
+    } catch (error) {
+      // Alfresco transaction may have committed despite a lost response.
+      // Never silently retry either action.
+      const uncertain = error instanceof HttpErrorResponse
+        && (error.status === 0 || error.status >= 500);
+      this.pendingUncertain.set(uncertain);
+      this.pendingNotice.set(uncertain ? 'uncertain' : 'failed');
+    } finally {
+      this.pendingBusy.set(false);
+    }
+  }
+
+  pendingPrevious(): void {
+    if (this.pendingOffset() < PAGE_SIZE || this.loading()) return;
+    this.pendingOffset.update(value => value - PAGE_SIZE);
+    void this.loadPage(0);
+  }
+
+  pendingNext(): void {
+    if (this.pendingOffset() + PAGE_SIZE >= this.pendingTotal() || this.loading()) return;
+    this.pendingOffset.update(value => value + PAGE_SIZE);
+    void this.loadPage(0);
+  }
+
+  openPendingDocument(document: SecretaryPdf): void {
+    if (document.mimeType !== 'application/pdf' || !this.selectedPending()) return;
+    this.pendingPreviewDocument.set(document);
+  }
+
+  closePendingPreview(): void { this.pendingPreviewDocument.set(null); }
+
 
   private async loadDetails(id: string, openedByUser = false): Promise<void> {
     const version = ++this.detailVersion;

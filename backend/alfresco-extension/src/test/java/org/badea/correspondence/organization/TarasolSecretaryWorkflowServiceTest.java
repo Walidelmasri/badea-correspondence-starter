@@ -127,6 +127,36 @@ class TarasolSecretaryWorkflowServiceTest {
     }
 
     @Test
+    void managerPendingDetailsRequireCurrentAppointmentPendingStateAndMatchingUnit() {
+        var actor = employee("200");
+        var details = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", "Body", "300", "PENDING", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "DRAFT", "Secretary");
+        var metadata = new AlfrescoCorrespondenceRepository.SecretaryDraftMetadata(
+            "DOC-117", LocalDate.of(2026, 11, 4), "Human Resources");
+        when(repo.readSecretaryDraft(CASE)).thenReturn(details);
+        when(repo.readSecretaryDraftMetadata(CASE)).thenReturn(metadata);
+        when(roles.resolveWorkspace(hr.value(), actor))
+            .thenReturn(new CorrespondenceActorRoleResolver.Workspace(CorrespondenceActorRole.DIRECTOR, hr));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.pendingDraft(actor, hr, CASE));
+        verify(repo, never()).readSecretaryDraft(CASE);
+        manager(hr, actor, CorrespondenceActorRole.DIRECTOR);
+        assertEquals(metadata, service.pendingDraft(actor, hr, CASE).metadata());
+        when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Report", "Body", "300", "APPROVED", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "DRAFT", "Secretary"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.pendingDraft(actor, hr, CASE));
+        when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, "108", "Report", "Body", "300", "PENDING", null, null,
+            "2026-11-04T12:00:00Z", "2026-11-04T12:00:00Z", "DRAFT", "Secretary"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.pendingDraft(actor, hr, CASE));
+        verify(repo, times(1)).readSecretaryDraftMetadata(CASE);
+    }
+
+    @Test
     void ordinaryDirectorApprovesAndRoutesToOffice() {
         var actor = employee("200");
         pending(hr, "300");

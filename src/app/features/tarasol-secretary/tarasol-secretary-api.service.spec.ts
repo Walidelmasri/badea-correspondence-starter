@@ -56,6 +56,33 @@ describe('TarasolSecretaryApiService', () => {
       documentNumber: 'DOC-117', documentDate: '2026-11-04', sourceText: 'Department' });
   });
 
+  it('loads manager pending metadata through the appointment-checked workflow', () => {
+    api.pendingDraft('117', id).subscribe(result => {
+      expect(result.approvalStatus).toBe('PENDING');
+      expect(result.documentDate).toBe('2026-11-04');
+    });
+    const request = http.expectOne(item => item.url === '/alfresco/service/badea/tarasol/secretary/workflow');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('unitCode')).toBe('117');
+    expect(request.request.params.get('view')).toBe('pending');
+    expect(request.request.params.get('technicalId')).toBe(id);
+    request.flush({ technicalId: id, unitCode: '117', subject: 'Report',
+      bodyText: 'Body', ownerEmployeeId: '300', approvalStatus: 'PENDING',
+      documentDate: '2026-11-04', documentNumber: 'DOC-117', sourceText: 'Digital Transformation' });
+  });
+
+  it('streams pending PDFs only through the manager-authorized secretary document URL', () => {
+    api.preview('117', id, pdf, 'pending').subscribe(blob => {
+      expect(blob.type).toBe('application/pdf');
+    });
+    const request = http.expectOne(item => item.url ===
+      `/alfresco/service/badea/tarasol/secretary/${id}/documents/${pdf}`);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('unitCode')).toBe('117');
+    expect(request.request.params.get('view')).toBe('pending');
+    request.flush(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
+  });
+
   it('deletes only the named draft attachment under its own isolated endpoint', () => {
     api.deletePdf('118', id, pdf).subscribe();
     const req = http.expectOne(`/alfresco/service/badea/tarasol/secretary/${id}/documents/${pdf}?unitCode=118`);

@@ -106,6 +106,21 @@ public final class TarasolSecretaryWorkflowService {
         });
     }
 
+    /** Pending manager preview is bound to a live manager appointment and this
+     * unit's PENDING secretary draft; arbitrary IDs and routed cases fail closed. */
+    public PersonalDraftDetails pendingDraft(EmployeeDirectoryEntry manager, DepartmentCode unit,
+            String technicalId) {
+        requireManager(manager, unit);
+        return AuthenticationUtil.runAsSystem(() -> {
+            var draft = correspondence.readSecretaryDraft(technicalId);
+            if (!unit.value().equals(draft.unitCode())
+                    || !"PENDING".equals(draft.approvalStatus())
+                    || !"DRAFT".equals(draft.state())) throw denied();
+            return new PersonalDraftDetails(draft,
+                correspondence.readSecretaryDraftMetadata(technicalId));
+        });
+    }
+
     /** Every personal Sent read rechecks the real secretary's active appointment and
      * creator ownership before any privileged Alfresco detail/history/PDF access. */
     public <T> T readPersonalSent(EmployeeDirectoryEntry actor, DepartmentCode unit,

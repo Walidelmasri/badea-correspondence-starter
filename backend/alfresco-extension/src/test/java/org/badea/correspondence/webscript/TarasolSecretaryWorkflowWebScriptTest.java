@@ -112,16 +112,25 @@ class TarasolSecretaryWorkflowWebScriptTest {
     }
 
     @Test
-    void managerQueueCannotBeUsedAsAnArbitraryDraftDetailsRead() throws Exception {
+    void managerDetailsReadUsesManagerAuthorizedPendingDraftWithoutSpoofedActor() throws Exception {
         when(employees.getCurrentEmployee()).thenReturn(secretary);
         when(request.getParameter("unitCode")).thenReturn("117");
         when(request.getParameter("view")).thenReturn("pending");
         when(request.getParameter("technicalId")).thenReturn("case-1");
         when(response.getWriter()).thenReturn(new PrintWriter(output));
+        var draft = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            "case-1", "117", "Subject", "Body", "300", "PENDING");
+        var metadata = new AlfrescoCorrespondenceRepository.SecretaryDraftMetadata(
+            "DOC-117", LocalDate.of(2026, 11, 4), "Digital Transformation");
+        when(workflow.pendingDraft(eq(secretary), eq(new DepartmentCode("117")), eq("case-1")))
+            .thenReturn(new TarasolSecretaryWorkflowService.PersonalDraftDetails(draft, metadata));
         new TarasolSecretaryWorkflowWebScript(employees, workflow, false)
             .execute(request, response);
-        verify(response).setStatus(Status.STATUS_BAD_REQUEST);
-        verifyNoInteractions(workflow);
+        verify(response).setStatus(Status.STATUS_OK);
+        var json = new JSONObject(output.toString());
+        assertEquals("PENDING", json.getString("approvalStatus"));
+        assertEquals("2026-11-04", json.getString("documentDate"));
+        assertEquals("Digital Transformation", json.getString("sourceText"));
     }
 
     @Test

@@ -21,6 +21,41 @@
         }
       </div>
     }
+    @if (managerApprovalUnit() && (inboxView() === 'needs_action' || inboxView() === 'all')) {
+      @if (pendingApprovals().length || pendingLoadError()) {
+        <section class="mailbox-pending-approvals" [attr.aria-label]="pendingLabels().heading">
+          <div class="mailbox-pending-heading">
+            <strong>{{ pendingLabels().heading }}</strong>
+            <span class="mailbox-count">{{ pendingTotal() }}</span>
+          </div>
+          @if (pendingLoadError()) {
+            <p class="mailbox-transition-notice" role="alert">{{ pendingLabels().loadError }}</p>
+          }
+          @for (pending of pendingApprovals(); track pending.technicalId) {
+            <button type="button" class="mailbox-item"
+              [class.mailbox-item--selected]="selectedPending()?.technicalId === pending.technicalId"
+              (click)="selectPending(pending)">
+              <span class="mailbox-item__date">{{ formatDate(pending.modifiedAt) }}</span>
+              <strong>{{ pending.subject }}</strong>
+              <span>{{ pending.senderName || pending.ownerEmployeeId }}</span>
+              <small>{{ pendingLabels().waiting }}</small>
+            </button>
+          }
+          @if (pendingTotal() > pendingPageSize) {
+            <div class="mailbox-pagination">
+              <span>{{ pendingOffset() + 1 }}–{{ pendingOffset() + pendingApprovals().length }}
+                {{ labels().of }} {{ pendingTotal() }}</span>
+              <div>
+                <button type="button" [disabled]="pendingOffset() === 0 || loading()"
+                  (click)="pendingPrevious()">{{ pendingLabels().previous }}</button>
+                <button type="button" [disabled]="pendingOffset() + pendingPageSize >= pendingTotal() || loading()"
+                  (click)="pendingNext()">{{ pendingLabels().next }}</button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+    }
     @if (loading() && !page()) {
       <div class="mailbox-empty" role="status">{{ labels().loading }}</div>
     } @else if (listError()) {
@@ -29,7 +64,7 @@
         <button type="button" (click)="loadPage(0)">{{ labels().retry }}</button>
       </div>
     } @else if (page(); as results) {
-      @if (results.items.length === 0) {
+      @if (results.items.length === 0 && pendingApprovals().length === 0) {
         <div class="mailbox-empty">
           <strong>{{ headings().empty.title }}</strong>
           <p>{{ headings().empty.description }}</p>
@@ -83,7 +118,73 @@
         @else { {{ labels().forwardFailed }} }
       </p>
     }
-    @if (selected(); as item) {
+    @if (pendingNotice(); as notice) {
+      <p class="mailbox-transition-notice" [attr.role]="notice === 'failed' || notice === 'uncertain' ? 'alert' : 'status'">
+        @if (notice === 'approved') { {{ pendingLabels().approvalSuccess }} }
+        @else if (notice === 'returned') { {{ pendingLabels().returnSuccess }} }
+        @else if (notice === 'uncertain') { {{ pendingLabels().uncertain }} }
+        @else { {{ pendingLabels().failed }} }
+      </p>
+    }
+    @if (selectedPending(); as pending) {
+      <article class="mailbox-detail">
+        <header class="mailbox-detail__header">
+          <div><span>{{ pendingLabels().waiting }}</span><h2>{{ pending.subject }}</h2></div>
+        </header>
+        <dl>
+          <div><dt>{{ labels().sender }}</dt><dd>{{ pending.senderName || pending.ownerEmployeeId }}</dd></div>
+          <div><dt>{{ labels().documentNumber }}</dt>
+            <dd>{{ pending.documentNumber || labels().noDocumentNumber }}</dd></div>
+          <div><dt>{{ labels().updated }}</dt><dd>{{ formatDate(pending.modifiedAt) }}</dd></div>
+          @if (pendingMetadata()?.documentDate; as date) {
+            <div><dt>{{ translation.language() === 'ar' ? 'تاريخ المستند' : 'Document date' }}</dt><dd>{{ date }}</dd></div>
+          }
+          @if (pendingMetadata()?.sourceText; as source) {
+            <div><dt>{{ translation.language() === 'ar' ? 'المصدر' : 'Source' }}</dt><dd>{{ source }}</dd></div>
+          }
+        </dl>
+        <section class="mailbox-detail__section">
+          <h3>{{ labels().description }}</h3>
+          <p class="mailbox-detail__body">{{ pending.bodyText || labels().noDescription }}</p>
+        </section>
+        <section class="mailbox-detail__section" aria-label="Documents">
+          <h3>{{ pendingLabels().documents }}</h3>
+          @if (pendingDocumentsError()) {
+            <p role="alert">{{ pendingLabels().reviewError }}</p>
+          } @else if (!pendingDocumentsLoaded()) {
+            <p role="status">{{ labels().loadingDetails }}</p>
+          } @else if (pendingDocuments().length === 0) {
+            <p>{{ pendingLabels().noDocuments }}</p>
+          } @else {
+            <ul class="mailbox-files">
+              @for (pdf of pendingDocuments(); track pdf.nodeId) {
+                <li><button type="button" class="mailbox-file-button"
+                    [disabled]="pdf.mimeType !== 'application/pdf'"
+                    (click)="openPendingDocument(pdf)">
+                  <span class="mailbox-document-detail"><strong dir="auto">{{ pdf.filename }}</strong>
+                    <small>{{ formatSize(pdf.sizeBytes) }}</small></span>
+                  <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                </button></li>
+              }
+            </ul>
+          }
+        </section>
+        <section class="mailbox-detail__section mailbox-assignment-form">
+          <label for="manager-secretary-return-reason">{{ pendingLabels().reason }}</label>
+          <textarea id="manager-secretary-return-reason" rows="3" maxlength="2000"
+            [value]="pendingReason()" [disabled]="pendingBusy() || pendingUncertain()"
+            (input)="updatePendingReason($event)"></textarea>
+          <div class="mailbox-pending-actions">
+            <button type="button" class="mailbox-action"
+              [disabled]="pendingBusy() || pendingUncertain() || !pendingDocumentsLoaded()"
+              (click)="processPending('APPROVE_AND_SEND')">{{ pendingLabels().approve }}</button>
+            <button type="button" class="mailbox-action mailbox-return-action"
+              [disabled]="pendingBusy() || pendingUncertain() || !pendingDocumentsLoaded() || !pendingReason().trim()"
+              (click)="processPending('RETURN')">{{ pendingLabels().returning }}</button>
+          </div>
+        </section>
+      </article>
+    } @else if (selected(); as item) {
       <article class="mailbox-detail">
         <header class="mailbox-detail__header">
           <div>
@@ -544,6 +645,17 @@
       [technicalId]="technicalId"
       [document]="document"
       (closed)="closePreview()"
+    />
+  }
+}
+
+@if (pendingPreviewDocument(); as pdf) {
+  @if (selectedPending(); as pending) {
+    <app-correspondence-document-preview
+      [secretaryManagerPendingUnitCode]="pending.unitCode"
+      [technicalId]="pending.technicalId"
+      [document]="pdf"
+      (closed)="closePendingPreview()"
     />
   }
 }

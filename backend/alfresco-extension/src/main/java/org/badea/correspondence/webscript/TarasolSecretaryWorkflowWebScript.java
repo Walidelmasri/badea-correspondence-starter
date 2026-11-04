@@ -55,10 +55,12 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 }
                 String technicalId = request.getParameter("technicalId");
                 if (technicalId != null) {
-                    if (!"mine".equals(view) || technicalId.isBlank()) {
-                        throw new IllegalArgumentException("Personal draft read requires view=mine");
+                    if (technicalId.isBlank()) {
+                        throw new IllegalArgumentException("Correspondence ID is required");
                     }
-                    var details = workflow.personalDraft(employee, unit, technicalId);
+                    var details = "pending".equals(view)
+                        ? workflow.pendingDraft(employee, unit, technicalId)
+                        : workflow.personalDraft(employee, unit, technicalId);
                     var item = details.draft();
                     var metadata = details.metadata();
                     result.put("technicalId", item.technicalId())

@@ -8,6 +8,7 @@ export interface SecretaryDraft {
   readonly subject: string;
   readonly bodyText: string | null;
   readonly ownerEmployeeId: string;
+  readonly senderName?: string | null;
   readonly approvalStatus: 'DRAFT' | 'PENDING' | 'RETURNED' | 'APPROVED';
   readonly returnReason?: string | null;
   readonly documentNumber: string | null;
@@ -50,6 +51,13 @@ export class TarasolSecretaryApiService {
     return this.http.get<SecretaryPersonalDraft>(this.url, {
       params: new HttpParams().set('unitCode', unitCode)
         .set('view', 'mine').set('technicalId', technicalId),
+    });
+  }
+
+  pendingDraft(unitCode: string, technicalId: string): Observable<SecretaryPersonalDraft> {
+    return this.http.get<SecretaryPersonalDraft>(this.url, {
+      params: new HttpParams().set('unitCode', unitCode)
+        .set('view', 'pending').set('technicalId', technicalId),
     });
   }
 
