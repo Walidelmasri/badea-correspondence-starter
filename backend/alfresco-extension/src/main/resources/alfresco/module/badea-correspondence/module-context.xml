@@ -1013,6 +1013,22 @@
         <constructor-arg value="false" />
         <constructor-arg value="true" />
     </bean>
+    <!-- Read-only shared unit Inbox, independently gated by the secretary group
+         and active Oracle appointment. Does not confer Director actions. -->
+    <bean id="badeaTarasolSecretarySharedInboxService"
+          class="org.badea.correspondence.organization.TarasolSecretarySharedInboxService"
+          lazy-init="true">
+        <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
+        <constructor-arg ref="badeaCorrespondenceMailboxLister" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-inbox.get"
+          class="org.badea.correspondence.webscript.TarasolSecretarySharedInboxWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretarySharedInboxService" />
+    </bean>
     <!-- Independent secretary approval lifecycle. Secretary access requires
          group membership and Oracle grants; manager approval retains its
          existing authorized managerial workspace checks. -->
