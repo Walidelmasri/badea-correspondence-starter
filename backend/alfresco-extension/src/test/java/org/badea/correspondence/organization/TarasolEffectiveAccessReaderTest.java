@@ -49,7 +49,7 @@ class TarasolEffectiveAccessReaderTest {
         verify(connection).prepareStatement(sql.capture());
         assertTrue(sql.getValue().contains("unit.STATUS = 'A'"));
         assertFalse(sql.getValue().contains("manager.REVOKED_AT"));
-        assertTrue(sql.getValue().contains("access.SECRETARY_EMP_ID = ?"));
+        assertTrue(sql.getValue().contains("grant_row.SECRETARY_EMP_ID = ?"));
         verify(statement).setString(1, "00123");
         verify(statement).setString(2, "118");
     }
@@ -76,10 +76,10 @@ class TarasolEffectiveAccessReaderTest {
         verify(statement).setObject(4, created);
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(connection).prepareStatement(sql.capture());
-        assertTrue(sql.getValue().contains("access.REVOKED_AT IS NULL"));
+        assertTrue(sql.getValue().contains("grant_row.REVOKED_AT IS NULL"));
         assertTrue(sql.getValue().contains("manager.REVOKED_AT IS NULL"));
-        assertTrue(sql.getValue().contains("access.STARTS_AT <= ?"));
-        assertTrue(sql.getValue().contains("manager.EMP_ID <> access.DELEGATE_EMP_ID"));
+        assertTrue(sql.getValue().contains("grant_row.STARTS_AT <= ?"));
+        assertTrue(sql.getValue().contains("manager.EMP_ID <> grant_row.DELEGATE_EMP_ID"));
     }
 
     @Test
@@ -91,8 +91,8 @@ class TarasolEffectiveAccessReaderTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(connection).prepareStatement(sql.capture());
         assertTrue(sql.getValue().contains("manager.REVOKED_AT IS NULL"));
-        assertTrue(sql.getValue().contains("access.REVOKED_AT IS NULL"));
-        assertTrue(sql.getValue().contains("manager.EMP_ID <> access.DELEGATE_EMP_ID"));
+        assertTrue(sql.getValue().contains("grant_row.REVOKED_AT IS NULL"));
+        assertTrue(sql.getValue().contains("manager.EMP_ID <> grant_row.DELEGATE_EMP_ID"));
     }
 
     @Test

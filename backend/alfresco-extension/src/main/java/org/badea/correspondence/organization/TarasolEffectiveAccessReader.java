@@ -30,80 +30,80 @@ public final class TarasolEffectiveAccessReader {
     private static final Log LOGGER = LogFactory.getLog(TarasolEffectiveAccessReader.class);
     private static final String ACTIVE_PARENT = """
         JOIN TARASOL_UNIT_ASSIGNMENTS manager
-          ON manager.ASSIGNMENT_ID = access.MANAGER_ASSIGNMENT_ID
-         AND manager.UNIT_CODE = access.UNIT_CODE
-        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = access.UNIT_CODE
+          ON manager.ASSIGNMENT_ID = grant_row.MANAGER_ASSIGNMENT_ID
+         AND manager.UNIT_CODE = grant_row.UNIT_CODE
+        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = grant_row.UNIT_CODE
         WHERE unit.STATUS = 'A'
           AND manager.CAPACITY IN ('MANAGER', 'ACTING_MANAGER')
           AND manager.REVOKED_AT IS NULL
           AND manager.STARTS_AT <= SYSTIMESTAMP
           AND (manager.ENDS_AT IS NULL OR manager.ENDS_AT > SYSTIMESTAMP)
-          AND access.REVOKED_AT IS NULL
-          AND access.STARTS_AT <= SYSTIMESTAMP
-          AND (access.ENDS_AT IS NULL OR access.ENDS_AT > SYSTIMESTAMP)
+          AND grant_row.REVOKED_AT IS NULL
+          AND grant_row.STARTS_AT <= SYSTIMESTAMP
+          AND (grant_row.ENDS_AT IS NULL OR grant_row.ENDS_AT > SYSTIMESTAMP)
         """;
 
     private static final String SECRETARY_UNITS_SQL = """
-        SELECT DISTINCT access.UNIT_CODE, unit.NAME_EN, unit.NAME_AR
-        FROM TARASOL_SECRETARY_ASSIGNMENTS access
-        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = access.UNIT_CODE
+        SELECT DISTINCT grant_row.UNIT_CODE, unit.NAME_EN, unit.NAME_AR
+        FROM TARASOL_SECRETARY_ASSIGNMENTS grant_row
+        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = grant_row.UNIT_CODE
         WHERE unit.STATUS = 'A'
-          AND access.REVOKED_AT IS NULL
-          AND access.STARTS_AT <= SYSTIMESTAMP
-          AND (access.ENDS_AT IS NULL OR access.ENDS_AT > SYSTIMESTAMP)
-          AND access.SECRETARY_EMP_ID = ?
-        ORDER BY access.UNIT_CODE
+          AND grant_row.REVOKED_AT IS NULL
+          AND grant_row.STARTS_AT <= SYSTIMESTAMP
+          AND (grant_row.ENDS_AT IS NULL OR grant_row.ENDS_AT > SYSTIMESTAMP)
+          AND grant_row.SECRETARY_EMP_ID = ?
+        ORDER BY grant_row.UNIT_CODE
         """;
 
     private static final String SECRETARY_SQL = """
-        SELECT access.SECRETARY_ASSIGNMENT_ID
-        FROM TARASOL_SECRETARY_ASSIGNMENTS access
-        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = access.UNIT_CODE
+        SELECT grant_row.SECRETARY_ASSIGNMENT_ID
+        FROM TARASOL_SECRETARY_ASSIGNMENTS grant_row
+        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = grant_row.UNIT_CODE
         WHERE unit.STATUS = 'A'
-          AND access.REVOKED_AT IS NULL
-          AND access.STARTS_AT <= SYSTIMESTAMP
-          AND (access.ENDS_AT IS NULL OR access.ENDS_AT > SYSTIMESTAMP)
-          AND access.SECRETARY_EMP_ID = ?
-          AND access.UNIT_CODE = ?
+          AND grant_row.REVOKED_AT IS NULL
+          AND grant_row.STARTS_AT <= SYSTIMESTAMP
+          AND (grant_row.ENDS_AT IS NULL OR grant_row.ENDS_AT > SYSTIMESTAMP)
+          AND grant_row.SECRETARY_EMP_ID = ?
+          AND grant_row.UNIT_CODE = ?
         """;
 
     private static final String DELEGATION_UNITS_SQL = """
-        SELECT DISTINCT access.UNIT_CODE, unit.NAME_EN, unit.NAME_AR
-        FROM TARASOL_DELEGATIONS access
+        SELECT DISTINCT grant_row.UNIT_CODE, unit.NAME_EN, unit.NAME_AR
+        FROM TARASOL_DELEGATIONS grant_row
         """ + ACTIVE_PARENT + """
-          AND access.DELEGATE_EMP_ID = ?
-          AND manager.EMP_ID <> access.DELEGATE_EMP_ID
-        ORDER BY access.UNIT_CODE
+          AND grant_row.DELEGATE_EMP_ID = ?
+          AND manager.EMP_ID <> grant_row.DELEGATE_EMP_ID
+        ORDER BY grant_row.UNIT_CODE
         """;
 
     private static final String DELEGATION_SQL = """
-        SELECT access.DELEGATION_ID, access.MANAGER_ASSIGNMENT_ID,
-               access.DELEGATION_TYPE
-        FROM TARASOL_DELEGATIONS access
+        SELECT grant_row.DELEGATION_ID, grant_row.MANAGER_ASSIGNMENT_ID,
+               grant_row.DELEGATION_TYPE
+        FROM TARASOL_DELEGATIONS grant_row
         """ + ACTIVE_PARENT + """
-          AND access.DELEGATE_EMP_ID = ?
-          AND access.UNIT_CODE = ?
-          AND manager.EMP_ID <> access.DELEGATE_EMP_ID
+          AND grant_row.DELEGATE_EMP_ID = ?
+          AND grant_row.UNIT_CODE = ?
+          AND manager.EMP_ID <> grant_row.DELEGATE_EMP_ID
           AND (
-            (access.DELEGATION_TYPE = 'CASE_HANDOFF'
-                AND access.CASE_TECHNICAL_ID = ?)
-            OR (access.DELEGATION_TYPE = 'LEAVE_COVER'
-                AND access.CASE_TECHNICAL_ID IS NULL
-                AND access.STARTS_AT <= ?)
+            (grant_row.DELEGATION_TYPE = 'CASE_HANDOFF'
+                AND grant_row.CASE_TECHNICAL_ID = ?)
+            OR (grant_row.DELEGATION_TYPE = 'LEAVE_COVER'
+                AND grant_row.CASE_TECHNICAL_ID IS NULL
+                AND grant_row.STARTS_AT <= ?)
           )
-        ORDER BY access.DELEGATION_ID
+        ORDER BY grant_row.DELEGATION_ID
         """;
 
     private static final String HANDOFF_CASES_SQL = """
-        SELECT DISTINCT access.CASE_TECHNICAL_ID
-        FROM TARASOL_DELEGATIONS access
+        SELECT DISTINCT grant_row.CASE_TECHNICAL_ID
+        FROM TARASOL_DELEGATIONS grant_row
         """ + ACTIVE_PARENT + """
-          AND access.DELEGATE_EMP_ID = ?
-          AND access.UNIT_CODE = ?
-          AND manager.EMP_ID <> access.DELEGATE_EMP_ID
-          AND access.DELEGATION_TYPE = 'CASE_HANDOFF'
-          AND access.CASE_TECHNICAL_ID IS NOT NULL
-        ORDER BY access.CASE_TECHNICAL_ID
+          AND grant_row.DELEGATE_EMP_ID = ?
+          AND grant_row.UNIT_CODE = ?
+          AND manager.EMP_ID <> grant_row.DELEGATE_EMP_ID
+          AND grant_row.DELEGATION_TYPE = 'CASE_HANDOFF'
+          AND grant_row.CASE_TECHNICAL_ID IS NOT NULL
+        ORDER BY grant_row.CASE_TECHNICAL_ID
         """;
 
     /** Enumeration is restricted to active exact-case handoffs, not all unit correspondence. */
@@ -211,7 +211,7 @@ public final class TarasolEffectiveAccessReader {
     /**
      * Returns only a grant currently valid for the authenticated employee and
      * repository-sourced case. Exact CASE_HANDOFF is an explicit grant even for
-     * an older case; LEAVE_COVER grants no automatic historical access.
+     * an older case; LEAVE_COVER grants no automatic historical grant_row.
      * This is a scoped lookup, NOT an unrestricted Director role.
      */
     public Optional<Delegation> findActiveDelegation(
