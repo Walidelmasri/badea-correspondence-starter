@@ -10,6 +10,9 @@ export interface SecretaryDraft {
   readonly ownerEmployeeId: string;
   readonly approvalStatus: 'DRAFT' | 'PENDING' | 'RETURNED' | 'APPROVED';
   readonly returnReason?: string | null;
+  readonly documentNumber: string | null;
+  readonly createdAt: string;
+  readonly modifiedAt: string;
 }
 
 export interface SecretaryPersonalDraft extends SecretaryDraft {
@@ -80,10 +83,12 @@ export class TarasolSecretaryApiService {
       { params: new HttpParams().set('unitCode', unitCode).set('view', view), responseType: 'blob' });
   }
 
-  list(unitCode: string, view: 'mine' | 'pending', offset = 0, limit = 20): Observable<DraftList> {
+  list(unitCode: string, view: 'mine' | 'pending', offset = 0, limit = 20,
+    personalBox?: 'drafts'): Observable<DraftList> {
+    const params = new HttpParams().set('unitCode', unitCode).set('view', view)
+      .set('offset', offset).set('limit', limit);
     return this.http.get<DraftList>(this.url, {
-      params: new HttpParams().set('unitCode', unitCode).set('view', view)
-        .set('offset', offset).set('limit', limit),
+      params: personalBox ? params.set('box', personalBox) : params,
     });
   }
 

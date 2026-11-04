@@ -96,6 +96,9 @@ class AlfrescoCorrespondenceRepositoryTest {
         when(nodeService.getProperty(node, qname("documentNumber"))).thenReturn("DOC-117");
         when(nodeService.getProperty(node, qname("documentDate"))).thenReturn(java.sql.Date.valueOf(date));
         when(nodeService.getProperty(node, qname("sourceText"))).thenReturn("Digital Transformation");
+        var timestamp = java.util.Date.from(java.time.Instant.parse("2026-11-04T12:00:00Z"));
+        when(nodeService.getProperty(node, org.alfresco.model.ContentModel.PROP_CREATED)).thenReturn(timestamp);
+        when(nodeService.getProperty(node, org.alfresco.model.ContentModel.PROP_MODIFIED)).thenReturn(timestamp);
 
         var metadata = repository.readSecretaryDraftMetadata(TECHNICAL_ID);
         assertEquals("DOC-117", metadata.documentNumber());
@@ -1061,12 +1064,31 @@ class AlfrescoCorrespondenceRepositoryTest {
         when(nodeService.getProperty(sent, qname("originDepartmentCode"))).thenReturn("118");
         when(nodeService.getProperty(sent, qname("technicalId"))).thenReturn(TECHNICAL_ID);
         when(nodeService.getProperty(sent, qname("subject"))).thenReturn("Approved draft");
+        when(nodeService.getProperty(sent, ContentModel.PROP_CREATED))
+            .thenReturn(Date.from(FIXED_INSTANT));
         when(nodeService.getProperty(sent, ContentModel.PROP_MODIFIED))
             .thenReturn(Date.from(FIXED_INSTANT));
         var page = repository.pageSecretaryCases(unit, "300", false, 0, 20);
         assertEquals(1, page.total());
         assertEquals("APPROVED", page.items().getFirst().approvalStatus());
         assertEquals(TECHNICAL_ID, page.items().getFirst().technicalId());
+        assertEquals(FIXED_INSTANT.toString(), page.items().getFirst().createdAt());
+        assertEquals(FIXED_INSTANT.toString(), page.items().getFirst().modifiedAt());
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
+            "Approved, forwarded correspondence must never appear in editable Drafts");
+        when(nodeService.getProperty(sent, qname("state"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("RETURNED");
+        when(nodeService.getChildAssocs(sent)).thenReturn(java.util.List.of());
+        assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
+            "Returned work is editable in personal Drafts");
+        when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("PENDING");
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
+            "Pending approvals must not be edited in personal Drafts");
+        when(nodeService.getProperty(sent, qname("secretaryOwnerEmployeeId"))).thenReturn("999");
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
+            "Another secretary's returned draft must never leak into this mailbox");
+        when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("APPROVED");
+        when(nodeService.getProperty(sent, qname("state"))).thenReturn("WITH_PRESIDENT_OFFICE");
         assertEquals(0, repository.pageSecretaryCases(unit, null, true, 0, 20).total(),
             "Issued secretary work must never appear in the manager's pending queue");
     }

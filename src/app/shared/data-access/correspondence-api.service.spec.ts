@@ -574,6 +574,19 @@ describe('CorrespondenceApiService', () => {
     request.flush({ technicalId: id, state: 'WITH_PRESIDENT' });
   });
 
+  it('streams an owned secretary draft PDF without querying the Director document API', () => {
+    const id = '7fc41b5b-aceb-48fc-9f36-367e4a36e207';
+    const node = '0fc41b5b-aceb-48fc-9f36-367e4a36e207';
+    service.getSecretaryPersonalDraftDocument('117', id, node).subscribe();
+    const request = http.expectOne(req => req.url ===
+      `/alfresco/service/badea/tarasol/secretary/${id}/documents/${node}`);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('unitCode')).toBe('117');
+    expect(request.request.params.get('view')).toBe('mine');
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob(['pdf'], { type: 'application/pdf' }));
+  });
+
   it('uses secretary-scoped Inbox URLs and explicitly selected unit codes', () => {
     const id = '7fc41b5b-aceb-48fc-9f36-367e4a36e207';
     const pdf = 'e7c41b5b-aceb-48fc-9f36-367e4a36e207';

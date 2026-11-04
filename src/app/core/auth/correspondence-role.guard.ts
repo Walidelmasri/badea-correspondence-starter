@@ -100,8 +100,10 @@ export const secretaryComposeGuard: CanActivateFn = () => {
     ? true : inject(Router).createUrlTree(['/inbox']);
 };
 
-/** Personal Sent/Drafts retain the legacy secretary workflow until their
- * data adapters are implemented. Never call Director endpoints as secretary. */
+/** Drafts uses the same page with an owner-scoped secretary API. */
+export const secretaryDraftsGuard: CanActivateFn = () => true;
+
+/** Personal Sent still needs an owner-scoped detail/history adapter. */
 export const standardMailboxGuard: CanActivateFn = () => {
   const session = inject(AuthSessionStore);
   return session.secretaryMailbox() ? inject(Router).createUrlTree(['/inbox']) : true;

@@ -23,7 +23,7 @@
     <nav class="app-navigation" aria-label="Main navigation">
       @if (session.secretaryMailbox()) {
         @for (item of navigation; track item.key) {
-          @if (item.key === 'dashboard' || item.key === 'inbox') {
+          @if (item.key === 'dashboard' || item.key === 'inbox' || item.key === 'drafts') {
             <a class="app-navigation__item" [routerLink]="item.route"
               routerLinkActive="app-navigation__item--active"
               [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">

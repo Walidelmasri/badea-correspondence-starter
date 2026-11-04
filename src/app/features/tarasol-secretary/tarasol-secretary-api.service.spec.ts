@@ -32,6 +32,15 @@ describe('TarasolSecretaryApiService', () => {
       ownerEmployeeId: '300', approvalStatus: 'APPROVED', returnReason: null }], total: 21, offset: 20, limit: 20 });
   });
 
+  it('filters personal drafts on the server before paging, never pending or approved cases', () => {
+    api.list('117', 'mine', 0, 25, 'drafts').subscribe();
+    const request = http.expectOne(item => item.url === '/alfresco/service/badea/tarasol/secretary/workflow');
+    expect(request.request.params.get('box')).toBe('drafts');
+    expect(request.request.params.get('unitCode')).toBe('117');
+    expect(request.request.params.get('view')).toBe('mine');
+    request.flush({ items: [], total: 0, offset: 0, limit: 25 });
+  });
+
   it('loads only a personal draft in the assigned secretary unit', () => {
     api.personalDraft('117', id).subscribe(result => {
       expect(result.documentDate).toBe('2026-11-04');

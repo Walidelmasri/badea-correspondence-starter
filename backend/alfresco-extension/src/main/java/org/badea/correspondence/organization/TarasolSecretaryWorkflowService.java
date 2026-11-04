@@ -77,10 +77,18 @@ public final class TarasolSecretaryWorkflowService {
 
     public AlfrescoCorrespondenceRepository.SecretaryPage page(EmployeeDirectoryEntry actor,
             DepartmentCode unit, boolean managerView, int offset, int pageSize) {
+        return page(actor, unit, managerView, offset, pageSize, null);
+    }
+
+    public AlfrescoCorrespondenceRepository.SecretaryPage page(EmployeeDirectoryEntry actor,
+            DepartmentCode unit, boolean managerView, int offset, int pageSize, String personalBox) {
         if (managerView) requireManager(actor, unit);
         else requireSecretary(actor, unit);
-        return AuthenticationUtil.runAsSystem(() -> correspondence.pageSecretaryCases(unit,
-            managerView ? null : actor.employeeId().value(), managerView, offset, pageSize));
+        return AuthenticationUtil.runAsSystem(() -> personalBox == null
+            ? correspondence.pageSecretaryCases(unit,
+                managerView ? null : actor.employeeId().value(), managerView, offset, pageSize)
+            : correspondence.pageSecretaryCases(unit, actor.employeeId().value(),
+                false, offset, pageSize, personalBox));
     }
 
     public record PersonalDraftDetails(AlfrescoCorrespondenceRepository.SecretaryDraft draft,

@@ -12,6 +12,7 @@ import {
   officeRoleGuard,
   secretaryDashboardGuard,
   secretaryComposeGuard,
+  secretaryDraftsGuard,
   standardMailboxGuard,
 } from './core/auth/correspondence-role.guard';
 
@@ -86,7 +87,7 @@ export const routes: Routes = [
       {
         path: 'drafts',
 
-        canActivate: [standardMailboxGuard],
+        canActivate: [secretaryDraftsGuard],
 
         loadComponent: () =>
           import(

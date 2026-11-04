@@ -13,6 +13,7 @@ import { composeRouteForRole, MAILBOX_PAGE_SIZE } from '../../../shared/ui/real-
 import { CorrespondenceDocumentPreviewComponent } from '../../../shared/ui/correspondence-document-preview/correspondence-document-preview.component';
 import { OfficeCompletionEditorComponent } from '../../../shared/ui/office-completion/office-completion-editor.component';
 import { firstValueFrom } from 'rxjs';
+import { TarasolSecretaryApiService } from '../../tarasol-secretary/tarasol-secretary-api.service';
 
 import {
   TranslationService,
@@ -48,6 +49,9 @@ export class DraftsPageComponent implements OnInit {
 
   private readonly api =
     inject(CorrespondenceApiService);
+  private readonly secretaryApi = inject(TarasolSecretaryApiService);
+  readonly secretaryMode = computed(() => this.session.secretaryMailbox());
+  readonly secretaryUnitCode = computed(() => this.session.secretaryInboxUnitCode());
 
   readonly translation = inject(TranslationService);
 
@@ -117,9 +121,11 @@ export class DraftsPageComponent implements OnInit {
     this.detailsError.set(false);
 
     try {
-      const page = await firstValueFrom(
-        this.api.listDrafts(offset, PAGE_SIZE),
-      );
+      const unit = this.secretaryUnitCode();
+      if (this.secretaryMode() && !unit) throw new Error('No active secretary unit');
+      const page = this.secretaryMode() && unit
+        ? await firstValueFrom(this.secretaryApi.list(unit, 'mine', offset, PAGE_SIZE, 'drafts'))
+        : await firstValueFrom(this.api.listDrafts(offset, PAGE_SIZE));
 
       this.page.set(page);
 
@@ -176,9 +182,11 @@ export class DraftsPageComponent implements OnInit {
     this.detailsLoading.set(true);
 
     try {
-      const result = await firstValueFrom(
-        this.api.getDetails(technicalId),
-      );
+      const unit = this.secretaryUnitCode();
+      if (this.secretaryMode() && !unit) throw new Error('No active secretary unit');
+      const result = this.secretaryMode() && unit
+        ? await this.loadSecretaryDraftDetails(unit, technicalId)
+        : await firstValueFrom(this.api.getDetails(technicalId));
 
       // Prevent an old response from replacing a newer selection.
       if (
@@ -211,8 +219,31 @@ export class DraftsPageComponent implements OnInit {
     }
   }
 
+  private async loadSecretaryDraftDetails(unit: string, technicalId: string): Promise<CorrespondenceDetails> {
+    const [draft, documentPage] = await Promise.all([
+      firstValueFrom(this.secretaryApi.personalDraft(unit, technicalId)),
+      firstValueFrom(this.secretaryApi.documents(unit, technicalId, 'mine')),
+    ]);
+    if (!['DRAFT', 'RETURNED'].includes(draft.approvalStatus)) {
+      throw new Error('Only editable personal drafts belong in Drafts');
+    }
+    return {
+      technicalId: draft.technicalId, state: 'DRAFT', subject: draft.subject,
+      bodyText: draft.bodyText, documentNumber: draft.documentNumber,
+      documentDate: draft.documentDate, sourceText: draft.sourceText,
+      originDepartmentCode: draft.unitCode,
+      createdByNameEnglish: this.session.currentUser()?.employeeProfile?.nameEnglish ?? '',
+      createdByNameArabic: this.session.currentUser()?.employeeProfile?.nameArabic ?? null,
+      documents: documentPage.items,
+    };
+  }
+
   openDraft(technicalId: string): void {
     const details = this.details();
+    if (this.secretaryMode()) {
+      void this.router.navigate(['/secretary/new'], { queryParams: { draft: technicalId } });
+      return;
+    }
     // Existing presidential reviews and Office completions keep their existing editors.
     if (details?.technicalId === technicalId && details.state === 'DRAFT'
         && details.executiveCompose
@@ -236,7 +267,8 @@ export class DraftsPageComponent implements OnInit {
   closePreview(): void { this.previewDocument.set(null); }
 
   openCompose(): void {
-    void this.router.navigate([composeRouteForRole(this.currentRole())]);
+    void this.router.navigate([this.secretaryMode()
+      ? '/secretary/new' : composeRouteForRole(this.currentRole())]);
   }
 
   previousPage(): void {

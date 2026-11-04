@@ -67,6 +67,28 @@ class TarasolSecretaryWorkflowWebScriptTest {
     }
 
     @Test
+    void personalDraftsExposeOnlyServerFilteredEditableRowsWithRealTimestamps() throws Exception {
+        when(employees.getCurrentEmployee()).thenReturn(secretary);
+        when(request.getParameter("unitCode")).thenReturn("117");
+        when(request.getParameter("view")).thenReturn("mine");
+        when(request.getParameter("box")).thenReturn("drafts");
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        var draft = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            "case-1", "117", "Subject", "Body", "99999", "RETURNED", "Please revise",
+            "DOC-117", "2026-11-04T07:00:00Z", "2026-11-04T09:00:00Z");
+        when(workflow.page(eq(secretary), eq(new DepartmentCode("117")), eq(false),
+            eq(0), eq(20), eq("drafts")))
+            .thenReturn(new AlfrescoCorrespondenceRepository.SecretaryPage(java.util.List.of(draft), 1));
+        new TarasolSecretaryWorkflowWebScript(employees, workflow, false)
+            .execute(request, response);
+        verify(response).setStatus(Status.STATUS_OK);
+        var row = new JSONObject(output.toString()).getJSONArray("items").getJSONObject(0);
+        assertEquals("DOC-117", row.getString("documentNumber"));
+        assertEquals("RETURNED", row.getString("approvalStatus"));
+        assertEquals("2026-11-04T09:00:00Z", row.getString("modifiedAt"));
+    }
+
+    @Test
     void managerQueueCannotBeUsedAsAnArbitraryDraftDetailsRead() throws Exception {
         when(employees.getCurrentEmployee()).thenReturn(secretary);
         when(request.getParameter("unitCode")).thenReturn("117");

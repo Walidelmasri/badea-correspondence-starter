@@ -68,6 +68,8 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                         .put("ownerEmployeeId", item.ownerEmployeeId())
                         .put("approvalStatus", item.approvalStatus())
                         .put("returnReason", item.returnReason() == null ? JSONObject.NULL : item.returnReason())
+                        .put("createdAt", item.createdAt() == null ? JSONObject.NULL : item.createdAt())
+                        .put("modifiedAt", item.modifiedAt() == null ? JSONObject.NULL : item.modifiedAt())
                         .put("documentNumber", metadata.documentNumber() == null
                             ? JSONObject.NULL : metadata.documentNumber())
                         .put("documentDate", metadata.documentDate() == null
@@ -79,7 +81,13 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 }
                 int offset = pageParameter(request.getParameter("offset"), 0, 1000000);
                 int limit = pageParameter(request.getParameter("limit"), 20, 50);
-                var page = workflow.page(employee, unit, "pending".equals(view), offset, limit);
+                String personalBox = request.getParameter("box");
+                if (personalBox != null && (!"mine".equals(view) || !"drafts".equals(personalBox))) {
+                    throw new IllegalArgumentException("Invalid personal mailbox filter");
+                }
+                var page = personalBox == null
+                    ? workflow.page(employee, unit, "pending".equals(view), offset, limit)
+                    : workflow.page(employee, unit, false, offset, limit, personalBox);
                 JSONArray items = new JSONArray();
                 for (var item : page.items()) {
                     items.put(new JSONObject()
@@ -90,7 +98,13 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                         .put("ownerEmployeeId", item.ownerEmployeeId())
                         .put("approvalStatus", item.approvalStatus())
                         .put("returnReason", item.returnReason() == null
-                            ? JSONObject.NULL : item.returnReason()));
+                            ? JSONObject.NULL : item.returnReason())
+                        .put("documentNumber", item.documentNumber() == null
+                            ? JSONObject.NULL : item.documentNumber())
+                        .put("createdAt", item.createdAt() == null
+                            ? JSONObject.NULL : item.createdAt())
+                        .put("modifiedAt", item.modifiedAt() == null
+                            ? JSONObject.NULL : item.modifiedAt()));
                 }
                 result.put("items", items).put("total", page.total())
                     .put("offset", offset).put("limit", limit);

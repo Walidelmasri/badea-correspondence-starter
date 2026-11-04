@@ -290,6 +290,7 @@
   @if (selectedId(); as technicalId) {
     <app-correspondence-document-preview
       [technicalId]="technicalId" [document]="document"
+      [secretaryPersonalDraftUnitCode]="secretaryMode() ? secretaryUnitCode() : null"
       (closed)="closePreview()" />
   }
 }

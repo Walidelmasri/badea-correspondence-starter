@@ -370,6 +370,14 @@ export class CorrespondenceApiService {
       { params: { unitCode }, responseType: 'blob' });
   }
 
+  /** Personal draft PDF: the backend validates secretary membership, current unit and creator. */
+  getSecretaryPersonalDraftDocument(unitCode: string, technicalId: string, nodeId: string): Observable<Blob> {
+    return this.http.get(
+      `/alfresco/service/badea/tarasol/secretary/${encodeURIComponent(technicalId)}`
+        + `/documents/${encodeURIComponent(nodeId)}`,
+      { params: { unitCode, view: 'mine' }, responseType: 'blob' });
+  }
+
   getHistory(technicalId: string): Observable<CorrespondenceHistoryPage> {
     return this.http.get<CorrespondenceHistoryPage>(
       `${CORRESPONDENCE_URL}/${encodeURIComponent(technicalId)}/history`,

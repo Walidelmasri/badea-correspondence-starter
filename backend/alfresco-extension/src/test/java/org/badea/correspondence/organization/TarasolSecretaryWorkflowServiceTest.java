@@ -246,6 +246,20 @@ class TarasolSecretaryWorkflowServiceTest {
     }
 
     @Test
+    void editableDraftsRequireSecretaryGroupAndOracleUnitAndFilterBeforePagination() {
+        var secretary = employee("300");
+        secretaryGroup();
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        var draft = new AlfrescoCorrespondenceRepository.SecretaryDraft(CASE, hr.value(),
+            "Returned", "Body", "300", "RETURNED");
+        when(repo.pageSecretaryCases(hr, "300", false, 0, 20, "drafts"))
+            .thenReturn(new AlfrescoCorrespondenceRepository.SecretaryPage(List.of(draft), 1));
+        var page = service.page(secretary, hr, false, 0, 20, "drafts");
+        assertEquals(1, page.total());
+        verify(repo).pageSecretaryCases(hr, "300", false, 0, 20, "drafts");
+    }
+
+    @Test
     void expiredSecretaryCannotListPersonalSentCases() {
         var secretary = employee("300");
         assertThrows(CorrespondenceAuthorizationException.class,

@@ -35,6 +35,7 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
   readonly technicalId = input.required<string>();
   readonly document = input.required<CorrespondenceDocumentUpload>();
   readonly secretaryUnitCode = input<string | null>(null);
+  readonly secretaryPersonalDraftUnitCode = input<string | null>(null);
   readonly closed = output<void>();
 
   readonly loading = signal(true);
@@ -48,8 +49,10 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
   ngAfterViewInit(): void {
     this.dialog().nativeElement.showModal();
     const unit = this.secretaryUnitCode();
-    this.request = (unit
-      ? this.api.getSecretaryInboxDocument(unit, this.technicalId(), this.document().nodeId)
+    const personalUnit = this.secretaryPersonalDraftUnitCode();
+    this.request = (personalUnit
+      ? this.api.getSecretaryPersonalDraftDocument(personalUnit, this.technicalId(), this.document().nodeId)
+      : unit ? this.api.getSecretaryInboxDocument(unit, this.technicalId(), this.document().nodeId)
       : this.api.getDocumentContent(this.technicalId(), this.document().nodeId)
     ).subscribe({
       next: (blob) => {
