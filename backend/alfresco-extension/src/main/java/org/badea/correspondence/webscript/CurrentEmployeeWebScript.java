@@ -143,9 +143,13 @@ public final class CurrentEmployeeWebScript
                 }
                 groups = Set.of();
             }
+            // Capture the effective group result once for authorization and
+            // non-privileged self-diagnostics in /me.
+            boolean secretaryGroupMember = TarasolSecretaryGroupPolicy.isMember(
+                authorityService, userProvider);
             if (effectiveAccess != null && secretaryUnits.isEmpty()
                     && role != CorrespondenceActorRole.SECRETARY
-                    && TarasolSecretaryGroupPolicy.isMember(authorityService, userProvider)) {
+                    && secretaryGroupMember) {
                 // Optional secretary workspaces must not prevent established
                 // Director/Office/President logins when the new grant read fails.
                 try {
@@ -194,7 +198,7 @@ public final class CurrentEmployeeWebScript
                     response,
                     Status.STATUS_OK,
                     toJson(employee, role, groups, workspaces, secretaryUnits,
-                        delegationUnits, tarasolAdministrator));
+                        delegationUnits, tarasolAdministrator, secretaryGroupMember));
 
         } catch (IllegalStateException temporaryGrantFailure) {
 
@@ -252,7 +256,8 @@ public final class CurrentEmployeeWebScript
             List<ManagerWorkspaceView> workspaces,
             List<TarasolEffectiveAccessReader.SecretaryUnit> secretaryUnits,
             List<TarasolEffectiveAccessReader.SecretaryUnit> delegationUnits,
-            boolean tarasolAdministrator) {
+            boolean tarasolAdministrator,
+            boolean secretaryGroupMember) {
 
         try {
             JSONObject json = new JSONObject();
@@ -302,6 +307,9 @@ public final class CurrentEmployeeWebScript
                     .put("nameArabic", nullableJsonValue(unit.nameArabic())));
             }
             json.put("secretaryUnits", secretaryWorkspaceList);
+            // Diagnostic of the authenticated Alfresco group membership only.
+            // All authorizations still require a live Oracle secretary unit.
+            json.put("secretaryGroupMember", secretaryGroupMember);
             JSONArray delegateWorkspaceList = new JSONArray();
             for (var unit : delegationUnits) {
                 delegateWorkspaceList.put(new JSONObject()

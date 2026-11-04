@@ -314,6 +314,53 @@ class CurrentEmployeeWebScriptTest {
     }
 
     @Test
+    void administratorAndSecretaryRetainBothIndependentGrants() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user")).thenReturn(Set.of(
+            "GROUP_BADEA_TARASOL_ADMINS",
+            org.badea.correspondence.organization.TarasolSecretaryGroupPolicy.AUTHORITY));
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No correspondence workflow group"));
+        when(access.findCurrentSecretaryUnits(new EmployeeId("10001")))
+            .thenReturn(List.of(new org.badea.correspondence.organization.TarasolEffectiveAccessReader.SecretaryUnit(
+                "117", "Digital Transformation", null)));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+
+        JSONObject result = execute();
+        assertEquals("TARASOL_ADMIN", result.getString("correspondenceRole"));
+        assertTrue(result.getBoolean("tarasolAdministrator"));
+        assertTrue(result.getBoolean("secretaryGroupMember"));
+        assertEquals("117", result.getJSONArray("secretaryUnits")
+            .getJSONObject(0).getString("code"));
+        verify(access).findCurrentSecretaryUnits(new EmployeeId("10001"));
+    }
+
+    @Test
+    void adminWithoutSecretaryMembershipDoesNotInheritSecretaryGrants() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of("GROUP_BADEA_TARASOL_ADMINS"));
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No correspondence workflow group"));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+
+        JSONObject result = execute();
+        assertEquals("TARASOL_ADMIN", result.getString("correspondenceRole"));
+        assertTrue(result.getBoolean("tarasolAdministrator"));
+        assertFalse(result.getBoolean("secretaryGroupMember"));
+        assertEquals(0, result.getJSONArray("secretaryUnits").length());
+        verify(access, never()).findCurrentSecretaryUnits(any());
+    }
+
+    @Test
     void adminOnlyGroupCanAccessOrganizationalAdminButNotMailboxes() throws IOException {
         var authority = mock(AuthorityService.class);
         var identity = mock(AuthenticatedUserProvider.class);

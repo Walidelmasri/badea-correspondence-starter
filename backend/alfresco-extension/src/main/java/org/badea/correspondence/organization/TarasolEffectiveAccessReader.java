@@ -1,5 +1,8 @@
 package org.badea.correspondence.organization;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -24,6 +27,7 @@ import org.badea.correspondence.directory.EmployeeId;
  * time from the Alfresco repository, never from an HTTP request body.
  */
 public final class TarasolEffectiveAccessReader {
+    private static final Log LOGGER = LogFactory.getLog(TarasolEffectiveAccessReader.class);
     private static final String ACTIVE_PARENT = """
         JOIN TARASOL_UNIT_ASSIGNMENTS manager
           ON manager.ASSIGNMENT_ID = access.MANAGER_ASSIGNMENT_ID
@@ -138,7 +142,11 @@ public final class TarasolEffectiveAccessReader {
     /** A secretary belongs to an active unit, irrespective of manager vacancies or leave. */
     public List<SecretaryUnit> findCurrentSecretaryUnits(EmployeeId actor) {
         Objects.requireNonNull(actor, "actor");
-        if (!isActiveEmployee(actor)) return List.of();
+        if (!isActiveEmployee(actor)) {
+            // Do not log employee identifiers or credentials.
+            LOGGER.warn("Tarasol secretary profile: active employee directory lookup returned no row");
+            return List.of();
+        }
         List<SecretaryUnit> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(SECRETARY_UNITS_SQL)) {
@@ -149,6 +157,9 @@ public final class TarasolEffectiveAccessReader {
                     result.add(new SecretaryUnit(rows.getString("UNIT_CODE"),
                         rows.getString("NAME_EN"), rows.getString("NAME_AR")));
                 }
+            }
+            if (result.isEmpty()) {
+                LOGGER.warn("Tarasol secretary profile: no effective Oracle secretary unit returned");
             }
             return List.copyOf(result);
         } catch (SQLException failure) {
