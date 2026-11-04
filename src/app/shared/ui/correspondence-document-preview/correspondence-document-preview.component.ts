@@ -13,6 +13,7 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
 import { TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
+import { TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
 
 import { TranslationService } from '../../../core/i18n/translation.service';
 import {
@@ -30,6 +31,7 @@ import {
 export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, OnDestroy {
   private readonly api = inject(CorrespondenceApiService);
   private readonly secretaryApi = inject(TarasolSecretaryApiService);
+  private readonly roundApi = inject(TarasolRoundContinuationApiService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -40,6 +42,8 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
   readonly secretaryPersonalDraftUnitCode = input<string | null>(null);
   readonly secretaryPersonalSentUnitCode = input<string | null>(null);
   readonly secretaryManagerPendingUnitCode = input<string | null>(null);
+  readonly managerRoundRequest = input<{ readonly unitCode: string; readonly requestId: string } | null>(null);
+  readonly secretaryRoundRequest = input<{ readonly unitCode: string; readonly requestId: string } | null>(null);
   readonly closed = output<void>();
 
   readonly loading = signal(true);
@@ -56,7 +60,13 @@ export class CorrespondenceDocumentPreviewComponent implements AfterViewInit, On
     const personalUnit = this.secretaryPersonalDraftUnitCode();
     const sentUnit = this.secretaryPersonalSentUnitCode();
     const managerUnit = this.secretaryManagerPendingUnitCode();
-    this.request = (managerUnit
+    const managerRound = this.managerRoundRequest();
+    const secretaryRound = this.secretaryRoundRequest();
+    this.request = (managerRound
+      ? this.roundApi.managerPreview(managerRound.unitCode, this.technicalId(), managerRound.requestId, this.document().nodeId)
+      : secretaryRound
+      ? this.roundApi.secretaryPreview(secretaryRound.unitCode, this.technicalId(), secretaryRound.requestId, this.document().nodeId)
+      : managerUnit
       ? this.secretaryApi.preview(managerUnit, this.technicalId(), this.document().nodeId, 'pending')
       : personalUnit
       ? this.api.getSecretaryPersonalDraftDocument(personalUnit, this.technicalId(), this.document().nodeId)

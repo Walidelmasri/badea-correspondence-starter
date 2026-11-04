@@ -198,6 +198,25 @@
             <h3>{{ labels().description }}</h3>
             <p class="mailbox-detail__body" dir="auto">{{ full.bodyText || labels().noDescription }}</p>
           </section>
+          <section class="mailbox-detail__section" [attr.aria-label]="roundLabels().staged">
+            <h3>{{ roundLabels().staged }} · {{ roundLabels().round }} {{ request.expectedCycle + 1 }}</h3>
+            @if (!roundStagedLoaded()) {
+              <p role="status">{{ labels().loadingDetails }}</p>
+            } @else if (roundStagedDocuments().length === 0) {
+              <p>{{ roundLabels().noStaged }}</p>
+            } @else {
+              <ul class="mailbox-files">
+                @for (pdf of roundStagedDocuments(); track pdf.nodeId) {
+                  <li><button type="button" class="mailbox-file-button"
+                      (click)="openRoundStagedDocument(pdf)">
+                    <span class="mailbox-document-detail"><strong dir="auto">{{ pdf.filename }}</strong>
+                      <small>{{ formatSize(pdf.sizeBytes) }}</small></span>
+                    <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                  </button></li>
+                }
+              </ul>
+            }
+          </section>
           <section class="mailbox-detail__section">
             <h3>{{ roundLabels().attachments }}</h3>
             @if (!full.documents.length && !full.generatedDocuments?.length) {
@@ -785,6 +804,17 @@
       [technicalId]="request.technicalId"
       [document]="document"
       (closed)="closeRoundPreview()"
+    />
+  }
+}
+
+@if (roundStagedPreview(); as pdf) {
+  @if (selectedRound(); as request) {
+    <app-correspondence-document-preview
+      [technicalId]="request.technicalId"
+      [document]="pdf"
+      [managerRoundRequest]="{unitCode: request.unitCode, requestId: request.requestId}"
+      (closed)="closeRoundStagedPreview()"
     />
   }
 }

@@ -17,6 +17,82 @@ describe('TarasolRoundContinuationApiService', () => {
   });
   afterEach(() => http.verify());
 
+
+  it('lists staged manager PDFs with the precise request ID and unit', () => {
+    api.managerDocuments('117', technicalId, requestId).subscribe(result => expect(result.items).toEqual([]));
+    const req = http.expectOne(item => item.url.endsWith(`/round-continuation/${technicalId}/documents`));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('requestId')).toBe(requestId);
+    expect(req.request.params.get('unitCode')).toBe('117');
+    req.flush({ items: [] });
+  });
+
+  it('previews manager-staged PDF through the manager-specific endpoint', () => {
+    api.managerPreview('117', technicalId, requestId, 'pdf-node').subscribe(blob => expect(blob.type).toBe('application/pdf'));
+    const req = http.expectOne(item => item.url.endsWith(`/round-continuation/${technicalId}/documents/pdf-node`));
+    expect(req.request.responseType).toBe('blob');
+    expect(req.request.params.get('requestId')).toBe(requestId);
+    expect(req.request.params.get('unitCode')).toBe('117');
+    req.flush(new Blob(['%PDF-1.5'], { type: 'application/pdf' }));
+  });
+
+  it('stages secretary PDFs against an explicit request and cannot send through Director route', () => {
+    api.uploadSecretaryDocument('117', technicalId, requestId,
+      new File(['%PDF-1.5'], 'follow-up.pdf', { type: 'application/pdf' })).subscribe();
+    const req = http.expectOne(item => item.url.endsWith(`/secretary/round/${technicalId}/requests/${requestId}/documents`));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.params.get('unitCode')).toBe('117');
+    expect(req.request.params.get('filename')).toBe('follow-up.pdf');
+    expect(req.request.headers.get('Content-Type')).toBe('application/pdf');
+    req.flush({ nodeId: 'pdf-node', filename: 'follow-up.pdf', mimeType: 'application/pdf', sizeBytes: 8, workflowCycle: 4 });
+  });
+
+  it('loads and creates a secretary follow-up request for the selected unit', () => {
+    api.secretaryRequest('117', technicalId).subscribe(result => expect(result.requestId).toBe(requestId));
+    const current = http.expectOne(item => item.url.endsWith(`/secretary/round-two/${technicalId}`));
+    expect(current.request.method).toBe('GET');
+    expect(current.request.params.get('unitCode')).toBe('117');
+    current.flush({ requestId, technicalId, unitCode: '117', status: 'PENDING',
+      expectedCycle: 3, reason: 'Review', returnReason: null, requestedAt: '2026-11-04' });
+    api.submitSecretaryRequest('117', technicalId, 'Additional documents').subscribe();
+    const submitted = http.expectOne(item => item.url.endsWith(`/secretary/round-two/${technicalId}`));
+    expect(submitted.request.method).toBe('POST');
+    expect(submitted.request.params.get('unitCode')).toBe('117');
+    expect(submitted.request.body).toEqual({ reason: 'Additional documents' });
+    submitted.flush({ requestId, technicalId, unitCode: '117', status: 'PENDING',
+      expectedCycle: 3, reason: 'Additional documents', returnReason: null, requestedAt: '2026-11-04' });
+  });
+
+  it('previews staged PDFs using the secretary-only endpoint', () => {
+    api.secretaryPreview('117', technicalId, requestId, 'pdf-node').subscribe(result =>
+      expect(result.type).toBe('application/pdf'));
+    const req = http.expectOne(item => item.url.endsWith(
+      `/secretary/round/${technicalId}/requests/${requestId}/documents/pdf-node`));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('unitCode')).toBe('117');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['%PDF-1.5'], { type: 'application/pdf' }));
+  });
+
+  it('rejects non-PDF uploads locally without issuing any HTTP call', () => {
+    expect(() => api.uploadSecretaryDocument('117', technicalId, requestId,
+      new File(['data'], 'not-a-pdf.txt', { type: 'text/plain' }))).toThrow('PDF required');
+    http.expectNone(item => item.url.includes('/secretary/round/'));
+  });
+
+  it("lists and removes only a secretary request’s staged PDFs", () => {
+    api.secretaryDocuments('117', technicalId, requestId).subscribe();
+    const list = http.expectOne(item => item.url.endsWith(`/secretary/round/${technicalId}/requests/${requestId}/documents`));
+    expect(list.request.method).toBe('GET');
+    expect(list.request.params.get('unitCode')).toBe('117');
+    list.flush({ items: [] });
+    api.deleteSecretaryDocument('117', technicalId, requestId, 'pdf-node').subscribe();
+    const deleted = http.expectOne(item => item.url.endsWith(`/secretary/round/${technicalId}/requests/${requestId}/documents/pdf-node`));
+    expect(deleted.request.method).toBe('DELETE');
+    expect(deleted.request.params.get('unitCode')).toBe('117');
+    deleted.flush(null);
+  });
+
   it('reads pending requests only for the explicitly authorized manager unit', () => {
     api.pending('117', 10, 10).subscribe(result => expect(result.total).toBe(12));
     const req = http.expectOne(item => item.url.endsWith('/manager/round-continuations'));

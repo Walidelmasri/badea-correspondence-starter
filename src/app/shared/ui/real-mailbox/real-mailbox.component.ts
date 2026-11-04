@@ -37,7 +37,7 @@ import { CorrespondenceDocumentPreviewComponent } from '../correspondence-docume
 import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
-import { PendingRoundContinuation, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
+import { PendingRoundContinuation, StagedContinuationPdf, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
 
 const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
@@ -113,14 +113,18 @@ export class RealMailboxComponent implements OnInit {
   readonly roundUncertain = signal(false);
   readonly roundNotice = signal<'approved' | 'returned' | 'failed' | 'uncertain' | 'stale' | null>(null);
   readonly roundPreviewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
+  readonly roundStagedDocuments = signal<readonly StagedContinuationPdf[]>([]);
+  readonly roundStagedLoaded = signal(false);
+  readonly roundStagedPreview = signal<StagedContinuationPdf | null>(null);
   private roundReviewVersion = 0;
   readonly roundLabels = computed(() => this.translation.language() === 'ar' ? {
     heading: 'طلبات متابعة السكرتارية', pending: 'بانتظار موافقة المدير',
     request: 'طلب متابعة المراسلة', round: 'الجولة التالية',
     owner: 'مقدم الطلب', reason: 'مبرر المتابعة', submitted: 'تاريخ الطلب',
     attachments: 'مستندات المراسلة السابقة', noAttachments: 'لا توجد مستندات للعرض',
+    staged: 'مستندات المتابعة الجديدة للمراجعة', noStaged: 'لم تُرفق مستندات متابعة جديدة',
     history: 'السجل', noHistory: 'لا توجد إجراءات مسجلة',
-    warning: 'الطلب الحالي يضم مبرر المتابعة فقط؛ إضافة مرفقات متابعة جديدة لم تُفعّل بعد.',
+    warning: 'مستندات المتابعة الجديدة منفصلة عن المستندات السابقة ولا تُعتمد ضمن الجولة الجديدة إلا بعد موافقتك.',
     approve: 'موافقة وبدء الجولة التالية', returning: 'إرجاع للتعديل',
     returnReason: 'سبب الإرجاع (إلزامي)',
     confirm: 'هل راجعت الطلب والمستندات؟ ستبدأ الجولة التالية مباشرةً ولا يمكن التراجع عن ذلك.',
@@ -136,8 +140,9 @@ export class RealMailboxComponent implements OnInit {
     request: 'Continuation request', round: 'Next round',
     owner: 'Requested by', reason: 'Follow-up explanation', submitted: 'Requested on',
     attachments: 'Existing correspondence documents', noAttachments: 'No documents available',
+    staged: 'New follow-up PDFs to review', noStaged: 'No new follow-up PDFs attached',
     history: 'History', noHistory: 'No recorded actions',
-    warning: 'This request currently contains a reason only. New follow-up PDF staging is not yet available.',
+    warning: 'Staged PDFs are separate from existing correspondence documents. Approval promotes them to the next round.',
     approve: 'Approve and Continue', returning: 'Return for Revision',
     returnReason: 'Return reason (required)',
     confirm: 'Have you reviewed the request and existing documents? Approval starts the next round immediately and cannot be undone.',
@@ -606,6 +611,9 @@ export class RealMailboxComponent implements OnInit {
     this.roundReviewReady.set(false);
     this.roundReviewError.set(false);
     this.roundPreviewDocument.set(null);
+    this.roundStagedDocuments.set([]);
+    this.roundStagedLoaded.set(false);
+    this.roundStagedPreview.set(null);
     this.roundReturnReason.set('');
   }
 
@@ -633,10 +641,11 @@ export class RealMailboxComponent implements OnInit {
     try {
       // Use the manager's existing correspondence authorization, even if this
       // employee also happens to have a secretary assignment in another unit.
-      const [current, details, history] = await Promise.all([
+      const [current, details, history, staged] = await Promise.all([
         firstValueFrom(this.roundApi.current(item.unitCode, item.technicalId)),
         firstValueFrom(this.api.getDetails(item.technicalId)),
         firstValueFrom(this.api.getHistory(item.technicalId)),
+        firstValueFrom(this.roundApi.managerDocuments(item.unitCode, item.technicalId, item.requestId)),
       ]);
       if (version !== this.roundReviewVersion
           || this.selectedRound()?.requestId !== item.requestId) return;
@@ -648,8 +657,16 @@ export class RealMailboxComponent implements OnInit {
         this.roundReviewError.set(true);
         return;
       }
+      if (!Array.isArray(staged.items) || staged.items.some(pdf =>
+        pdf.mimeType !== 'application/pdf' || pdf.workflowCycle !== item.expectedCycle + 1
+        || !pdf.nodeId || !pdf.filename)) {
+        this.roundReviewError.set(true);
+        return;
+      }
       this.roundDetails.set(details);
       this.roundHistory.set(history.items);
+      this.roundStagedDocuments.set(staged.items);
+      this.roundStagedLoaded.set(true);
       this.roundReviewReady.set(true);
     } catch {
       if (version === this.roundReviewVersion) this.roundReviewError.set(true);
@@ -664,13 +681,29 @@ export class RealMailboxComponent implements OnInit {
     const item = this.selectedRound();
     const reason = this.roundReturnReason().trim();
     if (!item || this.managerApprovalUnit() !== item.unitCode
-        || !this.roundReviewReady() || this.roundReviewError()
+        || !this.roundReviewReady() || this.roundReviewError() || !this.roundStagedLoaded()
         || this.roundBusy() || this.roundUncertain()
         || (action === 'RETURN' && (!reason || reason.length > 2000))) return;
     if (action === 'APPROVE_AND_CONTINUE' && !window.confirm(this.roundLabels().confirm)) return;
     this.roundBusy.set(true);
     this.roundNotice.set(null);
     try {
+      if (action === 'APPROVE_AND_CONTINUE') {
+        // Detect edits made after the manager opened the review. An atomic
+        // reviewed-file version check is still required server-side.
+        const latest = await firstValueFrom(this.roundApi.managerDocuments(
+          item.unitCode, item.technicalId, item.requestId));
+        const fingerprint = (files: readonly StagedContinuationPdf[]) => JSON.stringify(files.map(file =>
+          [file.nodeId, file.filename, file.sizeBytes, file.workflowCycle, file.mimeType]).sort(
+          (a, b) => String(a[0]).localeCompare(String(b[0]))));
+        if (!Array.isArray(latest.items)
+            || fingerprint(latest.items) !== fingerprint(this.roundStagedDocuments())) {
+          this.roundReviewReady.set(false);
+          this.roundReviewError.set(true);
+          this.roundNotice.set('stale');
+          return;
+        }
+      }
       await firstValueFrom(this.roundApi.decide(item.unitCode, item.technicalId,
         item.requestId, action, action === 'RETURN' ? reason : undefined));
       // Invalidate the decided request before refreshing. The new queue may
@@ -711,6 +744,15 @@ export class RealMailboxComponent implements OnInit {
   }
 
   closeRoundPreview(): void { this.roundPreviewDocument.set(null); }
+
+  openRoundStagedDocument(pdf: StagedContinuationPdf): void {
+    if (!this.roundReviewReady() || !this.roundStagedLoaded()
+        || !this.roundStagedDocuments().some(entry => entry.nodeId === pdf.nodeId)
+        || pdf.mimeType !== 'application/pdf') return;
+    this.roundStagedPreview.set(pdf);
+  }
+
+  closeRoundStagedPreview(): void { this.roundStagedPreview.set(null); }
 
 
 

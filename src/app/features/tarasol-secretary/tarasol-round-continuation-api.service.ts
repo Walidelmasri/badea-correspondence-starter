@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 const QUEUE_URL = '/alfresco/service/badea/tarasol/manager/round-continuations';
 const DECISION_URL = '/alfresco/service/badea/tarasol/manager/round-continuation';
+const SECRETARY_ROUND_URL = '/alfresco/service/badea/tarasol/secretary/round';
 
 export interface PendingRoundContinuation {
   readonly technicalId: string;
@@ -32,6 +33,25 @@ export interface CurrentRoundContinuation {
   readonly status: 'PENDING';
 }
 
+export interface StagedContinuationPdf {
+  readonly nodeId: string;
+  readonly filename: string;
+  readonly mimeType: 'application/pdf';
+  readonly sizeBytes: number;
+  readonly workflowCycle: number;
+}
+
+export interface SecretaryContinuationRequest {
+  readonly requestId: string;
+  readonly technicalId: string;
+  readonly unitCode: string;
+  readonly status: 'PENDING' | 'RETURNED' | 'APPROVED';
+  readonly expectedCycle: number;
+  readonly reason: string;
+  readonly returnReason: string | null;
+  readonly requestedAt: string;
+}
+
 export interface RoundContinuationDecision {
   readonly requestId: string;
   readonly status: 'APPROVED' | 'RETURNED';
@@ -46,6 +66,64 @@ export class TarasolRoundContinuationApiService {
     const params = new HttpParams().set('unitCode', unitCode)
       .set('offset', offset).set('limit', limit);
     return this.http.get<PendingRoundContinuationPage>(QUEUE_URL, { params });
+  }
+
+  /** Only the appointed manager may read staged PDFs; normal document APIs must not see them. */
+  managerDocuments(unitCode: string, technicalId: string, requestId: string):
+    Observable<{ readonly items: readonly StagedContinuationPdf[] }> {
+    return this.http.get<{ readonly items: readonly StagedContinuationPdf[] }>(
+      `${DECISION_URL}/${encodeURIComponent(technicalId)}/documents`,
+      { params: new HttpParams().set('unitCode', unitCode).set('requestId', requestId) });
+  }
+
+  managerPreview(unitCode: string, technicalId: string, requestId: string, nodeId: string): Observable<Blob> {
+    return this.http.get(
+      `${DECISION_URL}/${encodeURIComponent(technicalId)}/documents/${encodeURIComponent(nodeId)}`,
+      { params: new HttpParams().set('unitCode', unitCode).set('requestId', requestId), responseType: 'blob' });
+  }
+
+  /** Secretary requests and PDFs are never routed through a Director transition endpoint. */
+  secretaryRequest(unitCode: string, technicalId: string): Observable<SecretaryContinuationRequest> {
+    return this.http.get<SecretaryContinuationRequest>(
+      `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}`,
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  submitSecretaryRequest(unitCode: string, technicalId: string, reason: string):
+    Observable<SecretaryContinuationRequest> {
+    return this.http.post<SecretaryContinuationRequest>(
+      `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}`,
+      { reason },
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  secretaryDocuments(unitCode: string, technicalId: string, requestId: string):
+    Observable<{ readonly items: readonly StagedContinuationPdf[] }> {
+    return this.http.get<{ readonly items: readonly StagedContinuationPdf[] }>(
+      `${SECRETARY_ROUND_URL}/${encodeURIComponent(technicalId)}/requests/${encodeURIComponent(requestId)}/documents`,
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  uploadSecretaryDocument(unitCode: string, technicalId: string, requestId: string, file: File):
+    Observable<StagedContinuationPdf> {
+    if (file.type !== 'application/pdf' || file.size === 0) throw new Error('PDF required');
+    return this.http.post<StagedContinuationPdf>(
+      `${SECRETARY_ROUND_URL}/${encodeURIComponent(technicalId)}/requests/${encodeURIComponent(requestId)}/documents`,
+      file, { params: new HttpParams().set('unitCode', unitCode).set('filename', file.name),
+        headers: { 'Content-Type': 'application/pdf' } });
+  }
+
+  deleteSecretaryDocument(unitCode: string, technicalId: string, requestId: string, nodeId: string):
+    Observable<void> {
+    return this.http.delete<void>(
+      `${SECRETARY_ROUND_URL}/${encodeURIComponent(technicalId)}/requests/${encodeURIComponent(requestId)}/documents/${encodeURIComponent(nodeId)}`,
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  secretaryPreview(unitCode: string, technicalId: string, requestId: string, nodeId: string): Observable<Blob> {
+    return this.http.get(
+      `${SECRETARY_ROUND_URL}/${encodeURIComponent(technicalId)}/requests/${encodeURIComponent(requestId)}/documents/${encodeURIComponent(nodeId)}`,
+      { params: new HttpParams().set('unitCode', unitCode), responseType: 'blob' });
   }
 
   current(unitCode: string, technicalId: string): Observable<CurrentRoundContinuation> {
