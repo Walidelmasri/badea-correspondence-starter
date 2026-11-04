@@ -56,6 +56,41 @@
         </section>
       }
     }
+    @if (managerApprovalUnit() && (inboxView() === 'needs_action' || inboxView() === 'all')) {
+      @if (roundRequests().length || roundLoadError()) {
+        <section class="mailbox-pending-approvals" [attr.aria-label]="roundLabels().heading">
+          <div class="mailbox-pending-heading">
+            <strong>{{ roundLabels().heading }}</strong>
+            <span class="mailbox-count">{{ roundTotal() }}</span>
+          </div>
+          @if (roundLoadError()) {
+            <p class="mailbox-transition-notice" role="alert">{{ roundLabels().loadingFailed }}</p>
+          }
+          @for (request of roundRequests(); track request.requestId) {
+            <button type="button" class="mailbox-item"
+              [class.mailbox-item--selected]="selectedRound()?.requestId === request.requestId"
+              (click)="selectRound(request)">
+              <span class="mailbox-item__date">{{ formatDate(request.requestedAt) }}</span>
+              <strong>{{ request.subject }}</strong>
+              <span>{{ roundLabels().owner }}: {{ request.ownerEmployeeId }}</span>
+              <small>{{ roundLabels().round }} {{ request.expectedCycle + 1 }} · {{ roundLabels().pending }}</small>
+            </button>
+          }
+          @if (roundTotal() > pendingPageSize) {
+            <div class="mailbox-pagination">
+              <span>{{ roundOffset() + 1 }}–{{ roundOffset() + roundRequests().length }}
+                {{ labels().of }} {{ roundTotal() }}</span>
+              <div>
+                <button type="button" [disabled]="roundOffset() === 0 || loading() || roundBusy()"
+                  (click)="roundPrevious()">{{ roundLabels().previous }}</button>
+                <button type="button" [disabled]="roundOffset() + pendingPageSize >= roundTotal() || loading() || roundBusy()"
+                  (click)="roundNext()">{{ roundLabels().next }}</button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+    }
     @if (loading() && !page()) {
       <div class="mailbox-empty" role="status">{{ labels().loading }}</div>
     } @else if (listError()) {
@@ -64,7 +99,7 @@
         <button type="button" (click)="loadPage(0)">{{ labels().retry }}</button>
       </div>
     } @else if (page(); as results) {
-      @if (results.items.length === 0 && pendingApprovals().length === 0) {
+      @if (results.items.length === 0 && pendingApprovals().length === 0 && roundRequests().length === 0) {
         <div class="mailbox-empty">
           <strong>{{ headings().empty.title }}</strong>
           <p>{{ headings().empty.description }}</p>
@@ -126,7 +161,102 @@
         @else { {{ pendingLabels().failed }} }
       </p>
     }
-    @if (selectedPending(); as pending) {
+    @if (roundNotice(); as notice) {
+      <p class="mailbox-transition-notice"
+        [attr.role]="notice === 'failed' || notice === 'uncertain' || notice === 'stale' ? 'alert' : 'status'">
+        @if (notice === 'approved') { {{ roundLabels().approved }} }
+        @else if (notice === 'returned') { {{ roundLabels().returned }} }
+        @else if (notice === 'uncertain') { {{ roundLabels().uncertain }} }
+        @else if (notice === 'stale') { {{ roundLabels().stale }} }
+        @else { {{ roundLabels().failed }} }
+      </p>
+    }
+    @if (selectedRound(); as request) {
+      <article class="mailbox-detail">
+        <header class="mailbox-detail__header">
+          <div>
+            <span>{{ roundLabels().request }} · {{ roundLabels().round }} {{ request.expectedCycle + 1 }}</span>
+            <h2>{{ request.subject }}</h2>
+          </div>
+        </header>
+        <dl>
+          <div><dt>{{ roundLabels().owner }}</dt><dd>{{ request.ownerEmployeeId }}</dd></div>
+          <div><dt>{{ labels().documentNumber }}</dt>
+            <dd>{{ request.documentNumber || labels().noDocumentNumber }}</dd></div>
+          <div><dt>{{ roundLabels().submitted }}</dt><dd>{{ formatDate(request.requestedAt) }}</dd></div>
+        </dl>
+        <section class="mailbox-detail__section">
+          <h3>{{ roundLabels().reason }}</h3>
+          <p class="mailbox-detail__body" dir="auto">{{ request.reason }}</p>
+        </section>
+        @if (roundReviewError()) {
+          <p class="mailbox-transition-notice" role="alert">{{ roundLabels().reviewFailed }}</p>
+        } @else if (!roundReviewReady()) {
+          <p role="status">{{ labels().loadingDetails }}</p>
+        } @else if (roundDetails(); as full) {
+          <section class="mailbox-detail__section">
+            <h3>{{ labels().description }}</h3>
+            <p class="mailbox-detail__body" dir="auto">{{ full.bodyText || labels().noDescription }}</p>
+          </section>
+          <section class="mailbox-detail__section">
+            <h3>{{ roundLabels().attachments }}</h3>
+            @if (!full.documents.length && !full.generatedDocuments?.length) {
+              <p>{{ roundLabels().noAttachments }}</p>
+            } @else {
+              <ul class="mailbox-files">
+                @for (document of full.documents; track document.nodeId) {
+                  <li><button type="button" class="mailbox-file-button"
+                    [disabled]="document.mimeType !== 'application/pdf'"
+                    (click)="openRoundDocument(document)">
+                    <strong dir="auto">{{ document.filename }}</strong>
+                    <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                  </button></li>
+                }
+                @for (document of full.generatedDocuments ?? []; track document.nodeId) {
+                  <li><button type="button" class="mailbox-file-button"
+                    [disabled]="document.mimeType !== 'application/pdf'"
+                    (click)="openRoundDocument(document)">
+                    <strong dir="auto">{{ document.filename }}</strong>
+                    <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                  </button></li>
+                }
+              </ul>
+            }
+          </section>
+          <section class="mailbox-detail__section">
+            <h3>{{ roundLabels().history }}</h3>
+            @if (!roundHistory().length) { <p>{{ roundLabels().noHistory }}</p> }
+            @else {
+              <ol class="mailbox-history">
+                @for (action of roundHistory(); track action.sequence) {
+                  <li>
+                    <strong>{{ actionLabel(action.actionType) }}</strong>
+                    <span>{{ actorDisplayName(action) }}</span>
+                    <time>{{ formatDate(action.actedAt) }}</time>
+                    @if (action.explanation) { <p dir="auto">{{ action.explanation }}</p> }
+                  </li>
+                }
+              </ol>
+            }
+          </section>
+        }
+        <section class="mailbox-detail__section mailbox-assignment-form">
+          <p class="mailbox-transition-notice">{{ roundLabels().warning }}</p>
+          <label for="manager-round-return-reason">{{ roundLabels().returnReason }}</label>
+          <textarea id="manager-round-return-reason" rows="3" maxlength="2000"
+            [value]="roundReturnReason()" [disabled]="roundBusy() || roundUncertain()"
+            (input)="updateRoundReturnReason($event)"></textarea>
+          <div class="mailbox-pending-actions">
+            <button type="button" class="mailbox-action"
+              [disabled]="!roundReviewReady() || roundBusy() || roundUncertain()"
+              (click)="processRound('APPROVE_AND_CONTINUE')">{{ roundLabels().approve }}</button>
+            <button type="button" class="mailbox-action mailbox-return-action"
+              [disabled]="!roundReviewReady() || roundBusy() || roundUncertain() || !roundReturnReason().trim()"
+              (click)="processRound('RETURN')">{{ roundLabels().returning }}</button>
+          </div>
+        </section>
+      </article>
+    } @else if (selectedPending(); as pending) {
       <article class="mailbox-detail">
         <header class="mailbox-detail__header">
           <div><span>{{ pendingLabels().waiting }}</span><h2>{{ pending.subject }}</h2></div>
@@ -645,6 +775,16 @@
       [technicalId]="technicalId"
       [document]="document"
       (closed)="closePreview()"
+    />
+  }
+}
+
+@if (roundPreviewDocument(); as document) {
+  @if (selectedRound(); as request) {
+    <app-correspondence-document-preview
+      [technicalId]="request.technicalId"
+      [document]="document"
+      (closed)="closeRoundPreview()"
     />
   }
 }

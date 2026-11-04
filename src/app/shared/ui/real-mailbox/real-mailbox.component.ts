@@ -37,6 +37,7 @@ import { CorrespondenceDocumentPreviewComponent } from '../correspondence-docume
 import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
+import { PendingRoundContinuation, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
 
 const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
@@ -56,6 +57,7 @@ export class RealMailboxComponent implements OnInit {
   readonly box = input.required<CorrespondenceMailboxBox>();
   private readonly api = inject(CorrespondenceApiService);
   private readonly secretaryApi = inject(TarasolSecretaryApiService);
+  private readonly roundApi = inject(TarasolRoundContinuationApiService);
   private readonly correspondence = inject(CorrespondenceService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -94,6 +96,60 @@ export class RealMailboxComponent implements OnInit {
   readonly pendingNotice = signal<'approved' | 'returned' | 'failed' | 'uncertain' | null>(null);
   readonly pendingPreviewDocument = signal<SecretaryPdf | null>(null);
   private pendingDocumentVersion = 0;
+
+  // Separate manager queue. An active manager appointment is mandatory; Admin
+  // or secretary group membership alone must never expose these requests.
+  readonly roundRequests = signal<readonly PendingRoundContinuation[]>([]);
+  readonly roundTotal = signal(0);
+  readonly roundOffset = signal(0);
+  readonly roundLoadError = signal(false);
+  readonly selectedRound = signal<PendingRoundContinuation | null>(null);
+  readonly roundDetails = signal<CorrespondenceDetails | null>(null);
+  readonly roundHistory = signal<readonly CorrespondenceHistoryEntry[]>([]);
+  readonly roundReviewReady = signal(false);
+  readonly roundReviewError = signal(false);
+  readonly roundReturnReason = signal('');
+  readonly roundBusy = signal(false);
+  readonly roundUncertain = signal(false);
+  readonly roundNotice = signal<'approved' | 'returned' | 'failed' | 'uncertain' | 'stale' | null>(null);
+  readonly roundPreviewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
+  private roundReviewVersion = 0;
+  readonly roundLabels = computed(() => this.translation.language() === 'ar' ? {
+    heading: 'طلبات متابعة السكرتارية', pending: 'بانتظار موافقة المدير',
+    request: 'طلب متابعة المراسلة', round: 'الجولة التالية',
+    owner: 'مقدم الطلب', reason: 'مبرر المتابعة', submitted: 'تاريخ الطلب',
+    attachments: 'مستندات المراسلة السابقة', noAttachments: 'لا توجد مستندات للعرض',
+    history: 'السجل', noHistory: 'لا توجد إجراءات مسجلة',
+    warning: 'الطلب الحالي يضم مبرر المتابعة فقط؛ إضافة مرفقات متابعة جديدة لم تُفعّل بعد.',
+    approve: 'موافقة وبدء الجولة التالية', returning: 'إرجاع للتعديل',
+    returnReason: 'سبب الإرجاع (إلزامي)',
+    confirm: 'هل راجعت الطلب والمستندات؟ ستبدأ الجولة التالية مباشرةً ولا يمكن التراجع عن ذلك.',
+    approved: 'تمت الموافقة وبدء الجولة التالية', returned: 'أُعيد الطلب للسكرتارية',
+    failed: 'تعذر تنفيذ القرار؛ تحقق من حالة الطلب قبل إعادة المحاولة',
+    uncertain: 'قد يكون القرار نُفّذ. تحقق من حالة المراسلة قبل إعادة المحاولة.',
+    stale: 'تغير الطلب أو رقم الجولة. أعد تحميل القائمة.',
+    loadingFailed: 'تعذر تحميل طلبات المتابعة',
+    reviewFailed: 'تعذر التحقق من الطلب والمستندات. لا تعتمد قبل مراجعتها.',
+    previous: 'السابق', next: 'التالي',
+  } : {
+    heading: 'Secretary follow-up approvals', pending: 'Awaiting manager decision',
+    request: 'Continuation request', round: 'Next round',
+    owner: 'Requested by', reason: 'Follow-up explanation', submitted: 'Requested on',
+    attachments: 'Existing correspondence documents', noAttachments: 'No documents available',
+    history: 'History', noHistory: 'No recorded actions',
+    warning: 'This request currently contains a reason only. New follow-up PDF staging is not yet available.',
+    approve: 'Approve and Continue', returning: 'Return for Revision',
+    returnReason: 'Return reason (required)',
+    confirm: 'Have you reviewed the request and existing documents? Approval starts the next round immediately and cannot be undone.',
+    approved: 'Approved; next round started', returned: 'Returned to secretary',
+    failed: 'Decision failed. Verify request state before retrying.',
+    uncertain: 'Decision might have been committed. Verify state before retrying.',
+    stale: 'The request or cycle changed. Refresh before acting.',
+    loadingFailed: 'Could not load continuation requests',
+    reviewFailed: 'Could not verify the request and documents. Do not approve before reviewing.',
+    previous: 'Previous', next: 'Next',
+  });
+
   readonly pendingLabels = computed(() => this.translation.language() === 'ar' ? {
     heading: 'بانتظار اعتماد المدير', waiting: 'بانتظار الاعتماد',
     approve: 'اعتماد وإرسال', returning: 'إرجاع للتعديل',
@@ -327,6 +383,7 @@ export class RealMailboxComponent implements OnInit {
     if (this.box() !== 'inbox' || this.inboxView() === view) return;
     this.inboxView.set(view);
     this.pendingOffset.set(0);
+    this.roundOffset.set(0);
     this.mobileDetailsOpen.set(false);
     this.selectedId.set(null);
     // Invalidate the previous page request so switching filters while loading works.
@@ -345,6 +402,7 @@ export class RealMailboxComponent implements OnInit {
     this.closePendingPreview();
     this.closeShare();
     this.selectedPending.set(null);
+    this.clearRoundSelection();
     this.pendingDocuments.set([]);
     this.pendingMetadata.set(null);
     this.pendingDocumentsLoaded.set(false);
@@ -361,6 +419,9 @@ export class RealMailboxComponent implements OnInit {
       const unit = this.secretaryUnitCode();
       const managerUnit = this.managerApprovalUnit();
       const showPending = !!managerUnit && (this.inboxView() === 'needs_action' || this.inboxView() === 'all');
+      // Never hold the normal Inbox hostage to a potentially expensive
+      // continuation-request scan. The manager queue is an independent load.
+      void this.loadRoundQueue(managerUnit, showPending, version);
       const [page, pending] = await Promise.all([
         firstValueFrom(this.secretaryMode()
           ? this.box() === 'sent'
@@ -402,9 +463,27 @@ export class RealMailboxComponent implements OnInit {
     }
   }
 
+  private async loadRoundQueue(managerUnit: string | null, eligible: boolean,
+    version: number): Promise<void> {
+    this.roundRequests.set([]);
+    this.roundTotal.set(0);
+    this.roundLoadError.set(false);
+    if (!eligible || !managerUnit) return;
+    try {
+      const page = await firstValueFrom(this.roundApi.pending(managerUnit,
+        this.roundOffset(), PAGE_SIZE));
+      if (version !== this.pageVersion) return;
+      this.roundRequests.set(page.items);
+      this.roundTotal.set(page.total);
+    } catch {
+      if (version === this.pageVersion) this.roundLoadError.set(true);
+    }
+  }
+
   select(id: string): void {
     this.closePendingPreview();
     this.selectedPending.set(null);
+    this.clearRoundSelection();
     this.pendingDocuments.set([]);
     this.pendingMetadata.set(null);
     this.pendingDocumentsLoaded.set(false);
@@ -435,6 +514,7 @@ export class RealMailboxComponent implements OnInit {
     this.closePreview();
     this.closeShare();
     this.closePendingPreview();
+    this.clearRoundSelection();
     ++this.detailVersion;
     this.selectedId.set(null);
     this.details.set(null);
@@ -517,6 +597,121 @@ export class RealMailboxComponent implements OnInit {
   }
 
   closePendingPreview(): void { this.pendingPreviewDocument.set(null); }
+
+  private clearRoundSelection(): void {
+    ++this.roundReviewVersion;
+    this.selectedRound.set(null);
+    this.roundDetails.set(null);
+    this.roundHistory.set([]);
+    this.roundReviewReady.set(false);
+    this.roundReviewError.set(false);
+    this.roundPreviewDocument.set(null);
+    this.roundReturnReason.set('');
+  }
+
+  selectRound(item: PendingRoundContinuation): void {
+    if (this.box() !== 'inbox' || this.managerApprovalUnit() !== item.unitCode
+        || this.roundBusy()) return;
+    this.closeHistory();
+    this.closePreview();
+    this.closePendingPreview();
+    this.closeShare();
+    ++this.pendingDocumentVersion;
+    this.selectedPending.set(null);
+    this.clearRoundSelection();
+    ++this.detailVersion;
+    this.selectedId.set(null);
+    this.details.set(null);
+    this.history.set(null);
+    this.mobileDetailsOpen.set(true);
+    this.selectedRound.set(item);
+    void this.loadRoundReview(item);
+  }
+
+  private async loadRoundReview(item: PendingRoundContinuation): Promise<void> {
+    const version = ++this.roundReviewVersion;
+    try {
+      // Use the manager's existing correspondence authorization, even if this
+      // employee also happens to have a secretary assignment in another unit.
+      const [current, details, history] = await Promise.all([
+        firstValueFrom(this.roundApi.current(item.unitCode, item.technicalId)),
+        firstValueFrom(this.api.getDetails(item.technicalId)),
+        firstValueFrom(this.api.getHistory(item.technicalId)),
+      ]);
+      if (version !== this.roundReviewVersion
+          || this.selectedRound()?.requestId !== item.requestId) return;
+      if (current.status !== 'PENDING' || current.requestId !== item.requestId
+          || current.expectedCycle !== item.expectedCycle
+          || current.ownerEmployeeId !== item.ownerEmployeeId
+          || details.currentWorkflowCycle !== item.expectedCycle
+          || details.state !== 'WITH_DIRECTOR') {
+        this.roundReviewError.set(true);
+        return;
+      }
+      this.roundDetails.set(details);
+      this.roundHistory.set(history.items);
+      this.roundReviewReady.set(true);
+    } catch {
+      if (version === this.roundReviewVersion) this.roundReviewError.set(true);
+    }
+  }
+
+  updateRoundReturnReason(event: Event): void {
+    this.roundReturnReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  async processRound(action: 'APPROVE_AND_CONTINUE' | 'RETURN'): Promise<void> {
+    const item = this.selectedRound();
+    const reason = this.roundReturnReason().trim();
+    if (!item || this.managerApprovalUnit() !== item.unitCode
+        || !this.roundReviewReady() || this.roundReviewError()
+        || this.roundBusy() || this.roundUncertain()
+        || (action === 'RETURN' && (!reason || reason.length > 2000))) return;
+    if (action === 'APPROVE_AND_CONTINUE' && !window.confirm(this.roundLabels().confirm)) return;
+    this.roundBusy.set(true);
+    this.roundNotice.set(null);
+    try {
+      await firstValueFrom(this.roundApi.decide(item.unitCode, item.technicalId,
+        item.requestId, action, action === 'RETURN' ? reason : undefined));
+      // Invalidate the decided request before refreshing. The new queue may
+      // auto-select another pending request; a busy guard must not block it.
+      this.clearRoundSelection();
+      this.roundBusy.set(false);
+      this.roundOffset.set(0);
+      await this.loadPage(0);
+      this.roundNotice.set(action === 'RETURN' ? 'returned' : 'approved');
+    } catch (error: unknown) {
+      const uncertain = error instanceof HttpErrorResponse
+        && (error.status === 0 || error.status >= 500);
+      const stale = error instanceof HttpErrorResponse && error.status === 409;
+      this.roundUncertain.set(uncertain);
+      this.roundNotice.set(uncertain ? 'uncertain' : stale ? 'stale' : 'failed');
+      if (stale) this.roundReviewReady.set(false);
+    } finally {
+      this.roundBusy.set(false);
+    }
+  }
+
+  roundPrevious(): void {
+    if (this.roundOffset() < PAGE_SIZE || this.loading() || this.roundBusy()) return;
+    this.roundOffset.update(value => value - PAGE_SIZE);
+    void this.loadPage(0);
+  }
+
+  roundNext(): void {
+    if (this.roundOffset() + PAGE_SIZE >= this.roundTotal()
+        || this.loading() || this.roundBusy()) return;
+    this.roundOffset.update(value => value + PAGE_SIZE);
+    void this.loadPage(0);
+  }
+
+  openRoundDocument(document: CorrespondenceDetails['documents'][number]): void {
+    if (!this.roundReviewReady() || document.mimeType !== 'application/pdf') return;
+    this.roundPreviewDocument.set(document);
+  }
+
+  closeRoundPreview(): void { this.roundPreviewDocument.set(null); }
+
 
 
   private async loadDetails(id: string, openedByUser = false): Promise<void> {

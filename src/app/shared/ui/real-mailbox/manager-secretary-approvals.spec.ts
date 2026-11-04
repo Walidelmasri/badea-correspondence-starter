@@ -9,6 +9,7 @@ import { UnreadInboxStore } from '../../../core/notifications/unread-inbox.store
 import { CorrespondenceService } from '../../../core/correspondence/correspondence.service';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
+import { TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
 import { CorrespondenceApiService } from '../../data-access/correspondence-api.service';
 import { RealMailboxComponent } from './real-mailbox.component';
 
@@ -60,6 +61,9 @@ describe('Manager approvals inside the existing Inbox', () => {
     TestBed.configureTestingModule({ providers: [
       { provide: AuthSessionStore, useValue: session },
       { provide: TarasolSecretaryApiService, useValue: secretary },
+      { provide: TarasolRoundContinuationApiService, useValue: {
+        pending: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 10 })),
+      } },
       { provide: CorrespondenceApiService, useValue: {
         listMailbox: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 10 })),
         listSecretaryInbox: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 10 })),
