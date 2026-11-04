@@ -24,7 +24,7 @@ describe('TarasolRoundContinuationApiService', () => {
     expect(req.request.method).toBe('GET');
     expect(req.request.params.get('requestId')).toBe(requestId);
     expect(req.request.params.get('unitCode')).toBe('117');
-    req.flush({ items: [] });
+    req.flush({ documentsRevision: 0, items: [] });
   });
 
   it('previews manager-staged PDF through the manager-specific endpoint', () => {
@@ -59,8 +59,18 @@ describe('TarasolRoundContinuationApiService', () => {
     expect(submitted.request.method).toBe('POST');
     expect(submitted.request.params.get('unitCode')).toBe('117');
     expect(submitted.request.body).toEqual({ reason: 'Additional documents' });
-    submitted.flush({ requestId, technicalId, unitCode: '117', status: 'PENDING',
+    submitted.flush({ requestId, technicalId, unitCode: '117', status: 'PREPARING',
       expectedCycle: 3, reason: 'Additional documents', returnReason: null, requestedAt: '2026-11-04' });
+  });
+
+  it('publishes a prepared request only through the explicit submit endpoint', () => {
+    api.submitPreparedSecretaryRequest('117', technicalId, requestId).subscribe();
+    const req = http.expectOne(item => item.url.endsWith(`/secretary/round-two/${technicalId}/submit`));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.params.get('unitCode')).toBe('117');
+    expect(req.request.body).toEqual({ requestId });
+    req.flush({ requestId, technicalId, unitCode: '117', status: 'PENDING',
+      expectedCycle: 3, reason: 'Prepared', returnReason: null, requestedAt: '2026-11-04' });
   });
 
   it('revises only the returned request and resubmits with the exact manager return version', () => {
@@ -132,11 +142,18 @@ describe('TarasolRoundContinuationApiService', () => {
   });
 
   it('approves Round N with only exact server-required fields', () => {
-    api.decide('117', technicalId, requestId, 'APPROVE_AND_CONTINUE').subscribe();
+    api.decide('117', technicalId, requestId, 'APPROVE_AND_CONTINUE', undefined, 7).subscribe();
     const req = http.expectOne(item => item.url.endsWith(`/round-continuation/${technicalId}`));
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ unitCode: '117', requestId, action: 'APPROVE_AND_CONTINUE' });
+    expect(req.request.body).toEqual({ unitCode: '117', requestId,
+      action: 'APPROVE_AND_CONTINUE', documentsRevision: 7 });
     req.flush({ requestId, status: 'APPROVED', currentWorkflowCycle: 4 });
+  });
+
+  it('refuses manager approval without a reviewed document revision', () => {
+    expect(() => api.decide('117', technicalId, requestId, 'APPROVE_AND_CONTINUE'))
+      .toThrow('reviewed document revision');
+    http.expectNone(item => item.url.endsWith(`/round-continuation/${technicalId}`));
   });
 
   it('returns the same request with an explicit reason without advancing the cycle', () => {

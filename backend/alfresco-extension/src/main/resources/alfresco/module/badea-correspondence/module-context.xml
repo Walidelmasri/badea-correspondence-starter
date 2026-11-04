@@ -1127,6 +1127,13 @@
         <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
         <constructor-arg value="REVISE" />
     </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-submit.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
+        <constructor-arg value="SUBMIT_PREPARED" />
+    </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-resubmit.post"
           class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
           parent="webscript" lazy-init="true">

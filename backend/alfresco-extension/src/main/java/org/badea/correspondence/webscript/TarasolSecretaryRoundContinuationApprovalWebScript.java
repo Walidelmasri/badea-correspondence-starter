@@ -58,9 +58,18 @@ public final class TarasolSecretaryRoundContinuationApprovalWebScript extends Ab
                     throw new IllegalArgumentException("Invalid request ID");
                 var decision = switch (action) {
                     case "APPROVE_AND_CONTINUE" -> {
-                        if (body.length() != 3)
+                        if (body.length() != 4)
                             throw new IllegalArgumentException("Unexpected approval fields");
-                        yield approvals.approve(manager, unit, technicalId, requestId);
+                        Object revisionValue = body.opt("documentsRevision");
+                        if (!(revisionValue instanceof Number)
+                                || !revisionValue.toString().matches("0|[1-9][0-9]*"))
+                            throw new IllegalArgumentException("Invalid documents revision");
+                        long revision;
+                        try { revision = Long.parseLong(revisionValue.toString()); }
+                        catch (NumberFormatException invalid) {
+                            throw new IllegalArgumentException("Invalid documents revision", invalid);
+                        }
+                        yield approvals.approve(manager, unit, technicalId, requestId, revision);
                     }
                     case "RETURN" -> {
                         if (body.length() != 4)

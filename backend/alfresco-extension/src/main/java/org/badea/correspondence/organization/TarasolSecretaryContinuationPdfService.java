@@ -26,7 +26,7 @@ public final class TarasolSecretaryContinuationPdfService {
     public void authorizeSecretary(EmployeeDirectoryEntry actor, DepartmentCode unit,
             String technicalId, String requestId) {
         var current = secretaryRequests.current(actor, unit, technicalId);
-        if (current == null || !("PENDING".equals(current.status())
+        if (current == null || !("PREPARING".equals(current.status())
                 || "RETURNED".equals(current.status()))
                 || !current.requestId().equals(requestId))
             throw new OfficeCycleConflictException("No editable continuation request");
@@ -48,10 +48,19 @@ public final class TarasolSecretaryContinuationPdfService {
         });
     }
 
+    private void authorizeSecretaryRead(EmployeeDirectoryEntry actor, DepartmentCode unit,
+            String technicalId, String requestId) {
+        var current = secretaryRequests.current(actor, unit, technicalId);
+        if (current == null || !("PREPARING".equals(current.status())
+                || "RETURNED".equals(current.status()) || "PENDING".equals(current.status()))
+                || !current.requestId().equals(requestId))
+            throw new OfficeCycleConflictException("Continuation request cannot be read");
+    }
+
     public List<AlfrescoSecretaryContinuationPdfStore.Pdf> secretaryList(
             EmployeeDirectoryEntry actor, DepartmentCode unit,
             String technicalId, String requestId) {
-        authorizeSecretary(actor, unit, technicalId, requestId);
+        authorizeSecretaryRead(actor, unit, technicalId, requestId);
         return AuthenticationUtil.runAsSystem(() -> pdfs.list(technicalId, unit, requestId,
             actor.employeeId().value()));
     }
@@ -59,7 +68,7 @@ public final class TarasolSecretaryContinuationPdfService {
     public AlfrescoSecretaryContinuationPdfStore.Preview secretaryOpen(
             EmployeeDirectoryEntry actor, DepartmentCode unit,
             String technicalId, String requestId, String nodeId) {
-        authorizeSecretary(actor, unit, technicalId, requestId);
+        authorizeSecretaryRead(actor, unit, technicalId, requestId);
         return AuthenticationUtil.runAsSystem(() -> pdfs.open(technicalId, unit, requestId,
             actor.employeeId().value(), nodeId));
     }
@@ -76,6 +85,13 @@ public final class TarasolSecretaryContinuationPdfService {
             String technicalId, String requestId, String nodeId) {
         authorizeManager(manager, unit, technicalId, requestId);
         return AuthenticationUtil.runAsSystem(() -> pdfs.open(technicalId, unit, requestId, null, nodeId));
+    }
+
+    public AlfrescoSecretaryContinuationPdfStore.ReviewedFiles managerReviewedFiles(
+            EmployeeDirectoryEntry manager, DepartmentCode unit, String technicalId, String requestId) {
+        authorizeManager(manager, unit, technicalId, requestId);
+        return AuthenticationUtil.runAsSystem(() ->
+            pdfs.reviewedFiles(technicalId, unit, requestId));
     }
 
     private void authorizeManager(EmployeeDirectoryEntry manager, DepartmentCode unit,

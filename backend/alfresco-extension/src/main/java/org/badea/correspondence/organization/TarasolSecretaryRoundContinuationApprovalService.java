@@ -99,7 +99,9 @@ public final class TarasolSecretaryRoundContinuationApprovalService {
 
     public AlfrescoSecretaryRoundTwoRequestRepository.Decision approve(
             EmployeeDirectoryEntry manager, DepartmentCode unit,
-            String technicalId, String requestId) {
+            String technicalId, String requestId, long reviewedDocumentsRevision) {
+        if (reviewedDocumentsRevision < 0)
+            throw new IllegalArgumentException("Reviewed documents revision required");
         CorrespondenceActorRole role = managerRole(manager, unit);
         return AuthenticationUtil.runAsSystem(() -> {
             var pending = requests.pending(technicalId, unit);
@@ -119,6 +121,7 @@ public final class TarasolSecretaryRoundContinuationApprovalService {
                     // NEXT cycle only inside this same Alfresco write transaction.
                     // A failed cycle transition rolls back every moved document.
                     long next = Math.addExact(pending.expectedCycle(), 1);
+                    pdfs.assertReviewedFiles(technicalId, unit, requestId, reviewedDocumentsRevision);
                     pdfs.promote(technicalId, unit, requestId, next);
                     return cycles.continueCycle(command);
                 });

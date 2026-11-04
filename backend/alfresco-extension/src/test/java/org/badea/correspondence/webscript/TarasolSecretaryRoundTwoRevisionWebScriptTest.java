@@ -74,6 +74,15 @@ class TarasolSecretaryRoundTwoRevisionWebScriptTest {
         assertEquals("RETURNED", json.getString("status"));
     }
 
+    @Test void explicitPreparedSubmissionUsesOwnerAuthorizedService() throws Exception {
+        body("{\"requestId\":\"" + REQUEST + "\"}");
+        when(service.submitPrepared(actor, unit, CASE, REQUEST)).thenReturn(saved("PENDING"));
+        new TarasolSecretaryRoundTwoRequestWebScript(employees, service, "SUBMIT_PREPARED")
+            .execute(request, response);
+        assertEquals("PENDING", new JSONObject(output.toString()).getString("status"));
+        verify(service).submitPrepared(actor, unit, CASE, REQUEST);
+    }
+
     @Test void resubmitCallsOnlyManagerGateNotDirectorContinuation() throws Exception {
         body("{\"requestId\":\"" + REQUEST + "\",\"returnVersion\":2}");
         when(service.resubmit(actor, unit, CASE, REQUEST, 2L)).thenReturn(saved("PENDING"));

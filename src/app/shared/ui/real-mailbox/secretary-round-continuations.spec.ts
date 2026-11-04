@@ -22,6 +22,7 @@ const pending = { technicalId, requestId, unitCode: '117',
   status: 'PENDING' as const, expectedCycle: 3, returnVersion: 0,
   reason: 'We need another round', returnReason: null,
   requestedAt: '2026-11-04T09:00:00Z' };
+const preparing = { ...pending, status: 'PREPARING' as const };
 const returned = { ...pending, status: 'RETURNED' as const, returnVersion: 2,
   returnReason: 'Please replace the wrong PDF' };
 const pdf = { nodeId: 'stage-1', filename: 'round-4.pdf',
@@ -33,6 +34,7 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     secretaryRequest: ReturnType<typeof vi.fn>;
     secretaryDocuments: ReturnType<typeof vi.fn>;
     submitSecretaryRequest: ReturnType<typeof vi.fn>;
+    submitPreparedSecretaryRequest: ReturnType<typeof vi.fn>;
     reviseSecretaryRequest: ReturnType<typeof vi.fn>;
     resubmitSecretaryRequest: ReturnType<typeof vi.fn>;
     uploadSecretaryDocument: ReturnType<typeof vi.fn>;
@@ -53,7 +55,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     rounds = {
       secretaryRequest: vi.fn(() => of(returned)),
       secretaryDocuments: vi.fn(() => of({ items: [pdf] })),
-      submitSecretaryRequest: vi.fn(() => of(pending)),
+      submitSecretaryRequest: vi.fn(() => of(preparing)),
+      submitPreparedSecretaryRequest: vi.fn(() => of(pending)),
       reviseSecretaryRequest: vi.fn(() => of({ ...returned, reason: 'Corrected follow-up' })),
       resubmitSecretaryRequest: vi.fn(() => of({ ...returned, status: 'PENDING' as const })),
       uploadSecretaryDocument: vi.fn(() => of(pdf)),
@@ -151,6 +154,38 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     expect(mailbox.secretaryRoundNotice()).toBe('deleted');
   });
 
+  it('prepares and explicitly submits only when PDF editing is complete', async () => {
+    rounds.secretaryRequest.mockReturnValue(of(preparing));
+    rounds.reviseSecretaryRequest.mockReturnValue(of({ ...preparing, reason: 'Fixed draft' }));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PREPARING'));
+    expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(true);
+    mailbox.secretaryRoundReason.set('Fixed draft');
+    rounds.secretaryRequest.mockReturnValue(of({ ...pending, reason: 'Fixed draft' }));
+    await mailbox.submitPreparedSecretaryRound();
+    expect(rounds.reviseSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
+      requestId, 0, 'Fixed draft');
+    expect(rounds.submitPreparedSecretaryRequest).toHaveBeenCalledWith('117', technicalId, requestId);
+    expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING');
+    expect(mailbox.secretaryRoundNotice()).toBe('submitted');
+    expect(correspondence.continueDirectorCycle).not.toHaveBeenCalled();
+  });
+
+  it('does not write or submit a pending request while manager approval is active', async () => {
+    rounds.secretaryRequest.mockReturnValue(of(pending));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING'));
+    await mailbox.uploadSecretaryRoundFiles({ target: {
+      files: [new File(['%PDF-1.5'], 'late.pdf', { type: 'application/pdf' })],
+      value: 'late.pdf',
+    } } as unknown as Event);
+    await mailbox.deleteSecretaryRoundFile(pdf);
+    await mailbox.submitPreparedSecretaryRound();
+    expect(rounds.uploadSecretaryDocument).not.toHaveBeenCalled();
+    expect(rounds.deleteSecretaryDocument).not.toHaveBeenCalled();
+    expect(rounds.submitPreparedSecretaryRequest).not.toHaveBeenCalled();
+  });
+
   it('does not revise or resubmit a pending request without a manager return', async () => {
     rounds.secretaryRequest.mockReturnValue(of(pending));
     await mailbox.loadPage(0);
@@ -226,12 +261,12 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     await vi.waitFor(() => expect(rounds.secretaryRequest).toHaveBeenCalled());
     await vi.waitFor(() => expect(mailbox.secretaryRoundLoading()).toBe(false));
     mailbox.secretaryRoundReason.set('Review evidence in next round');
-    rounds.secretaryRequest.mockReturnValue(of({ ...pending, reason: 'Review evidence in next round' }));
+    rounds.secretaryRequest.mockReturnValue(of({ ...preparing, reason: 'Review evidence in next round' }));
     await mailbox.createSecretaryRound();
     expect(rounds.submitSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
       'Review evidence in next round');
-    expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING');
-    expect(mailbox.secretaryRoundNotice()).toBe('submitted');
+    expect(mailbox.secretaryRoundRequest()?.status).toBe('PREPARING');
+    expect(mailbox.secretaryRoundNotice()).toBe('prepared');
     expect(correspondence.continueDirectorCycle).not.toHaveBeenCalled();
   });
 });

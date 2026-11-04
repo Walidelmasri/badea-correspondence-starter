@@ -65,7 +65,16 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
         when(document.getId()).thenReturn(DOC);
     }
 
+    private void preparing() {
+        when(requests.editable(CASE, UNIT, "99999", REQUEST)).thenReturn(
+            new AlfrescoSecretaryRoundTwoRequestRepository.Request(REQUEST, CASE,
+                "117", "99999", "Follow up", 3L, "PREPARING",
+                Instant.parse("2026-11-04T12:00:00Z")));
+        when(nodes.getProperty(parent, q("roundTwoPendingRequestId"))).thenReturn(null);
+    }
+
     @Test void uploadStaysUnderRequestAndNeverAddsSourcePdfToCorrespondence() {
+        preparing();
         ChildAssociationRef created = mock(ChildAssociationRef.class);
         ContentWriter writer = mock(ContentWriter.class);
         when(created.getChildRef()).thenReturn(document);
@@ -115,6 +124,28 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
         when(metadata.getSize()).thenReturn(125L);
     }
 
+    @Test void managerReviewRevisionRejectsChangedFileSetBeforePromotion() {
+        stagedPdf();
+        when(nodes.getProperty(request, q("roundTwoRequestDocumentsRevision")))
+            .thenReturn(2L);
+        assertEquals(2L, store.reviewedFiles(CASE, UNIT, REQUEST).documentsRevision());
+        assertEquals(1, store.reviewedFiles(CASE, UNIT, REQUEST).items().size());
+        store.assertReviewedFiles(CASE, UNIT, REQUEST, 2L);
+        assertThrows(OfficeCycleConflictException.class,
+            () -> store.assertReviewedFiles(CASE, UNIT, REQUEST, 1L));
+        verify(nodes, never()).createNode(eq(parent), any(), any(), eq(ContentModel.TYPE_CONTENT), anyMap());
+    }
+
+    @Test void secretaryCannotAddOrDeletePdfsWhileManagerReviewIsPending() {
+        stagedPdf();
+        assertThrows(OfficeCycleConflictException.class,
+            () -> store.delete(CASE, UNIT, "99999", REQUEST, DOC));
+        assertThrows(OfficeCycleConflictException.class,
+            () -> store.upload(CASE, UNIT, "99999", REQUEST, "late.pdf", validPdf()));
+        assertEquals(1, store.list(CASE, UNIT, REQUEST, "99999").size());
+        verify(nodes, never()).deleteNode(any());
+    }
+
     @Test void managerPromotionCreatesOfficialCopiesOnlyAfterApproval() {
         stagedPdf();
         ContentReader reader = mock(ContentReader.class);
@@ -160,10 +191,13 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
 
     @Test void pdfBelongingToAnotherRequestCannotBeDeletedOrPromoted() {
         stagedPdf();
+        preparing();
         when(nodes.getProperty(document, q("stagedContinuationRequestId")))
             .thenReturn("55555555-5555-4555-8555-555555555555");
         assertThrows(CorrespondenceDocumentNotFoundException.class,
             () -> store.delete(CASE, UNIT, "99999", REQUEST, DOC));
+        // Manager promotion is a separate pending-only path.
+        when(nodes.getProperty(parent, q("roundTwoPendingRequestId"))).thenReturn(REQUEST);
         store.promote(CASE, UNIT, REQUEST, 4L);
         verify(nodes, never()).createNode(eq(parent), any(), any(),
             eq(ContentModel.TYPE_CONTENT), anyMap());
@@ -171,6 +205,7 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
     }
 
     @Test void deletingOriginalCorrespondenceDocumentIsImpossible() {
+        preparing();
         // No request child association with the purported original PDF's ID.
         assertThrows(CorrespondenceDocumentNotFoundException.class,
             () -> store.delete(CASE, UNIT, "99999", REQUEST, DOC));
@@ -179,6 +214,7 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
 
     @Test void onlyThePendingRequestOwnerCanDeleteStagedPdf() {
         stagedPdf();
+        preparing();
         when(requests.editable(CASE, UNIT, "wrong-owner", REQUEST)).thenThrow(
             new CorrespondenceAuthorizationException("Wrong secretary"));
         assertThrows(CorrespondenceAuthorizationException.class,
@@ -188,6 +224,7 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
 
     @Test void validRequestOwnerCanDeleteStagedPdfWithoutTouchingCorrespondence() {
         stagedPdf();
+        preparing();
         store.delete(CASE, UNIT, "99999", REQUEST, DOC);
         verify(nodes).deleteNode(document);
         verify(nodes, never()).deleteNode(parent);

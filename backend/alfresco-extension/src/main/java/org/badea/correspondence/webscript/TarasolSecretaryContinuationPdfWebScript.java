@@ -75,8 +75,11 @@ public final class TarasolSecretaryContinuationPdfWebScript extends AbstractWebS
                 }
                 case "SECRETARY_LIST" -> json(response, Status.STATUS_OK,
                     list(service.secretaryList(actor, unit, technicalId, requestId)));
-                case "MANAGER_LIST" -> json(response, Status.STATUS_OK,
-                    list(service.managerList(actor, unit, technicalId, requestId)));
+                case "MANAGER_LIST" -> {
+                    var reviewed = service.managerReviewedFiles(actor, unit, technicalId, requestId);
+                    json(response, Status.STATUS_OK,
+                        list(reviewed.items()).put("documentsRevision", reviewed.documentsRevision()));
+                }
                 case "SECRETARY_OPEN" -> preview(response,
                     service.secretaryOpen(actor, unit, technicalId, requestId, vars.get("nodeId")));
                 case "MANAGER_OPEN" -> preview(response,

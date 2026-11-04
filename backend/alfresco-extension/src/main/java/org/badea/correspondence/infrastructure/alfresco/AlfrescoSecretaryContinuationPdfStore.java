@@ -52,6 +52,9 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public record Pdf(String nodeId, String filename, long sizeBytes, long workflowCycle) { }
     public record Preview(Pdf pdf, InputStream stream) { }
+    public record ReviewedFiles(long documentsRevision, List<Pdf> items) {
+        public ReviewedFiles { items = List.copyOf(items); }
+    }
     private record Located(NodeRef parent, NodeRef request,
             AlfrescoSecretaryRoundTwoRequestRepository.Request metadata) { }
 
@@ -67,7 +70,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
             String requestId, String filename, byte[] bytes) {
         String cleanName = filename(filename);
         validatePdf(bytes);
-        Located located = requireRequest(technicalId, unit, requestId, ownerId);
+        Located located = requireRequest(technicalId, unit, requestId, ownerId, true);
         var children = staged(located.parent(), requestId);
         for (NodeRef existing : children) {
             Pdf metadata = metadata(existing, located.metadata().expectedCycle() + 1);
@@ -107,7 +110,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public List<Pdf> list(String technicalId, DepartmentCode unit, String requestId,
             String secretaryOwnerOrNull) {
-        Located located = requireRequest(technicalId, unit, requestId, secretaryOwnerOrNull);
+        Located located = requireRequest(technicalId, unit, requestId, secretaryOwnerOrNull, false);
         List<Pdf> result = new ArrayList<>();
         for (NodeRef child : staged(located.parent(), requestId)) {
             result.add(metadata(child, located.metadata().expectedCycle() + 1));
@@ -119,7 +122,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public Preview open(String technicalId, DepartmentCode unit, String requestId,
             String secretaryOwnerOrNull, String documentId) {
-        Located located = requireRequest(technicalId, unit, requestId, secretaryOwnerOrNull);
+        Located located = requireRequest(technicalId, unit, requestId, secretaryOwnerOrNull, false);
         NodeRef child = requireDocument(located.parent(), requestId, documentId);
         Pdf pdf = metadata(child, located.metadata().expectedCycle() + 1);
         ContentReader reader = content.getReader(child, ContentModel.PROP_CONTENT);
@@ -132,16 +135,43 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public void delete(String technicalId, DepartmentCode unit, String ownerId,
             String requestId, String documentId) {
-        Located located = requireRequest(technicalId, unit, requestId, ownerId);
+        Located located = requireRequest(technicalId, unit, requestId, ownerId, true);
         NodeRef child = requireDocument(located.parent(), requestId, documentId);
         nodes.deleteNode(child);
         bumpRevision(located);
     }
 
+    /** A revision and its document list are read in one repository transaction. */
+    public ReviewedFiles reviewedFiles(String technicalId, DepartmentCode unit, String requestId) {
+        Located located = requireRequest(technicalId, unit, requestId, null, false);
+        return new ReviewedFiles(documentsRevision(located.request()),
+            list(technicalId, unit, requestId, null));
+    }
+
+    /** Call from the REQUIRED approval transaction before promoting any document. */
+    public void assertReviewedFiles(String technicalId, DepartmentCode unit,
+            String requestId, long expectedRevision) {
+        if (expectedRevision < 0)
+            throw new IllegalArgumentException("Invalid reviewed document revision");
+        Located located = requireRequest(technicalId, unit, requestId, null, false);
+        if (documentsRevision(located.request()) != expectedRevision)
+            throw new OfficeCycleConflictException("Staged documents changed since manager review");
+    }
+
+    private long documentsRevision(NodeRef requestNode) {
+        Object raw = nodes.getProperty(requestNode, DOCUMENT_REVISION);
+        if (raw == null) return 0;
+        if (!(raw instanceof Number number) || number.longValue() < 0
+                || (raw instanceof java.math.BigDecimal decimal
+                    && decimal.stripTrailingZeros().scale() > 0))
+            throw new CorrespondenceRepositoryException("Invalid request document revision");
+        return number.longValue();
+    }
+
     /** Call BEFORE continueCycle and within the SAME REQUIRED Alfresco transaction. */
     public void promote(String technicalId, DepartmentCode unit, String requestId,
             long nextCycle) {
-        Located located = requireRequest(technicalId, unit, requestId, null);
+        Located located = requireRequest(technicalId, unit, requestId, null, false);
         if (nextCycle != located.metadata().expectedCycle() + 1)
             throw new OfficeCycleConflictException("Cannot promote PDFs into a different round");
         List<NodeRef> documents = staged(located.parent(), requestId);
@@ -183,7 +213,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
     }
 
     private Located requireRequest(String technicalId, DepartmentCode unit,
-            String requestId, String ownerOrNull) {
+            String requestId, String ownerOrNull, boolean writing) {
         if (!canonical(technicalId) || !canonical(requestId))
             throw new IllegalArgumentException("Canonical correspondence/request ID required");
         var selected = ownerOrNull == null
@@ -191,15 +221,19 @@ public final class AlfrescoSecretaryContinuationPdfStore {
             : requests.editable(technicalId, unit, ownerOrNull, requestId);
         if (selected == null || !requestId.equals(selected.requestId())
                 || (ownerOrNull == null && !"PENDING".equals(selected.status()))
-                || (ownerOrNull != null && !"PENDING".equals(selected.status())
-                    && !"RETURNED".equals(selected.status())))
+                || (ownerOrNull != null && !("PENDING".equals(selected.status())
+                    || "RETURNED".equals(selected.status())
+                    || "PREPARING".equals(selected.status())))
+                || (writing && !("RETURNED".equals(selected.status())
+                    || "PREPARING".equals(selected.status()))))
             throw new OfficeCycleConflictException("Continuation request is not editable");
         if (ownerOrNull != null && !ownerOrNull.equals(selected.ownerEmployeeId()))
             throw new CorrespondenceAuthorizationException("Not the request's secretary creator");
         NodeRef parent = locator.locate(technicalId);
         Object marker = nodes.getProperty(parent, PENDING_ID);
         if (("PENDING".equals(selected.status()) && !requestId.equals(marker))
-                || ("RETURNED".equals(selected.status()) && marker != null))
+                || (("RETURNED".equals(selected.status())
+                    || "PREPARING".equals(selected.status())) && marker != null))
             throw new OfficeCycleConflictException("Continuation request has changed");
         for (ChildAssociationRef association : nodes.getChildAssocs(parent)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
@@ -248,14 +282,12 @@ public final class AlfrescoSecretaryContinuationPdfStore {
     }
 
     private void bumpRevision(Located located) {
-        Object current = nodes.getProperty(located.request(), DOCUMENT_REVISION);
-        long revision = current == null ? 0 : ((Number) current).longValue();
+        long revision = documentsRevision(located.request());
         if (revision < 0 || revision == Long.MAX_VALUE)
             throw new CorrespondenceRepositoryException("Invalid request document revision");
         nodes.setProperty(located.request(), DOCUMENT_REVISION, revision + 1);
         // Parent write serializes upload/delete with an in-flight manager decision.
-        nodes.setProperty(located.parent(), PENDING_ID,
-            "PENDING".equals(located.metadata().status()) ? located.metadata().requestId() : null);
+        nodes.setProperty(located.parent(), PENDING_ID, null);
     }
 
     private static String filename(String raw) {

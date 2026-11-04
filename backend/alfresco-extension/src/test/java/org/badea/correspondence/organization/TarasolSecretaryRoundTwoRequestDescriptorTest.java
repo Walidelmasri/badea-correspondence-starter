@@ -21,17 +21,19 @@ class TarasolSecretaryRoundTwoRequestDescriptorTest {
                     doc.getElementsByTagName("url").item(0).getTextContent().trim());
             }
         }
-        try (InputStream stream = getClass().getResourceAsStream(
-                "/alfresco/extension/templates/webscripts/org/badea/correspondence/"
-                + "tarasol-secretary-round-two-resubmit.post.desc.xml")) {
-            assertNotNull(stream);
-            var doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(stream);
-            assertEquals("required", doc.getElementsByTagName("transaction").item(0)
-                .getTextContent().trim());
-            assertEquals("user", doc.getElementsByTagName("authentication").item(0)
-                .getTextContent().trim());
-            assertEquals("/badea/tarasol/secretary/round-two/{technicalId}/resubmit",
-                doc.getElementsByTagName("url").item(0).getTextContent().trim());
+        for (String action : new String[]{"submit", "resubmit"}) {
+            try (InputStream stream = getClass().getResourceAsStream(
+                    "/alfresco/extension/templates/webscripts/org/badea/correspondence/"
+                    + "tarasol-secretary-round-two-" + action + ".post.desc.xml")) {
+                assertNotNull(stream);
+                var doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(stream);
+                assertEquals("required", doc.getElementsByTagName("transaction").item(0)
+                    .getTextContent().trim());
+                assertEquals("user", doc.getElementsByTagName("authentication").item(0)
+                    .getTextContent().trim());
+                assertEquals("/badea/tarasol/secretary/round-two/{technicalId}/" + action,
+                    doc.getElementsByTagName("url").item(0).getTextContent().trim());
+            }
         }
     }
 }

@@ -25,6 +25,11 @@ export interface PendingRoundContinuationPage {
   readonly limit: number;
 }
 
+export interface ReviewedContinuationPdfs {
+  readonly documentsRevision: number;
+  readonly items: readonly StagedContinuationPdf[];
+}
+
 export interface CurrentRoundContinuation {
   readonly requestId: string;
   readonly expectedCycle: number;
@@ -45,7 +50,7 @@ export interface SecretaryContinuationRequest {
   readonly requestId: string;
   readonly technicalId: string;
   readonly unitCode: string;
-  readonly status: 'PENDING' | 'RETURNED' | 'APPROVED';
+  readonly status: 'PREPARING' | 'PENDING' | 'RETURNED' | 'APPROVED';
   readonly expectedCycle: number;
   /** Incremented on each manager return. Required to prevent stale resubmissions. */
   readonly returnVersion: number;
@@ -72,8 +77,8 @@ export class TarasolRoundContinuationApiService {
 
   /** Only the appointed manager may read staged PDFs; normal document APIs must not see them. */
   managerDocuments(unitCode: string, technicalId: string, requestId: string):
-    Observable<{ readonly items: readonly StagedContinuationPdf[] }> {
-    return this.http.get<{ readonly items: readonly StagedContinuationPdf[] }>(
+    Observable<ReviewedContinuationPdfs> {
+    return this.http.get<ReviewedContinuationPdfs>(
       `${DECISION_URL}/${encodeURIComponent(technicalId)}/documents`,
       { params: new HttpParams().set('unitCode', unitCode).set('requestId', requestId) });
   }
@@ -96,6 +101,15 @@ export class TarasolRoundContinuationApiService {
     return this.http.post<SecretaryContinuationRequest>(
       `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}`,
       { reason },
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  /** Only this call publishes the completed PREPARING request to the manager queue. */
+  submitPreparedSecretaryRequest(unitCode: string, technicalId: string, requestId: string):
+    Observable<SecretaryContinuationRequest> {
+    return this.http.post<SecretaryContinuationRequest>(
+      `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}/submit`,
+      { requestId },
       { params: new HttpParams().set('unitCode', unitCode) });
   }
 
@@ -152,12 +166,17 @@ export class TarasolRoundContinuationApiService {
   }
 
   decide(unitCode: string, technicalId: string, requestId: string,
-    action: 'APPROVE_AND_CONTINUE' | 'RETURN', reason?: string): Observable<RoundContinuationDecision> {
+    action: 'APPROVE_AND_CONTINUE' | 'RETURN', reason?: string,
+    documentsRevision?: number): Observable<RoundContinuationDecision> {
+    if (action === 'APPROVE_AND_CONTINUE'
+        && (documentsRevision === undefined || !Number.isSafeInteger(documentsRevision) || documentsRevision < 0)) {
+      throw new Error('A reviewed document revision is required before approval');
+    }
     return this.http.post<RoundContinuationDecision>(
       `${DECISION_URL}/${encodeURIComponent(technicalId)}`,
       action === 'RETURN'
         ? { unitCode, requestId, action, reason }
-        : { unitCode, requestId, action },
+        : { unitCode, requestId, action, documentsRevision },
     );
   }
 }

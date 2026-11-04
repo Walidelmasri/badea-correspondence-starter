@@ -89,12 +89,12 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
                     nodes.getProperty(node, CYCLE), "roundTwoRequestCycle");
             if (expected != cycle) continue;
             Request existing = read(technicalId, node);
-            if ("PENDING".equals(existing.status())
+            if ("PREPARING".equals(existing.status())
                     && existing.unitCode().equals(unit.value())
                     && existing.ownerEmployeeId().equals(ownerEmployeeId)
                     && existing.reason().equals(reason)) {
-                if (!existing.requestId().equals(nodes.getProperty(caseNode, PENDING_ID)))
-                    throw new OfficeCycleConflictException("Pending request marker has changed");
+                if (nodes.getProperty(caseNode, PENDING_ID) != null)
+                    throw new OfficeCycleConflictException("An active request marker already exists");
                 return existing;
             }
             if (!"APPROVED".equals(existing.status()))
@@ -109,7 +109,7 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         properties.put(OWNER, ownerEmployeeId);
         properties.put(REASON, reason);
         properties.put(CYCLE, cycle);
-        properties.put(STATUS, "PENDING");
+        properties.put(STATUS, "PREPARING");
         properties.put(RETURN_VERSION, 0L);
         properties.put(REQUESTED_AT, Date.from(now));
         ChildAssociationRef created = nodes.createNode(caseNode, ContentModel.ASSOC_CONTAINS,
@@ -119,9 +119,9 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         // Touch the correspondence parent in the same REQUIRED transaction so
         // simultaneous requests conflict under Alfresco optimistic locking.
         // This is not a workflow-state or cycle change.
-        nodes.setProperty(caseNode, PENDING_ID, id);
+        nodes.setProperty(caseNode, PENDING_ID, null);
         return new Request(id, technicalId, unit.value(), ownerEmployeeId, reason,
-                cycle, "PENDING", now);
+                cycle, "PREPARING", now);
     }
 
     public Request current(String technicalId, DepartmentCode unit, String ownerEmployeeId) {
@@ -155,7 +155,7 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
             throw new IllegalArgumentException("Follow-up reason must contain 1-2000 characters");
         NodeRef parent = locator.locate(technicalId);
         Pending entry = requireEditable(parent, technicalId, unit, ownerEmployeeId, requestId);
-        requireReturnedVersion(entry.request(), expectedReturnVersion);
+        requireRevisionVersion(entry.request(), expectedReturnVersion);
         String clean = reason.trim();
         if (!clean.equals(entry.request().reason())) {
             nodes.setProperty(entry.node(), REASON, clean);
@@ -165,18 +165,35 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         return read(technicalId, entry.node());
     }
 
-    /** Only the same returned request can be resubmitted; the return-version token prevents replay. */
+    /** Explicit first submission; a prepared request never enters the manager queue before this. */
+    public Request submitPrepared(String technicalId, DepartmentCode unit, String ownerEmployeeId,
+            String requestId) {
+        NodeRef parent = locator.locate(technicalId);
+        Pending entry = requireEditable(parent, technicalId, unit, ownerEmployeeId, requestId);
+        if (!"PREPARING".equals(entry.request().status())
+                || entry.request().returnVersion() != 0)
+            throw new OfficeCycleConflictException("Request was already submitted or returned");
+        return publish(parent, technicalId, entry, ownerEmployeeId, "SUBMITTED");
+    }
+
+    /** Only a returned request can be resubmitted with its current return token. */
     public Request resubmit(String technicalId, DepartmentCode unit, String ownerEmployeeId,
             String requestId, long expectedReturnVersion) {
         NodeRef parent = locator.locate(technicalId);
         Pending entry = requireEditable(parent, technicalId, unit, ownerEmployeeId, requestId);
         requireReturnedVersion(entry.request(), expectedReturnVersion);
+        return publish(parent, technicalId, entry, ownerEmployeeId, "RESUBMITTED");
+    }
+
+    private Request publish(NodeRef parent, String technicalId, Pending entry,
+            String ownerEmployeeId, String event) {
+        // Publish the manager-visible pointer in this same REQUIRED transaction.
+        // This write and staged-document mutations compete on the parent node.
         nodes.setProperty(entry.node(), STATUS, "PENDING");
         nodes.setProperty(entry.node(), REQUESTED_AT, Date.from(clock.instant()));
-        recordEvent(parent, entry.request(), "RESUBMITTED", ownerEmployeeId, null,
-            expectedReturnVersion);
-        // The parent write participates in Alfresco optimistic concurrency with manager decisions.
-        nodes.setProperty(parent, PENDING_ID, requestId);
+        recordEvent(parent, entry.request(), event, ownerEmployeeId, null,
+            entry.request().returnVersion());
+        nodes.setProperty(parent, PENDING_ID, entry.request().requestId());
         return read(technicalId, entry.node());
     }
 
@@ -197,11 +214,18 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
                 throw new OfficeCycleConflictException("Request cycle or unit has changed");
             Object pointer = nodes.getProperty(parent, PENDING_ID);
             if (("PENDING".equals(stored.status()) && requestId.equals(pointer))
-                    || ("RETURNED".equals(stored.status()) && pointer == null))
+                    || (("RETURNED".equals(stored.status())
+                        || "PREPARING".equals(stored.status())) && pointer == null))
                 return new Pending(child, stored);
             throw new OfficeCycleConflictException("Request is not editable");
         }
         throw new OfficeCycleConflictException("Request is not editable");
+    }
+
+    private static void requireRevisionVersion(Request request, long expectedReturnVersion) {
+        if ("PREPARING".equals(request.status()) && expectedReturnVersion == 0
+                && request.returnVersion() == 0) return;
+        requireReturnedVersion(request, expectedReturnVersion);
     }
 
     private static void requireReturnedVersion(Request request, long expectedReturnVersion) {
@@ -331,7 +355,7 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
                     nodes.getProperty(node, CYCLE), "roundTwoRequestCycle");
             Serializable time = nodes.getProperty(node, REQUESTED_AT);
             if (!(time instanceof Date date)
-                    || !java.util.Set.of("PENDING", "RETURNED", "APPROVED").contains(status))
+                    || !java.util.Set.of("PREPARING", "PENDING", "RETURNED", "APPROVED").contains(status))
                 throw new IllegalArgumentException("Invalid request state/timestamp");
             Serializable returned = nodes.getProperty(node, RETURN_REASON);
             if (returned != null && !(returned instanceof String))

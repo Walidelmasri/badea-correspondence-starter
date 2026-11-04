@@ -40,7 +40,7 @@ class TarasolSecretaryRoundTwoRequestServiceTest {
 
     @Test void secretaryRequestIsPersistedWithoutCallingDirectorContinuation() {
         var expected = new AlfrescoSecretaryRoundTwoRequestRepository.Request("request-1", ID,
-            "117", "99999", "Follow up", 2L, "PENDING", Instant.parse("2026-11-04T12:00:00Z"));
+            "117", "99999", "Follow up", 2L, "PREPARING", Instant.parse("2026-11-04T12:00:00Z"));
         when(repo.submit(ID, unit, "99999", "Follow up")).thenReturn(expected);
         assertSame(expected, service.submit(actor, unit, ID, "  Follow up  "));
         verify(repo).submit(ID, unit, "99999", "Follow up");
@@ -65,6 +65,16 @@ class TarasolSecretaryRoundTwoRequestServiceTest {
         assertThrows(IllegalArgumentException.class,
             () -> service.submit(actor, unit, ID, "  "));
         verifyNoInteractions(repo);
+    }
+
+    @Test void explicitSubmissionRequiresActiveGroupAndOracleUnitAssignment() {
+        String requestId = "12345678-1234-1234-1234-123456789abc";
+        service.submitPrepared(actor, unit, ID, requestId);
+        verify(repo).submitPrepared(ID, unit, "99999", requestId);
+        when(access.hasActiveSecretaryAssignment(actor.employeeId(), unit)).thenReturn(false);
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.submitPrepared(actor, unit, ID, requestId));
+        verify(repo, times(1)).submitPrepared(ID, unit, "99999", requestId);
     }
 
     @Test void returnedRevisionAndResubmissionAlwaysCheckSecretaryAccessAndCaseVisibility() {

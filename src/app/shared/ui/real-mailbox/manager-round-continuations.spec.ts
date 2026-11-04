@@ -51,7 +51,7 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
       current: vi.fn(() => of({ requestId, expectedCycle: 3,
         ownerEmployeeId: '300', reason: item.reason, status: 'PENDING' })),
       decide: vi.fn(() => of({ requestId, status: 'APPROVED', currentWorkflowCycle: 4 })),
-      managerDocuments: vi.fn(() => of({ items: [] })),
+      managerDocuments: vi.fn(() => of({ documentsRevision: 0, items: [] })),
       managerPreview: vi.fn(() => of(new Blob(['%PDF-1.5'], { type: 'application/pdf' }))),
     };
     correspondence = {
@@ -96,10 +96,11 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
   it('includes separately staged Round 4 PDFs in the manager review without altering existing documents', async () => {
     const pdf = { nodeId: 'staged-pdf-id', filename: 'Round4.pdf',
       mimeType: 'application/pdf' as const, sizeBytes: 891, workflowCycle: 4 };
-    rounds.managerDocuments.mockReturnValue(of({ items: [pdf] }));
+    rounds.managerDocuments.mockReturnValue(of({ documentsRevision: 2, items: [pdf] }));
     await selectPendingRound();
     expect(mailbox.roundReviewReady()).toBe(true);
     expect(mailbox.roundStagedDocuments()).toEqual([pdf]);
+    expect(mailbox.roundStagedRevision()).toBe(2);
     mailbox.openRoundStagedDocument(pdf);
     expect(mailbox.roundStagedPreview()?.nodeId).toBe(pdf.nodeId);
     expect(correspondence.getDetails).toHaveBeenCalledWith(technicalId);
@@ -118,7 +119,7 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
   });
 
   it('rejects a PDF staged for the wrong cycle and prevents manager approval', async () => {
-    rounds.managerDocuments.mockReturnValue(of({ items: [
+    rounds.managerDocuments.mockReturnValue(of({ documentsRevision: 0, items: [
       { nodeId: 'staged-pdf-id', filename: 'wrong.pdf', mimeType: 'application/pdf',
         sizeBytes: 300, workflowCycle: 3 },
     ] }));
@@ -130,7 +131,7 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
 
   it('rechecks the staged PDF set before approving and blocks unreviewed uploads', async () => {
     await selectPendingRound();
-    rounds.managerDocuments.mockReturnValue(of({ items: [
+    rounds.managerDocuments.mockReturnValue(of({ documentsRevision: 0, items: [
       { nodeId: 'new-document', filename: 'late.pdf', mimeType: 'application/pdf',
         workflowCycle: 4, sizeBytes: 200 },
     ] }));
@@ -142,15 +143,32 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
     confirm.mockRestore();
   });
 
+  it('rejects a changed revision even when filenames and PDF IDs look identical', async () => {
+    await selectPendingRound();
+    rounds.managerDocuments.mockReturnValue(of({ documentsRevision: 1, items: [] }));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await mailbox.processRound('APPROVE_AND_CONTINUE');
+    expect(rounds.decide).not.toHaveBeenCalled();
+    expect(mailbox.roundNotice()).toBe('stale');
+    confirm.mockRestore();
+  });
+
+  it('rejects manager document listings without an authoritative revision', async () => {
+    rounds.managerDocuments.mockReturnValue(of({ items: [] }));
+    await selectPendingRound();
+    expect(mailbox.roundReviewReady()).toBe(false);
+    expect(mailbox.roundReviewError()).toBe(true);
+  });
+
   it('ignores PDF responses from an old manager selection', async () => {
-    const delayed = new Subject<{ items: { nodeId: string; filename: string;
+    const delayed = new Subject<{ documentsRevision: number; items: { nodeId: string; filename: string;
       mimeType: 'application/pdf'; sizeBytes: number; workflowCycle: number }[] }>();
     rounds.managerDocuments.mockReturnValue(delayed.asObservable());
     await mailbox.loadPage(0);
     mailbox.selectRound(item);
     mailbox.selectRound({ ...item, requestId: 'different-request', expectedCycle: 3 });
     expect(mailbox.roundStagedLoaded()).toBe(false);
-    delayed.next({ items: [{ nodeId: 'old', filename: 'old.pdf', mimeType: 'application/pdf', sizeBytes: 10, workflowCycle: 4 }] });
+    delayed.next({ documentsRevision: 0, items: [{ nodeId: 'old', filename: 'old.pdf', mimeType: 'application/pdf', sizeBytes: 10, workflowCycle: 4 }] });
     delayed.complete();
     await vi.waitFor(() => expect(mailbox.roundReviewError()).toBe(true));
     expect(mailbox.roundReviewReady()).toBe(false);
@@ -206,7 +224,7 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
     rounds.pending.mockReturnValue(of({ items: [], total: 0, offset: 0, limit: 10 }));
     await mailbox.processRound('RETURN');
     expect(rounds.decide).toHaveBeenCalledWith('117', technicalId, requestId, 'RETURN',
-      'Please correct the summary');
+      'Please correct the summary', undefined);
   });
 
   it('blocks repeat approval on uncertain HTTP 500 result', async () => {
@@ -258,6 +276,8 @@ describe('Manager Round N continuation requests in the existing Inbox', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     await mailbox.processRound('APPROVE_AND_CONTINUE');
     expect(rounds.decide).toHaveBeenCalledOnce();
+    expect(rounds.decide).toHaveBeenCalledWith('117', technicalId, requestId,
+      'APPROVE_AND_CONTINUE', undefined, 0);
     expect(mailbox.roundRequests()).toEqual([]);
     expect(mailbox.selectedRound()).toBeNull();
     expect(mailbox.roundNotice()).toBe('approved');

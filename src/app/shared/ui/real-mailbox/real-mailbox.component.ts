@@ -115,6 +115,7 @@ export class RealMailboxComponent implements OnInit {
   readonly roundPreviewDocument = signal<CorrespondenceDetails['documents'][number] | null>(null);
   readonly roundStagedDocuments = signal<readonly StagedContinuationPdf[]>([]);
   readonly roundStagedLoaded = signal(false);
+  readonly roundStagedRevision = signal<number | null>(null);
   readonly roundStagedPreview = signal<StagedContinuationPdf | null>(null);
   private roundReviewVersion = 0;
   // The same existing Inbox detail view hosts a secretary's personal follow-up.
@@ -127,7 +128,7 @@ export class RealMailboxComponent implements OnInit {
   readonly secretaryRoundReason = signal('');
   readonly secretaryRoundBusy = signal(false);
   readonly secretaryRoundUncertain = signal(false);
-  readonly secretaryRoundNotice = signal<'submitted' | 'saved' | 'resubmitted' | 'uploaded'
+  readonly secretaryRoundNotice = signal<'prepared' | 'submitted' | 'saved' | 'resubmitted' | 'uploaded'
     | 'deleted' | 'invalid' | 'failed' | 'stale' | 'uncertain' | null>(null);
   readonly secretaryRoundPreview = signal<StagedContinuationPdf | null>(null);
   private secretaryRoundVersion = 0;
@@ -136,7 +137,7 @@ export class RealMailboxComponent implements OnInit {
     && this.details()?.technicalId === this.selectedId());
   readonly secretaryRoundLabels = computed(() => this.translation.language() === 'ar' ? {
     title: 'متابعة المراسلة عبر المدير', round: 'الجولة التالية',
-    explanation: 'شرح المتابعة', start: 'إرسال طلب المتابعة للمدير',
+    explanation: 'شرح المتابعة', start: 'تحضير طلب المتابعة', preparing: 'قيد التحضير', submit: 'إرسال للاعتماد',
     pending: 'بانتظار قرار المدير', returned: 'أعيد للتعديل',
     approved: 'تمت الموافقة', returnReason: 'ملاحظات المدير',
     stage: 'مرفقات الجولة الجديدة (PDF)', noFiles: 'لا توجد ملفات مرفقة',
@@ -148,12 +149,13 @@ export class RealMailboxComponent implements OnInit {
     failed: 'تعذر حفظ الإجراء. تحقق من الحالة قبل المحاولة.',
     stale: 'تغيرت حالة الطلب أو الجولة. حدّث قبل المتابعة.',
     uncertain: 'النتيجة غير مؤكدة؛ حدّث الحالة قبل أي إعادة إرسال.',
+    prepared: 'حُفظ الطلب كمسودة؛ أرفق المستندات ثم أرسله للمدير',
     submitted: 'أُرسل طلب المتابعة للمدير', saved: 'حُفظت التعديلات',
     resubmitted: 'أُعيد تقديم الطلب للمدير', uploaded: 'أُضيفت الملفات', deleted: 'حُذف الملف',
-    hint: 'تظهر الطلبات الجديدة للمدير فور إنشائها. راجع المرفقات قبل طلب الموافقة؛ لا تبدأ الجولة إلا باعتماد المدير.',
+    hint: 'الطلب قيد التحضير غير ظاهر للمدير. أرفق الملفات ثم أرسله للاعتماد؛ لا يمكنك تعديله أثناء انتظار القرار.',
   } : {
     title: 'Secretary follow-up via manager', round: 'Next round',
-    explanation: 'Follow-up explanation', start: 'Request Manager Approval',
+    explanation: 'Follow-up explanation', start: 'Prepare Follow-up', preparing: 'Preparing', submit: 'Send for Approval',
     pending: 'Awaiting manager decision', returned: 'Returned for revision',
     approved: 'Approved', returnReason: 'Manager return reason',
     stage: 'New-round PDF attachments', noFiles: 'No staged PDFs',
@@ -165,9 +167,10 @@ export class RealMailboxComponent implements OnInit {
     failed: 'Action failed. Verify the request before retrying.',
     stale: 'The request or workflow cycle changed. Refresh before proceeding.',
     uncertain: 'Result uncertain. Refresh the request before attempting another write.',
+    prepared: 'Draft prepared. Attach PDFs and send for approval when ready.',
     submitted: 'Follow-up sent for manager approval', saved: 'Changes saved',
     resubmitted: 'Request resubmitted to manager', uploaded: 'PDFs attached', deleted: 'PDF removed',
-    hint: 'New requests become visible to the manager immediately. Review attachments before approval; only the manager can start the next round.',
+    hint: 'Preparing requests are private. Attach PDFs, then send for approval. Pending requests are read-only until the manager returns them.',
   });
   readonly roundLabels = computed(() => this.translation.language() === 'ar' ? {
     heading: 'طلبات متابعة السكرتارية', pending: 'بانتظار موافقة المدير',
@@ -667,6 +670,7 @@ export class RealMailboxComponent implements OnInit {
     this.roundPreviewDocument.set(null);
     this.roundStagedDocuments.set([]);
     this.roundStagedLoaded.set(false);
+    this.roundStagedRevision.set(null);
     this.roundStagedPreview.set(null);
     this.roundReturnReason.set('');
   }
@@ -712,7 +716,8 @@ export class RealMailboxComponent implements OnInit {
         this.roundReviewError.set(true);
         return;
       }
-      if (!Array.isArray(staged.items) || staged.items.some(pdf =>
+      if (!Number.isSafeInteger(staged.documentsRevision) || staged.documentsRevision < 0
+          || !Array.isArray(staged.items) || staged.items.some(pdf =>
         pdf.mimeType !== 'application/pdf' || pdf.workflowCycle !== item.expectedCycle + 1
         || !pdf.nodeId || !pdf.filename)) {
         this.roundReviewError.set(true);
@@ -721,6 +726,7 @@ export class RealMailboxComponent implements OnInit {
       this.roundDetails.set(details);
       this.roundHistory.set(history.items);
       this.roundStagedDocuments.set(staged.items);
+      this.roundStagedRevision.set(staged.documentsRevision);
       this.roundStagedLoaded.set(true);
       this.roundReviewReady.set(true);
     } catch {
@@ -737,7 +743,7 @@ export class RealMailboxComponent implements OnInit {
     const reason = this.roundReturnReason().trim();
     if (!item || this.managerApprovalUnit() !== item.unitCode
         || !this.roundReviewReady() || this.roundReviewError() || !this.roundStagedLoaded()
-        || this.roundBusy() || this.roundUncertain()
+        || this.roundStagedRevision() === null || this.roundBusy() || this.roundUncertain()
         || (action === 'RETURN' && (!reason || reason.length > 2000))) return;
     if (action === 'APPROVE_AND_CONTINUE' && !window.confirm(this.roundLabels().confirm)) return;
     this.roundBusy.set(true);
@@ -751,7 +757,9 @@ export class RealMailboxComponent implements OnInit {
         const fingerprint = (files: readonly StagedContinuationPdf[]) => JSON.stringify(files.map(file =>
           [file.nodeId, file.filename, file.sizeBytes, file.workflowCycle, file.mimeType]).sort(
           (a, b) => String(a[0]).localeCompare(String(b[0]))));
-        if (!Array.isArray(latest.items)
+        if (!Number.isSafeInteger(latest.documentsRevision)
+            || latest.documentsRevision !== this.roundStagedRevision()
+            || !Array.isArray(latest.items)
             || fingerprint(latest.items) !== fingerprint(this.roundStagedDocuments())) {
           this.roundReviewReady.set(false);
           this.roundReviewError.set(true);
@@ -760,7 +768,8 @@ export class RealMailboxComponent implements OnInit {
         }
       }
       await firstValueFrom(this.roundApi.decide(item.unitCode, item.technicalId,
-        item.requestId, action, action === 'RETURN' ? reason : undefined));
+        item.requestId, action, action === 'RETURN' ? reason : undefined,
+        action === 'APPROVE_AND_CONTINUE' ? this.roundStagedRevision()! : undefined));
       // Invalidate the decided request before refreshing. The new queue may
       // auto-select another pending request; a busy guard must not block it.
       this.clearRoundSelection();
@@ -827,7 +836,7 @@ export class RealMailboxComponent implements OnInit {
       unit: string): boolean {
     return request.technicalId === id && request.unitCode === unit
       && request.expectedCycle === this.details()?.currentWorkflowCycle
-      && ['PENDING', 'RETURNED'].includes(request.status)
+      && ['PREPARING', 'PENDING', 'RETURNED'].includes(request.status)
       && !!request.requestId && Number.isSafeInteger(request.returnVersion)
       && request.returnVersion >= 0;
   }
@@ -934,7 +943,7 @@ export class RealMailboxComponent implements OnInit {
         return;
       }
       await this.loadSecretaryRound(id, unit);
-      if (this.selectedId() === id && !this.secretaryRoundError()) this.secretaryRoundNotice.set('submitted');
+      if (this.selectedId() === id && !this.secretaryRoundError()) this.secretaryRoundNotice.set('prepared');
     } catch (error: unknown) {
       if (this.secretaryRoundStillSelected(id, unit, version)) this.secretaryRoundFailure(error);
     }
@@ -944,7 +953,8 @@ export class RealMailboxComponent implements OnInit {
   async saveSecretaryRoundRevision(): Promise<void> {
     const context = this.secretaryRoundWriteContext();
     const reason = this.secretaryRoundReason().trim();
-    if (!context || context.request.status !== 'RETURNED' || !reason || reason.length > 2000) return;
+    if (!context || !['PREPARING', 'RETURNED'].includes(context.request.status)
+        || !reason || reason.length > 2000) return;
     const version = this.secretaryRoundVersion;
     this.secretaryRoundBusy.set(true);
     this.secretaryRoundNotice.set(null);
@@ -953,7 +963,7 @@ export class RealMailboxComponent implements OnInit {
         context.unit, context.id, context.request.requestId, context.request.returnVersion, reason));
       if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
       if (!this.validSecretaryRoundRequest(revised, context.id, context.unit)
-          || revised.requestId !== context.request.requestId || revised.status !== 'RETURNED') {
+          || revised.requestId !== context.request.requestId || revised.status !== context.request.status) {
         this.secretaryRoundError.set(true);
         this.secretaryRoundNotice.set('stale');
         return;
@@ -967,10 +977,49 @@ export class RealMailboxComponent implements OnInit {
     finally { this.secretaryRoundBusy.set(false); }
   }
 
+  async submitPreparedSecretaryRound(): Promise<void> {
+    const context = this.secretaryRoundWriteContext();
+    const reason = this.secretaryRoundReason().trim();
+    if (!context || context.request.status !== 'PREPARING'
+        || !reason || reason.length > 2000) return;
+    const version = this.secretaryRoundVersion;
+    this.secretaryRoundBusy.set(true);
+    this.secretaryRoundNotice.set(null);
+    try {
+      if (reason !== context.request.reason) {
+        const revised = await firstValueFrom(this.roundApi.reviseSecretaryRequest(
+          context.unit, context.id, context.request.requestId, 0, reason));
+        if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+        if (!this.validSecretaryRoundRequest(revised, context.id, context.unit)
+            || revised.requestId !== context.request.requestId || revised.status !== 'PREPARING') {
+          this.secretaryRoundError.set(true);
+          this.secretaryRoundNotice.set('stale');
+          return;
+        }
+        this.secretaryRoundRequest.set(revised);
+      }
+      const submitted = await firstValueFrom(this.roundApi.submitPreparedSecretaryRequest(
+        context.unit, context.id, context.request.requestId));
+      if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+      if (!this.validSecretaryRoundRequest(submitted, context.id, context.unit)
+          || submitted.requestId !== context.request.requestId || submitted.status !== 'PENDING') {
+        this.secretaryRoundError.set(true);
+        this.secretaryRoundNotice.set('stale');
+        return;
+      }
+      await this.loadSecretaryRound(context.id, context.unit);
+      if (this.selectedId() === context.id && !this.secretaryRoundError())
+        this.secretaryRoundNotice.set('submitted');
+    } catch (error: unknown) {
+      if (this.secretaryRoundStillSelected(context.id, context.unit, version)) this.secretaryRoundFailure(error);
+    } finally { this.secretaryRoundBusy.set(false); }
+  }
+
   async resubmitSecretaryRound(): Promise<void> {
     const context = this.secretaryRoundWriteContext();
     const reason = this.secretaryRoundReason().trim();
-    if (!context || context.request.status !== 'RETURNED' || !reason || reason.length > 2000) return;
+    if (!context || context.request.status !== 'RETURNED'
+        || !reason || reason.length > 2000) return;
     const version = this.secretaryRoundVersion;
     this.secretaryRoundBusy.set(true);
     this.secretaryRoundNotice.set(null);
@@ -980,7 +1029,7 @@ export class RealMailboxComponent implements OnInit {
           context.unit, context.id, context.request.requestId, context.request.returnVersion, reason));
         if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
         if (!this.validSecretaryRoundRequest(revised, context.id, context.unit)
-            || revised.requestId !== context.request.requestId || revised.status !== 'RETURNED') {
+            || revised.requestId !== context.request.requestId || revised.status !== context.request.status) {
           this.secretaryRoundError.set(true);
           this.secretaryRoundNotice.set('stale');
           return;
@@ -1010,7 +1059,8 @@ export class RealMailboxComponent implements OnInit {
     const incoming = Array.from(input.files ?? []);
     input.value = '';
     const context = this.secretaryRoundWriteContext();
-    if (!context || !incoming.length) return;
+    if (!context || !['PREPARING', 'RETURNED'].includes(context.request.status)
+        || !incoming.length) return;
     const valid = queueFollowUpFiles([], incoming);
     if (!valid || valid.some(file => file.type !== 'application/pdf')) {
       this.secretaryRoundNotice.set('invalid');
@@ -1036,7 +1086,8 @@ export class RealMailboxComponent implements OnInit {
 
   async deleteSecretaryRoundFile(pdf: StagedContinuationPdf): Promise<void> {
     const context = this.secretaryRoundWriteContext();
-    if (!context || !this.secretaryRoundDocuments().some(document => document.nodeId === pdf.nodeId)) return;
+    if (!context || !['PREPARING', 'RETURNED'].includes(context.request.status)
+        || !this.secretaryRoundDocuments().some(document => document.nodeId === pdf.nodeId)) return;
     const version = this.secretaryRoundVersion;
     this.secretaryRoundBusy.set(true);
     this.secretaryRoundNotice.set(null);

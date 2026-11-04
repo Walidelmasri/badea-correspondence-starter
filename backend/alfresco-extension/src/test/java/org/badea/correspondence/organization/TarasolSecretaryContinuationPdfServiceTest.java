@@ -49,6 +49,19 @@ class TarasolSecretaryContinuationPdfServiceTest {
         verifyNoMoreInteractions(store);
     }
 
+    @Test void secretaryMayEditPreparingButNotPendingPdfs() {
+        when(secretaryRequests.current(secretary, unit, CASE)).thenReturn(request("PREPARING"));
+        service.upload(secretary, unit, CASE, REQUEST, "prepared.pdf", new byte[]{1});
+        verify(store).upload(CASE, unit, "99999", REQUEST, "prepared.pdf", new byte[]{1});
+        when(secretaryRequests.current(secretary, unit, CASE)).thenReturn(request("PENDING"));
+        assertThrows(OfficeCycleConflictException.class,
+            () -> service.upload(secretary, unit, CASE, REQUEST, "late.pdf", new byte[]{1}));
+        assertThrows(OfficeCycleConflictException.class,
+            () -> service.delete(secretary, unit, CASE, REQUEST, "wrong-pdf"));
+        service.secretaryList(secretary, unit, CASE, REQUEST);
+        verify(store).list(CASE, unit, REQUEST, "99999");
+    }
+
     @Test void managerMustHaveLiveAppointmentAndMatchingRequestToPreview() {
         when(managerApprovals.pending(manager, unit, CASE)).thenReturn(null);
         assertThrows(OfficeCycleConflictException.class,

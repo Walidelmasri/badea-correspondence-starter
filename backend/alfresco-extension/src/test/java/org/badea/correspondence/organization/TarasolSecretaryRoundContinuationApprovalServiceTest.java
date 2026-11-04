@@ -129,7 +129,8 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
                 return new AlfrescoSecretaryRoundTwoRequestRepository.Decision(REQUEST,
                     CASE, "APPROVED", 4L);
             });
-        assertEquals(4L, service.approve(manager, unit, CASE, REQUEST).workflowCycle());
+        assertEquals(4L, service.approve(manager, unit, CASE, REQUEST, 2L).workflowCycle());
+        verify(pdfs).assertReviewedFiles(CASE, unit, REQUEST, 2L);
         verify(pdfs).promote(CASE, unit, REQUEST, 4L);
         verify(cycles).continueCycle(argThat((TransitionCorrespondenceCommand c) ->
             c.action() == CorrespondenceAction.DIRECTOR_CONTINUE_CORRESPONDENCE
@@ -137,6 +138,19 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
             && unit.equals(c.actorDepartmentCode())
             && manager.employeeId().equals(c.actorEmployeeId())
             && "Follow up".equals(c.explanation())));
+    }
+
+    @Test void changedPdfRevisionPreventsApprovalAndWorkflowTransition() {
+        authorize(CorrespondenceActorRole.DIRECTOR, unit);
+        pending("99999", 3L);
+        doThrow(new org.badea.correspondence.application.OfficeCycleConflictException("changed"))
+            .when(pdfs).assertReviewedFiles(CASE, unit, REQUEST, 2L);
+        when(repository.approve(eq(CASE), eq(unit), eq(REQUEST), eq("200"), any()))
+            .thenAnswer(inv -> ((LongSupplier) inv.getArgument(4)).getAsLong());
+        assertThrows(org.badea.correspondence.application.OfficeCycleConflictException.class,
+            () -> service.approve(manager, unit, CASE, REQUEST, 2L));
+        verify(pdfs, never()).promote(any(), any(), any(), anyLong());
+        verifyNoInteractions(cycles);
     }
 
     @Test void failedPdfPromotionNeverAdvancesCycleOrMarksRequestApproved() {
@@ -150,7 +164,7 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
                 return continuation.getAsLong();
             });
         assertThrows(IllegalStateException.class,
-            () -> service.approve(manager, unit, CASE, REQUEST));
+            () -> service.approve(manager, unit, CASE, REQUEST, 2L));
         verifyNoInteractions(cycles);
     }
 
@@ -166,7 +180,7 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
         authorize(CorrespondenceActorRole.DIRECTOR, unit);
         pending("200", 3L);
         assertThrows(CorrespondenceAuthorizationException.class,
-            () -> service.approve(manager, unit, CASE, REQUEST));
+            () -> service.approve(manager, unit, CASE, REQUEST, 2L));
         verify(repository, never()).approve(any(), any(), any(), any(), any());
         verifyNoInteractions(cycles);
     }

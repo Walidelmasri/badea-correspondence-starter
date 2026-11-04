@@ -555,7 +555,8 @@
                 <p role="alert">{{ secretaryRoundLabels().loadError }}</p>
               } @else if (secretaryRoundRequest(); as request) {
                 <p class="mailbox-assignment-chip">
-                  {{ request.status === 'PENDING' ? secretaryRoundLabels().pending :
+                  {{ request.status === 'PREPARING' ? secretaryRoundLabels().preparing :
+                    request.status === 'PENDING' ? secretaryRoundLabels().pending :
                     request.status === 'RETURNED' ? secretaryRoundLabels().returned : secretaryRoundLabels().approved }}
                 </p>
                 @if (request.returnReason) {
@@ -565,7 +566,7 @@
                 <label for="secretary-round-reason">{{ secretaryRoundLabels().explanation }}</label>
                 <textarea id="secretary-round-reason" rows="4" maxlength="2000"
                   [value]="secretaryRoundReason()"
-                  [readOnly]="request.status !== 'RETURNED'"
+                  [readOnly]="request.status !== 'PREPARING' && request.status !== 'RETURNED'"
                   [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
                   (input)="updateSecretaryRoundReason($event)"></textarea>
                 <h4>{{ secretaryRoundLabels().stage }} · {{ secretaryRoundLabels().round }} {{ request.expectedCycle + 1 }}</h4>
@@ -584,7 +585,7 @@
                             [disabled]="secretaryRoundBusy()"
                             (click)="openSecretaryRoundPdf(pdf)">{{ secretaryRoundLabels().open }}</button>
                           <button type="button" class="mailbox-follow-up-files__remove"
-                            [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
+                            [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || request.status === 'PENDING'"
                             [attr.aria-label]="secretaryRoundLabels().remove + ': ' + pdf.filename"
                             (click)="deleteSecretaryRoundFile(pdf)">×</button>
                         </li>
@@ -594,20 +595,26 @@
                   <div class="mailbox-follow-up-picker">
                     <input id="secretary-round-files" type="file" accept="application/pdf,.pdf" multiple
                       class="mailbox-follow-up-picker__input"
-                      [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
+                      [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || request.status === 'PENDING'"
                       (change)="uploadSecretaryRoundFiles($event)" />
                     <label for="secretary-round-files" class="mailbox-follow-up-picker__button">
                       <span aria-hidden="true">＋</span> {{ secretaryRoundLabels().choose }}
                     </label>
                   </div>
-                  @if (request.status === 'RETURNED') {
+                  @if (request.status === 'PREPARING' || request.status === 'RETURNED') {
                     <div class="mailbox-follow-up-picker">
                       <button type="button" class="mailbox-action"
                         [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
                         (click)="saveSecretaryRoundRevision()">{{ secretaryRoundLabels().save }}</button>
-                      <button type="button" class="mailbox-action"
-                        [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
-                        (click)="resubmitSecretaryRound()">{{ secretaryRoundLabels().resubmit }}</button>
+                      @if (request.status === 'PREPARING') {
+                        <button type="button" class="mailbox-action"
+                          [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
+                          (click)="submitPreparedSecretaryRound()">{{ secretaryRoundLabels().submit }}</button>
+                      } @else {
+                        <button type="button" class="mailbox-action"
+                          [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
+                          (click)="resubmitSecretaryRound()">{{ secretaryRoundLabels().resubmit }}</button>
+                      }
                     </div>
                   }
                 }

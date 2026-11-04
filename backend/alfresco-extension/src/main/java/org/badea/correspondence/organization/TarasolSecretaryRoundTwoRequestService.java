@@ -53,6 +53,13 @@ public final class TarasolSecretaryRoundTwoRequestService {
                 requestId, returnVersion, reason));
     }
 
+    public AlfrescoSecretaryRoundTwoRequestRepository.Request submitPrepared(EmployeeDirectoryEntry actor,
+            DepartmentCode unit, String technicalId, String requestId) {
+        authorize(actor, unit);
+        return inbox.readCase(actor, unit, technicalId, () ->
+            requests.submitPrepared(technicalId, unit, actor.employeeId().value(), requestId));
+    }
+
     public AlfrescoSecretaryRoundTwoRequestRepository.Request resubmit(EmployeeDirectoryEntry actor,
             DepartmentCode unit, String technicalId, String requestId, long returnVersion) {
         authorize(actor, unit);
