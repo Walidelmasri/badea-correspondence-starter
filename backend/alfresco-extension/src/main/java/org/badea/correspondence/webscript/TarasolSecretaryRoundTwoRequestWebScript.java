@@ -46,6 +46,8 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
                 .put("status", outcome.status())
                 .put("expectedCycle", outcome.expectedCycle())
                 .put("reason", outcome.reason())
+                .put("returnReason", outcome.returnReason() == null
+                    ? JSONObject.NULL : outcome.returnReason())
                 .put("requestedAt", outcome.requestedAt().toString()));
         } catch (CorrespondenceAuthorizationException denied) {
             respond(response, Status.STATUS_FORBIDDEN, new JSONObject().put("code", "ACCESS_DENIED"));

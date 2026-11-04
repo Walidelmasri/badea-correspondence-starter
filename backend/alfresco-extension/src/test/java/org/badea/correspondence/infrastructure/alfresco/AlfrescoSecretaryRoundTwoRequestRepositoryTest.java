@@ -134,4 +134,114 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
             () -> repo.submit(ID, new DepartmentCode("117"), "99999", "Reason"));
         verify(nodes, never()).createNode(any(), any(), any(), any(), anyMap());
     }
+
+    private static final String REQUEST_ID = "12345678-1234-1234-1234-123456789abc";
+    private final NodeRef followUp = mock(NodeRef.class);
+    private final ChildAssociationRef followUpAssoc = mock(ChildAssociationRef.class);
+
+    private void pendingAtCycle(long cycle) {
+        when(nodes.getProperty(parent, AlfrescoCorrespondenceCycleReader.CURRENT)).thenReturn(cycle);
+        when(nodes.getProperty(assignment, AlfrescoCorrespondenceCycleReader.ASSIGNMENT))
+            .thenReturn(cycle);
+        when(nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")))
+            .thenReturn(REQUEST_ID);
+        when(followUpAssoc.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
+        when(followUpAssoc.getChildRef()).thenReturn(followUp);
+        when(nodes.getChildAssocs(parent)).thenReturn(List.of(assignmentAssoc, followUpAssoc));
+        when(nodes.getType(followUp)).thenReturn(
+            AlfrescoDepartmentAssignmentReader.q("secretaryRoundTwoRequest"));
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestId")))
+            .thenReturn(REQUEST_ID);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestUnit")))
+            .thenReturn("117");
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestOwner")))
+            .thenReturn("99999");
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReason")))
+            .thenReturn("Please continue");
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestCycle")))
+            .thenReturn(cycle);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus")))
+            .thenReturn("PENDING");
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestAt")))
+            .thenReturn(Date.from(Instant.parse("2026-11-04T12:00:00Z")));
+    }
+
+    @Test void managerCanReadOnlyCurrentCycleAndUnitPendingRequest() {
+        pendingAtCycle(3L);
+        assertEquals(3L, repo.pending(ID, new DepartmentCode("117")).expectedCycle());
+        assertThrows(OfficeCycleConflictException.class, () ->
+            repo.pending(ID, new DepartmentCode("118")));
+    }
+
+    @Test void approvalRunsExistingContinuationAndClearsPendingRequest() {
+        pendingAtCycle(3L);
+        var continuation = mock(java.util.function.LongSupplier.class);
+        when(continuation.getAsLong()).thenReturn(4L);
+        var decision = repo.approve(ID, new DepartmentCode("117"), REQUEST_ID,
+            "200", continuation);
+        assertEquals("APPROVED", decision.status());
+        assertEquals(4L, decision.workflowCycle());
+        verify(continuation).getAsLong();
+        verify(nodes).setProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus"), "APPROVED");
+        verify(nodes).setProperty(parent,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId"), null);
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoCorrespondenceCycleReader.CURRENT), any());
+    }
+
+    @Test void returnRequiresReasonAndLeavesCurrentCycleUntouched() {
+        pendingAtCycle(2L);
+        assertThrows(IllegalArgumentException.class, () -> repo.returnForRevision(ID,
+            new DepartmentCode("117"), REQUEST_ID, "200", "   "));
+        var decision = repo.returnForRevision(ID, new DepartmentCode("117"), REQUEST_ID,
+            "200", "Needs new attachment");
+        assertEquals("RETURNED", decision.status());
+        assertEquals(2L, decision.workflowCycle());
+        verify(nodes).setProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnReason"),
+            "Needs new attachment");
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoCorrespondenceCycleReader.CURRENT), any());
+    }
+
+    @Test void returnedRequestExposesManagerReasonOnlyToMatchingOwnerLookup() {
+        pendingAtCycle(4L);
+        when(nodes.getProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus"))).thenReturn("RETURNED");
+        when(nodes.getProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnReason")))
+            .thenReturn("Replace attachment");
+        var returned = repo.current(ID, new DepartmentCode("117"), "99999");
+        assertEquals("RETURNED", returned.status());
+        assertEquals("Replace attachment", returned.returnReason());
+        assertNull(repo.current(ID, new DepartmentCode("117"), "another-secretary"));
+    }
+
+    @Test void staleRequestCannotAdvanceRoundOrBeDecidedTwice() {
+        pendingAtCycle(3L);
+        var continuation = mock(java.util.function.LongSupplier.class);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.approve(ID,
+            new DepartmentCode("117"), "ffffffff-ffff-ffff-ffff-ffffffffffff", "200", continuation));
+        verifyNoInteractions(continuation);
+        when(nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")))
+            .thenReturn(null);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.returnForRevision(ID,
+            new DepartmentCode("117"), REQUEST_ID, "200", "Return reason"));
+        verify(nodes, never()).setProperty(eq(followUp),
+            eq(AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus")), any());
+    }
+
+    @Test void approvalWorksOnLaterRoundsAndRejectsIncorrectResultCycle() {
+        pendingAtCycle(6L);
+        var continuation = mock(java.util.function.LongSupplier.class);
+        when(continuation.getAsLong()).thenReturn(8L);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.approve(ID,
+            new DepartmentCode("117"), REQUEST_ID, "200", continuation));
+        verify(nodes, never()).setProperty(eq(followUp),
+            eq(AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus")), any());
+        when(continuation.getAsLong()).thenReturn(7L);
+        assertEquals(7L, repo.approve(ID, new DepartmentCode("117"), REQUEST_ID,
+            "200", continuation).workflowCycle());
+    }
 }

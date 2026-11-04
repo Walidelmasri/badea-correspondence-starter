@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.LongSupplier;
 import org.alfresco.model.ContentModel;
 import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
@@ -30,6 +31,9 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
     private static final QName CYCLE = q("roundTwoRequestCycle");
     private static final QName REQUESTED_AT = q("roundTwoRequestAt");
     private static final QName PENDING_ID = q("roundTwoPendingRequestId");
+    private static final QName DECIDED_BY = q("roundTwoRequestDecidedBy");
+    private static final QName DECIDED_AT = q("roundTwoRequestDecidedAt");
+    private static final QName RETURN_REASON = q("roundTwoRequestReturnReason");
     private static final QName STATE = q("state");
     private static final QName ASSIGNED_ROLE = q("assignedRole");
     private final NodeService nodes;
@@ -38,7 +42,14 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
 
     public record Request(String requestId, String technicalId, String unitCode,
             String ownerEmployeeId, String reason, long expectedCycle, String status,
-            Instant requestedAt) { }
+            Instant requestedAt, String returnReason) {
+        public Request(String requestId, String technicalId, String unitCode,
+                String ownerEmployeeId, String reason, long expectedCycle, String status,
+                Instant requestedAt) {
+            this(requestId, technicalId, unitCode, ownerEmployeeId, reason,
+                expectedCycle, status, requestedAt, null);
+        }
+    }
 
     public AlfrescoSecretaryRoundTwoRequestRepository(NodeService nodes,
             CorrespondenceNodeLocator locator, Clock clock) {
@@ -109,6 +120,74 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         return latest;
     }
 
+    /** Reads only the request currently awaiting a decision for this unit and workflow cycle. */
+    public Request pending(String technicalId, DepartmentCode unit) {
+        NodeRef parent = locator.locate(technicalId);
+        Serializable raw = nodes.getProperty(parent, PENDING_ID);
+        if (!(raw instanceof String id) || id.isBlank()) return null;
+        return pendingRequest(parent, technicalId, unit, id).request();
+    }
+
+    /** The caller must run this method and continuation in one REQUIRED Alfresco transaction. */
+    public Decision approve(String technicalId, DepartmentCode unit, String requestId,
+            String managerEmployeeId, LongSupplier continuation) {
+        Objects.requireNonNull(continuation);
+        NodeRef parent = locator.locate(technicalId);
+        Pending entry = pendingRequest(parent, technicalId, unit, requestId);
+        long nextCycle = continuation.getAsLong();
+        if (nextCycle != entry.request().expectedCycle() + 1)
+            throw new OfficeCycleConflictException("Unexpected continuation cycle");
+        saveDecision(parent, entry.node(), managerEmployeeId, "APPROVED", null);
+        return new Decision(requestId, technicalId, "APPROVED", nextCycle);
+    }
+
+    /** A return never mutates the correspondence's workflow state or cycle. */
+    public Decision returnForRevision(String technicalId, DepartmentCode unit,
+            String requestId, String managerEmployeeId, String reason) {
+        if (reason == null || reason.isBlank() || reason.trim().length() > 2000)
+            throw new IllegalArgumentException("Return reason must contain 1-2000 characters");
+        NodeRef parent = locator.locate(technicalId);
+        Pending entry = pendingRequest(parent, technicalId, unit, requestId);
+        saveDecision(parent, entry.node(), managerEmployeeId, "RETURNED", reason.trim());
+        return new Decision(requestId, technicalId, "RETURNED", entry.request().expectedCycle());
+    }
+
+    public record Decision(String requestId, String technicalId, String status, long workflowCycle) { }
+    private record Pending(NodeRef node, Request request) { }
+
+    private Pending pendingRequest(NodeRef parent, String technicalId,
+            DepartmentCode unit, String requestId) {
+        if (requestId == null || !requestId.matches("[0-9a-fA-F-]{36}"))
+            throw new IllegalArgumentException("Valid request ID required");
+        if (!requestId.equals(nodes.getProperty(parent, PENDING_ID)))
+            throw new OfficeCycleConflictException("Request is no longer pending");
+        long cycle = requireCompletedTo(parent, unit);
+        for (ChildAssociationRef assoc : nodes.getChildAssocs(parent)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())) continue;
+            NodeRef child = assoc.getChildRef();
+            if (!TYPE.equals(nodes.getType(child))) continue;
+            if (!requestId.equals(nodes.getProperty(child, REQUEST_ID))) continue;
+            Request request = read(technicalId, child);
+            if (!"PENDING".equals(request.status()) || !unit.value().equals(request.unitCode())
+                    || request.expectedCycle() != cycle)
+                throw new OfficeCycleConflictException("Request is stale or belongs to another unit");
+            return new Pending(child, request);
+        }
+        throw new OfficeCycleConflictException("Pending request not found");
+    }
+
+    private void saveDecision(NodeRef parent, NodeRef request,
+            String employeeId, String status, String returnReason) {
+        if (employeeId == null || employeeId.isBlank())
+            throw new IllegalArgumentException("Manager identity required");
+        nodes.setProperty(request, STATUS, status);
+        nodes.setProperty(request, DECIDED_BY, employeeId);
+        nodes.setProperty(request, DECIDED_AT, Date.from(clock.instant()));
+        if (returnReason != null) nodes.setProperty(request, RETURN_REASON, returnReason);
+        // Optimistic concurrency on the parent serializes decisions and further requests.
+        nodes.setProperty(parent, PENDING_ID, null);
+    }
+
     private long requireCompletedTo(NodeRef caseNode, DepartmentCode unit) {
         if (!CorrespondenceState.WITH_DIRECTOR.name().equals(nodes.getProperty(caseNode, STATE))
                 || !"DIRECTOR".equals(nodes.getProperty(caseNode, ASSIGNED_ROLE)))
@@ -139,7 +218,11 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
             if (!(time instanceof Date date)
                     || !java.util.Set.of("PENDING", "RETURNED", "APPROVED").contains(status))
                 throw new IllegalArgumentException("Invalid request state/timestamp");
-            return new Request(id, technicalId, unit, owner, reason, cycle, status, date.toInstant());
+            Serializable returned = nodes.getProperty(node, RETURN_REASON);
+            if (returned != null && !(returned instanceof String))
+                throw new IllegalArgumentException("Invalid return reason");
+            return new Request(id, technicalId, unit, owner, reason, cycle, status,
+                date.toInstant(), returned == null ? null : (String) returned);
         } catch (RuntimeException invalid) {
             throw new CorrespondenceRepositoryException("Invalid saved secretary follow-up request", invalid);
         }

@@ -424,6 +424,9 @@
                 <property name="bc:roundTwoRequestCycle"><type>d:long</type><mandatory>true</mandatory></property>
                 <property name="bc:roundTwoRequestStatus"><type>d:text</type><mandatory>true</mandatory></property>
                 <property name="bc:roundTwoRequestAt"><type>d:datetime</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoRequestDecidedBy"><type>d:text</type></property>
+                <property name="bc:roundTwoRequestDecidedAt"><type>d:datetime</type></property>
+                <property name="bc:roundTwoRequestReturnReason"><type>d:text</type></property>
             </properties>
         </type>
 

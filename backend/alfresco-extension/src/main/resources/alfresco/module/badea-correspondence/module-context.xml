@@ -1121,6 +1121,30 @@
         <constructor-arg value="false" />
     </bean>
 
+    <!-- Manager decisions use the current organizational appointment and existing cycle engine. -->
+    <bean id="badeaSecretaryRoundContinuationApprovalService"
+          class="org.badea.correspondence.organization.TarasolSecretaryRoundContinuationApprovalService"
+          lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
+        <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestRepository" />
+        <constructor-arg ref="badeaOfficeCycleContinuationService" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-manager-round-continuation.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundContinuationApprovalWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundContinuationApprovalService" />
+        <constructor-arg value="false" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-manager-round-continuation.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundContinuationApprovalWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundContinuationApprovalService" />
+        <constructor-arg value="true" />
+    </bean>
+
     <!-- Independent secretary approval lifecycle. Secretary access requires
          group membership and Oracle grants; manager approval retains its
          existing authorized managerial workspace checks. -->

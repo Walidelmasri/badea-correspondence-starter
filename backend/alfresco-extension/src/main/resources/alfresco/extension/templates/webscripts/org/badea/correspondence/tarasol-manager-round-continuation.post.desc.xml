@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Manager secretary continuation decision (POST)</shortname>
+    <description>Authorized manager reviews or decides a cycle-bound secretary follow-up</description>
+    <url>/badea/tarasol/manager/round-continuation/{technicalId}</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction>required</transaction>
+</webscript>
