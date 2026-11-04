@@ -15,6 +15,7 @@ import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryRoundTwoRequestRepository;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryContinuationPdfStore;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -31,9 +32,10 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
     private final AlfrescoSecretaryRoundTwoRequestRepository repository =
         mock(AlfrescoSecretaryRoundTwoRequestRepository.class);
     private final OfficeCycleContinuationService cycles = mock(OfficeCycleContinuationService.class);
+    private final AlfrescoSecretaryContinuationPdfStore pdfs = mock(AlfrescoSecretaryContinuationPdfStore.class);
     private final AlfrescoCorrespondenceMailboxLister mailbox = mock(AlfrescoCorrespondenceMailboxLister.class);
     private final TarasolSecretaryRoundContinuationApprovalService service =
-        new TarasolSecretaryRoundContinuationApprovalService(organization, roles, repository, cycles, mailbox);
+        new TarasolSecretaryRoundContinuationApprovalService(organization, roles, repository, cycles, mailbox, pdfs);
     private final DepartmentCode unit = new DepartmentCode("117");
     private final EmployeeDirectoryEntry manager = new EmployeeDirectoryEntry(
         new EmployeeId("200"), new DirectoryUsername("manager.test"),
@@ -128,12 +130,28 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
                     CASE, "APPROVED", 4L);
             });
         assertEquals(4L, service.approve(manager, unit, CASE, REQUEST).workflowCycle());
+        verify(pdfs).promote(CASE, unit, REQUEST, 4L);
         verify(cycles).continueCycle(argThat((TransitionCorrespondenceCommand c) ->
             c.action() == CorrespondenceAction.DIRECTOR_CONTINUE_CORRESPONDENCE
             && c.actorRole() == CorrespondenceActorRole.DIRECTOR
             && unit.equals(c.actorDepartmentCode())
             && manager.employeeId().equals(c.actorEmployeeId())
             && "Follow up".equals(c.explanation())));
+    }
+
+    @Test void failedPdfPromotionNeverAdvancesCycleOrMarksRequestApproved() {
+        authorize(CorrespondenceActorRole.DIRECTOR, unit);
+        pending("99999", 5L);
+        doThrow(new IllegalStateException("Staged PDF invalid"))
+            .when(pdfs).promote(CASE, unit, REQUEST, 6L);
+        when(repository.approve(eq(CASE), eq(unit), eq(REQUEST), eq("200"), any()))
+            .thenAnswer(inv -> {
+                LongSupplier continuation = inv.getArgument(4);
+                return continuation.getAsLong();
+            });
+        assertThrows(IllegalStateException.class,
+            () -> service.approve(manager, unit, CASE, REQUEST));
+        verifyNoInteractions(cycles);
     }
 
     @Test void wrongUnitOrNoLiveAppointmentCannotReviewRequest() {

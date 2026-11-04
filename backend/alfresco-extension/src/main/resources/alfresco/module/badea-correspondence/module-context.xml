@@ -1130,6 +1130,7 @@
         <constructor-arg ref="badeaSecretaryRoundTwoRequestRepository" />
         <constructor-arg ref="badeaOfficeCycleContinuationService" />
         <constructor-arg ref="badeaCorrespondenceMailboxLister" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfStore" />
     </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-manager-round-continuation.get"
           class="org.badea.correspondence.webscript.TarasolSecretaryRoundContinuationApprovalWebScript"
@@ -1153,6 +1154,64 @@
         <constructor-arg ref="badeaSecretaryRoundContinuationApprovalService" />
     </bean>
 
+    <!-- Cycle-bound secretary PDF staging, distinct from all official correspondence PDFs. -->
+    <bean id="badeaSecretaryContinuationPdfStore"
+          class="org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryContinuationPdfStore"
+          lazy-init="true">
+        <constructor-arg ref="nodeService" />
+        <constructor-arg ref="contentService" />
+        <constructor-arg ref="badeaCorrespondenceNodeLocator" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestRepository" />
+    </bean>
+    <bean id="badeaSecretaryContinuationPdfService"
+          class="org.badea.correspondence.organization.TarasolSecretaryContinuationPdfService"
+          lazy-init="true">
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
+        <constructor-arg ref="badeaSecretaryRoundContinuationApprovalService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfStore" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-pdf-upload.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryContinuationPdfWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfService" />
+        <constructor-arg value="SECRETARY_UPLOAD" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-pdfs.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryContinuationPdfWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfService" />
+        <constructor-arg value="SECRETARY_LIST" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-pdf.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryContinuationPdfWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfService" />
+        <constructor-arg value="SECRETARY_OPEN" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-pdf.delete"
+          class="org.badea.correspondence.webscript.TarasolSecretaryContinuationPdfWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfService" />
+        <constructor-arg value="SECRETARY_DELETE" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-manager-round-pdfs.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryContinuationPdfWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfService" />
+        <constructor-arg value="MANAGER_LIST" />
+    </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-manager-round-pdf.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryContinuationPdfWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryContinuationPdfService" />
+        <constructor-arg value="MANAGER_OPEN" />
+    </bean>
     <!-- Independent secretary approval lifecycle. Secretary access requires
          group membership and Oracle grants; manager approval retains its
          existing authorized managerial workspace checks. -->

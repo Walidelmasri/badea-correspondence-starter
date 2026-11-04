@@ -10,6 +10,7 @@ import org.badea.correspondence.application.TransitionCorrespondenceCommand;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryRoundTwoRequestRepository;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryContinuationPdfStore;
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
@@ -22,6 +23,7 @@ public final class TarasolSecretaryRoundContinuationApprovalService {
     private final CorrespondenceActorRoleResolver roles;
     private final AlfrescoSecretaryRoundTwoRequestRepository requests;
     private final OfficeCycleContinuationService cycles;
+    private final AlfrescoSecretaryContinuationPdfStore pdfs;
     private final AlfrescoCorrespondenceMailboxLister mailbox;
     private static final int SCAN_PAGE_SIZE = 100;
     private static final int MAX_SCAN_ITEMS = 10000;
@@ -30,12 +32,14 @@ public final class TarasolSecretaryRoundContinuationApprovalService {
             CorrespondenceActorRoleResolver roles,
             AlfrescoSecretaryRoundTwoRequestRepository requests,
             OfficeCycleContinuationService cycles,
-            AlfrescoCorrespondenceMailboxLister mailbox) {
+            AlfrescoCorrespondenceMailboxLister mailbox,
+            AlfrescoSecretaryContinuationPdfStore pdfs) {
         this.organization = Objects.requireNonNull(organization);
         this.roles = Objects.requireNonNull(roles);
         this.requests = Objects.requireNonNull(requests);
         this.cycles = Objects.requireNonNull(cycles);
         this.mailbox = Objects.requireNonNull(mailbox);
+        this.pdfs = Objects.requireNonNull(pdfs);
     }
 
     public record PendingItem(String technicalId, String requestId, String unitCode,
@@ -110,7 +114,14 @@ public final class TarasolSecretaryRoundContinuationApprovalService {
                 manager.employeeId(), unit, manager.nameEnglish(), manager.nameArabic(),
                 null, pending.reason(), null);
             return requests.approve(technicalId, unit, requestId,
-                manager.employeeId().value(), () -> cycles.continueCycle(command));
+                manager.employeeId().value(), () -> {
+                    // The request's private PDFs become source documents for the
+                    // NEXT cycle only inside this same Alfresco write transaction.
+                    // A failed cycle transition rolls back every moved document.
+                    long next = Math.addExact(pending.expectedCycle(), 1);
+                    pdfs.promote(technicalId, unit, requestId, next);
+                    return cycles.continueCycle(command);
+                });
         });
     }
 

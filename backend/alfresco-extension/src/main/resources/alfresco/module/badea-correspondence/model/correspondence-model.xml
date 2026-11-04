@@ -412,6 +412,17 @@
             </properties>
         </type>
 
+        <!-- Not an official source PDF: intentionally a distinct cm:content subtype.
+             Existing source-document readers require exact cm:content and skip it. -->
+        <type name="bc:secretaryStagedContinuationPdf">
+            <title>Private Secretary Continuation PDF</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:stagedContinuationRequestId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:stagedContinuationCycle"><type>d:long</type><mandatory>true</mandatory></property>
+            </properties>
+        </type>
+
         <!-- One pending, cycle-bound request per correspondence; does not change routing. -->
         <type name="bc:secretaryRoundTwoRequest">
             <title>Secretary Round Two Request</title>
@@ -427,6 +438,7 @@
                 <property name="bc:roundTwoRequestDecidedBy"><type>d:text</type></property>
                 <property name="bc:roundTwoRequestDecidedAt"><type>d:datetime</type></property>
                 <property name="bc:roundTwoRequestReturnReason"><type>d:text</type></property>
+                <property name="bc:roundTwoRequestDocumentsRevision"><type>d:long</type></property>
             </properties>
         </type>
 
