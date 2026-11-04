@@ -1,5 +1,6 @@
 package org.badea.correspondence.organization;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.service.cmr.security.AuthorityService;
@@ -49,13 +50,20 @@ public final class TarasolSecretaryWorkflowService {
 
     public String create(EmployeeDirectoryEntry secretary, DepartmentCode unit,
             String subject, String bodyText) {
+        return create(secretary, unit, subject, bodyText, null, null, null);
+    }
+
+    /** Secretary drafts use the complete Director metadata and the same unit reference allocator. */
+    public String create(EmployeeDirectoryEntry secretary, DepartmentCode unit,
+            String subject, String bodyText, String documentNumber,
+            LocalDate documentDate, String sourceText) {
         requireSecretary(secretary, unit);
         if (subject == null || subject.isBlank() || subject.length() > 500) {
             throw new IllegalArgumentException("Subject must be 1-500 characters");
         }
         return AuthenticationUtil.runAsSystem(() -> correspondence.createSecretaryDraft(
             new CreateCorrespondenceCommand(
-            unit, subject, bodyText, null, null, null,
+            unit, subject, bodyText, documentNumber, documentDate, sourceText,
             secretary.employeeId(), secretary.nameEnglish(), secretary.nameArabic(),
             CorrespondenceActorRole.DIRECTOR, null)));
     }
@@ -142,6 +150,14 @@ public final class TarasolSecretaryWorkflowService {
 
     public void revise(EmployeeDirectoryEntry secretary, DepartmentCode unit,
             String technicalId, String subject, String bodyText) {
+        revise(secretary, unit, technicalId, subject, bodyText, null, null, null, false);
+    }
+
+    /** Legacy subject/body revisions must not erase metadata saved by the full form. */
+    public void revise(EmployeeDirectoryEntry secretary, DepartmentCode unit,
+            String technicalId, String subject, String bodyText,
+            String documentNumber, LocalDate documentDate, String sourceText,
+            boolean updateMetadata) {
         requireSecretary(secretary, unit);
         var draft = AuthenticationUtil.runAsSystem(() ->
             correspondence.readSecretaryDraft(technicalId));
@@ -151,9 +167,15 @@ public final class TarasolSecretaryWorkflowService {
             throw new IllegalArgumentException("Subject must be 1-500 characters");
         }
         AuthenticationUtil.runAsSystem(() -> {
-            correspondence.reviseSecretaryDraft(command(technicalId, secretary, unit,
+            var action = command(technicalId, secretary, unit,
                 CorrespondenceActorRole.SECRETARY, CorrespondenceAction.REVISE_SECRETARY_DRAFT,
-                unit, null), subject, bodyText);
+                unit, null);
+            if (updateMetadata) {
+                correspondence.reviseSecretaryDraft(action, subject, bodyText,
+                    documentNumber, documentDate, sourceText);
+            } else {
+                correspondence.reviseSecretaryDraft(action, subject, bodyText);
+            }
             return null;
         });
     }

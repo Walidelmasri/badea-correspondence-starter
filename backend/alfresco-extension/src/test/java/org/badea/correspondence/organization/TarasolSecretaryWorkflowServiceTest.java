@@ -4,10 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 
+import org.badea.correspondence.application.CreateCorrespondenceCommand;
 import org.badea.correspondence.application.TransitionCorrespondenceCommand;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.DirectoryUsername;
@@ -224,4 +226,75 @@ class TarasolSecretaryWorkflowServiceTest {
         verifyNoInteractions(repo);
     }
 
+
+    @Test
+    void secretaryFullDraftUsesRealCreatorAndOriginatingDepartment() {
+        secretaryGroup();
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        when(repo.createSecretaryDraft(any(CreateCorrespondenceCommand.class))).thenReturn(CASE);
+        var date = LocalDate.of(2026, 11, 4);
+
+        assertEquals(CASE, service.create(secretary, hr, "Request", "Full body",
+            "HR-2026-123", date, "Human Resources"));
+
+        ArgumentCaptor<CreateCorrespondenceCommand> captured =
+            ArgumentCaptor.forClass(CreateCorrespondenceCommand.class);
+        verify(repo).createSecretaryDraft(captured.capture());
+        var command = captured.getValue();
+        assertEquals(hr, command.originDepartmentCode());
+        assertEquals(secretary.employeeId(), command.createdByEmployeeId());
+        assertEquals(CorrespondenceActorRole.DIRECTOR, command.createdByRole());
+        assertEquals("HR-2026-123", command.documentNumber());
+        assertEquals(date, command.documentDate());
+        assertEquals("Human Resources", command.sourceText());
+        assertEquals("Full body", command.bodyText());
+    }
+
+    @Test
+    void fullRevisionRetainsOwnerAuthorizationAndForwardsDocumentMetadata() {
+        secretaryGroup();
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Old", "Old body", "300", "RETURNED"));
+
+        var date = LocalDate.of(2026, 10, 31);
+        service.revise(secretary, hr, CASE, "Revised", "Updated body",
+            "HR-2026-124", date, "Human Resources", true);
+        verify(repo).reviseSecretaryDraft(argThat(action ->
+            action.actorEmployeeId().equals(secretary.employeeId())
+                && action.action() == CorrespondenceAction.REVISE_SECRETARY_DRAFT),
+            eq("Revised"), eq("Updated body"), eq("HR-2026-124"), eq(date), eq("Human Resources"));
+    }
+
+    @Test
+    void legacyRevisionDoesNotClearExistingDocumentMetadata() {
+        secretaryGroup();
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Old", "Old body", "300", "DRAFT"));
+
+        service.revise(secretary, hr, CASE, "Revised", "Updated body");
+        verify(repo).reviseSecretaryDraft(any(TransitionCorrespondenceCommand.class),
+            eq("Revised"), eq("Updated body"));
+        verify(repo, never()).reviseSecretaryDraft(any(TransitionCorrespondenceCommand.class),
+            anyString(), anyString(), any(), any(), any());
+    }
+
+    @Test
+    void secretaryCannotReviseAnotherCreatorsFullCorrespondence() {
+        secretaryGroup();
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            CASE, hr.value(), "Old", "Body", "999", "RETURNED"));
+
+        assertThrows(CorrespondenceAuthorizationException.class, () ->
+            service.revise(secretary, hr, CASE, "Revised", "Body",
+                "HR-100", LocalDate.now(), "HR", true));
+        verify(repo, never()).reviseSecretaryDraft(any(), anyString(), anyString(),
+            any(), any(), any());
+    }
 }

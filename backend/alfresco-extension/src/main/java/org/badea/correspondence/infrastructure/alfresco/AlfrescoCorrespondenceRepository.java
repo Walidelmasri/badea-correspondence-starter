@@ -593,6 +593,19 @@ public final class AlfrescoCorrespondenceRepository
 
     public void reviseSecretaryDraft(TransitionCorrespondenceCommand command,
             String subject, String bodyText) {
+        reviseSecretaryDraftInternal(command, subject, bodyText, null, null, null, false);
+    }
+
+    public void reviseSecretaryDraft(TransitionCorrespondenceCommand command,
+            String subject, String bodyText, String documentNumber,
+            java.time.LocalDate documentDate, String sourceText) {
+        reviseSecretaryDraftInternal(command, subject, bodyText,
+            documentNumber, documentDate, sourceText, true);
+    }
+
+    private void reviseSecretaryDraftInternal(TransitionCorrespondenceCommand command,
+            String subject, String bodyText, String documentNumber,
+            java.time.LocalDate documentDate, String sourceText, boolean updateMetadata) {
         NodeRef node = nodeLocator.locate(command.technicalId());
         if (!CorrespondenceState.DRAFT.name().equals(nodeService.getProperty(node, PROP_STATE))
                 || !java.util.Set.of("DRAFT", "RETURNED").contains(
@@ -604,6 +617,17 @@ public final class AlfrescoCorrespondenceRepository
         nodeService.setProperty(node, PROP_SUBJECT, subject.trim());
         if (bodyText == null || bodyText.isBlank()) nodeService.removeProperty(node, PROP_BODY_TEXT);
         else nodeService.setProperty(node, PROP_BODY_TEXT, bodyText.trim());
+        if (updateMetadata) {
+            if (documentNumber == null || documentNumber.isBlank())
+                nodeService.removeProperty(node, PROP_DOCUMENT_NUMBER);
+            else nodeService.setProperty(node, PROP_DOCUMENT_NUMBER, documentNumber.trim());
+            if (documentDate == null)
+                nodeService.removeProperty(node, PROP_DOCUMENT_DATE);
+            else nodeService.setProperty(node, PROP_DOCUMENT_DATE, Date.valueOf(documentDate));
+            if (sourceText == null || sourceText.isBlank())
+                nodeService.removeProperty(node, PROP_SOURCE_TEXT);
+            else nodeService.setProperty(node, PROP_SOURCE_TEXT, sourceText.trim());
+        }
         String previousStatus = (String) nodeService.getProperty(node, PROP_SECRETARY_STATUS);
         changeSecretaryStatus(command, previousStatus, "DRAFT", CorrespondenceActorRole.DIRECTOR);
     }

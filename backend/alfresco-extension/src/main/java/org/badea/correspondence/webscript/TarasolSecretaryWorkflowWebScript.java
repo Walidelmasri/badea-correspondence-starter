@@ -1,6 +1,8 @@
 package org.badea.correspondence.webscript;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Objects;
 
 import org.badea.correspondence.application.CurrentEmployeeService;
@@ -73,12 +75,23 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 switch (action) {
                     case "CREATE_DRAFT" -> {
                         String id = workflow.create(employee, unit, required(input,"subject"),
-                            optional(input,"bodyText"));
+                            optional(input,"bodyText"), optional(input,"documentNumber"),
+                            optionalDate(input,"documentDate"), optional(input,"sourceText"));
                         result.put("technicalId", id).put("approvalStatus", "DRAFT");
                     }
                     case "REVISE" -> {
+                        boolean fullMetadata = input.has("documentNumber")
+                            || input.has("documentDate") || input.has("sourceText");
+                        if (fullMetadata && (!input.has("documentNumber")
+                                || !input.has("documentDate") || !input.has("sourceText"))) {
+                            throw new IllegalArgumentException("All three document metadata fields are required for a full revision");
+                        }
                         workflow.revise(employee, unit, required(input,"technicalId"),
-                            required(input,"subject"), optional(input,"bodyText"));
+                            required(input,"subject"), optional(input,"bodyText"),
+                            fullMetadata ? optional(input,"documentNumber") : null,
+                            fullMetadata ? optionalDate(input,"documentDate") : null,
+                            fullMetadata ? optional(input,"sourceText") : null,
+                            fullMetadata);
                         result.put("approvalStatus", "DRAFT");
                     }
                     case "SUBMIT" -> {
@@ -129,6 +142,16 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
             throw new IllegalArgumentException("JSON body required");
         }
         return new JSONObject(content.getContent());
+    }
+
+    private static LocalDate optionalDate(JSONObject body, String key) {
+        String text = optional(body, key);
+        if (text == null) return null;
+        try {
+            return LocalDate.parse(text);
+        } catch (DateTimeParseException invalid) {
+            throw new IllegalArgumentException(key + " must use YYYY-MM-DD", invalid);
+        }
     }
 
     private static String required(JSONObject body, String key) {

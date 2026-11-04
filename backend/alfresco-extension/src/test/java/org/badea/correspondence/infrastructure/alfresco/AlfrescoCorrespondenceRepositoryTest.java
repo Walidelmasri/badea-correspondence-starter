@@ -82,6 +82,70 @@ class AlfrescoCorrespondenceRepositoryTest {
     }
 
     @Test
+    void secretaryFullRevisionUpdatesDirectorMetadataAndAuditsSecretaryActor() {
+        var node = nodeRef("00000000-0000-0000-0000-000000000001");
+        var actionNode = nodeRef("00000000-0000-0000-0000-000000000002");
+        var actionLink = mock(ChildAssociationRef.class);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(node);
+        when(nodeService.getProperty(node, qname("state"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(node, qname("secretaryApprovalStatus"))).thenReturn("RETURNED");
+        when(nodeService.getProperty(node, qname("secretaryOwnerEmployeeId"))).thenReturn("300");
+        when(actionLink.getChildRef()).thenReturn(actionNode);
+        when(nodeService.createNode(eq(node), eq(ContentModel.ASSOC_CONTAINS),
+                eq(qname("action-000001")), eq(qname("workflowAction")), any()))
+            .thenReturn(actionLink);
+        var date = LocalDate.of(2026, 11, 4);
+        var command = new TransitionCorrespondenceCommand(TECHNICAL_ID,
+            CorrespondenceActorRole.SECRETARY, CorrespondenceAction.REVISE_SECRETARY_DRAFT,
+            new EmployeeId("300"), new DepartmentCode("117"),
+            "Secretary", null, new DepartmentCode("117"), null, null);
+
+        repository.reviseSecretaryDraft(command, "Revised", "New body",
+            "DOC-117", date, "Digital Transformation");
+
+        verify(nodeService).setProperty(node, qname("subject"), "Revised");
+        verify(nodeService).setProperty(node, qname("bodyText"), "New body");
+        verify(nodeService).setProperty(node, qname("documentNumber"), "DOC-117");
+        verify(nodeService).setProperty(node, qname("documentDate"), java.sql.Date.valueOf(date));
+        verify(nodeService).setProperty(node, qname("sourceText"), "Digital Transformation");
+        verify(nodeService).setProperty(node, qname("secretaryApprovalStatus"), "DRAFT");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<QName, Serializable>> actionProperties = ArgumentCaptor.forClass(Map.class);
+        verify(nodeService).createNode(eq(node), eq(ContentModel.ASSOC_CONTAINS),
+            eq(qname("action-000001")), eq(qname("workflowAction")), actionProperties.capture());
+        assertEquals("300", actionProperties.getValue().get(qname("actorEmployeeId")));
+        assertEquals("SECRETARY", actionProperties.getValue().get(qname("actorRole")));
+    }
+
+    @Test
+    void secretaryLegacyRevisionPreservesPreviouslySavedDocumentMetadata() {
+        var node = nodeRef("00000000-0000-0000-0000-000000000001");
+        var actionNode = nodeRef("00000000-0000-0000-0000-000000000002");
+        var actionLink = mock(ChildAssociationRef.class);
+        when(nodeLocator.locate(TECHNICAL_ID)).thenReturn(node);
+        when(nodeService.getProperty(node, qname("state"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(node, qname("secretaryApprovalStatus"))).thenReturn("DRAFT");
+        when(nodeService.getProperty(node, qname("secretaryOwnerEmployeeId"))).thenReturn("300");
+        when(actionLink.getChildRef()).thenReturn(actionNode);
+        when(nodeService.createNode(eq(node), eq(ContentModel.ASSOC_CONTAINS),
+                eq(qname("action-000001")), eq(qname("workflowAction")), any()))
+            .thenReturn(actionLink);
+        var command = new TransitionCorrespondenceCommand(TECHNICAL_ID,
+            CorrespondenceActorRole.SECRETARY, CorrespondenceAction.REVISE_SECRETARY_DRAFT,
+            new EmployeeId("300"), new DepartmentCode("117"),
+            "Secretary", null, new DepartmentCode("117"), null, null);
+
+        repository.reviseSecretaryDraft(command, "Revised", "New body");
+
+        verify(nodeService, never()).setProperty(eq(node), eq(qname("documentNumber")), any());
+        verify(nodeService, never()).setProperty(eq(node), eq(qname("documentDate")), any());
+        verify(nodeService, never()).setProperty(eq(node), eq(qname("sourceText")), any());
+        verify(nodeService, never()).removeProperty(node, qname("documentNumber"));
+        verify(nodeService, never()).removeProperty(node, qname("documentDate"));
+        verify(nodeService, never()).removeProperty(node, qname("sourceText"));
+    }
+
+    @Test
     void createsDraftUnderOriginDepartmentFolder() {
 
         DepartmentCode departmentCode =
