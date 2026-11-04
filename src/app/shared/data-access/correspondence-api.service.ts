@@ -18,6 +18,9 @@ const CORRESPONDENCE_URL =
 const OFFICE_COMPLETION_URL =
   '/alfresco/service/badea/office-completion';
 
+const SECRETARY_INBOX_URL =
+  '/alfresco/service/badea/tarasol/secretary/inbox';
+
 export interface CreateCorrespondenceDraft {
   readonly subject: string;
   readonly bodyText: string | null;
@@ -340,6 +343,31 @@ export class CorrespondenceApiService {
       `${OFFICE_COMPLETION_URL}/${encodeURIComponent(technicalId)}`,
       { expectedRevision, expectedPresidentReviewRevision, state },
     );
+  }
+
+  /** Shared unit Inbox reads are distinct from Director operations. Backend
+   * rechecks the secretary Alfresco group, active Oracle unit and case scope. */
+  listSecretaryInbox(unitCode: string, offset = 0, limit = 25,
+      view: CorrespondenceInboxView = 'needs_action'): Observable<CorrespondenceMailboxPage> {
+    return this.http.get<CorrespondenceMailboxPage>(SECRETARY_INBOX_URL,
+      { params: { unitCode, offset, limit, view } });
+  }
+
+  getSecretaryInboxDetails(unitCode: string, technicalId: string): Observable<CorrespondenceDetails> {
+    return this.http.get<CorrespondenceDetails>(
+      `${SECRETARY_INBOX_URL}/${encodeURIComponent(technicalId)}`, { params: { unitCode } });
+  }
+
+  getSecretaryInboxHistory(unitCode: string, technicalId: string): Observable<CorrespondenceHistoryPage> {
+    return this.http.get<CorrespondenceHistoryPage>(
+      `${SECRETARY_INBOX_URL}/${encodeURIComponent(technicalId)}/history`, { params: { unitCode } });
+  }
+
+  getSecretaryInboxDocument(unitCode: string, technicalId: string, nodeId: string): Observable<Blob> {
+    return this.http.get(
+      `${SECRETARY_INBOX_URL}/${encodeURIComponent(technicalId)}`
+        + `/documents/${encodeURIComponent(nodeId)}/content`,
+      { params: { unitCode }, responseType: 'blob' });
   }
 
   getHistory(technicalId: string): Observable<CorrespondenceHistoryPage> {

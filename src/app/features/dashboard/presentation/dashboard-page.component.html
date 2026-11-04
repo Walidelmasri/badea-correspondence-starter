@@ -48,16 +48,18 @@
         <strong class="stat__number">{{ s.archived }}</strong>
         <span class="stat__meta">{{ labels().archivedStatus }}</span>
       </a>
-      <a routerLink="/sent" class="stat">
-        <span class="stat__label">{{ labels().stats.sent }}</span>
-        <strong class="stat__number">{{ s.sent }}</strong>
-        <span class="stat__meta">{{ labels().openSent }} <span aria-hidden="true">↗</span></span>
-      </a>
-      <a routerLink="/drafts" class="stat">
-        <span class="stat__label">{{ labels().stats.drafts }}</span>
-        <strong class="stat__number">{{ s.drafts }}</strong>
-        <span class="stat__meta">{{ labels().openDrafts }} <span aria-hidden="true">↗</span></span>
-      </a>
+      @if (!secretaryMode()) {
+        <a routerLink="/sent" class="stat">
+          <span class="stat__label">{{ labels().stats.sent }}</span>
+          <strong class="stat__number">{{ s.sent }}</strong>
+          <span class="stat__meta">{{ labels().openSent }} <span aria-hidden="true">↗</span></span>
+        </a>
+        <a routerLink="/drafts" class="stat">
+          <span class="stat__label">{{ labels().stats.drafts }}</span>
+          <strong class="stat__number">{{ s.drafts }}</strong>
+          <span class="stat__meta">{{ labels().openDrafts }} <span aria-hidden="true">↗</span></span>
+        </a>
+      }
     </div>
 
     <div class="dashboard__insights">

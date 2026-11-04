@@ -66,6 +66,9 @@ export const directorRoleGuard: CanActivateFn = () => {
 /** A secretary has only the dedicated personal-draft/approval workspace. */
 export const secretaryDashboardGuard: CanActivateFn = () => {
   const session = inject(AuthSessionStore);
+  // A secretary with an active unit uses the existing Dashboard/Inbox.
+  // Keep the legacy draft workspace for users without a resolved unit.
+  if (session.secretaryMailbox()) return true;
   if (session.currentUser()?.employeeProfile?.correspondenceRole === 'SECRETARY') {
     return inject(Router).createUrlTree(['/tarasol/secretary']);
   }
@@ -88,4 +91,11 @@ export const officeRoleGuard: CanActivateFn = () => {
   if (role === 'PRESIDENT') return router.createUrlTree(['/compose']);
   if (role === 'DIRECTOR') return router.createUrlTree(['/director/new']);
   return router.createUrlTree(['/inbox']);
+};
+
+/** Personal Sent/Drafts retain the legacy secretary workflow until their
+ * data adapters are implemented. Never call Director endpoints as secretary. */
+export const standardMailboxGuard: CanActivateFn = () => {
+  const session = inject(AuthSessionStore);
+  return session.secretaryMailbox() ? inject(Router).createUrlTree(['/inbox']) : true;
 };

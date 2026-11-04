@@ -15,7 +15,7 @@ import {
   CorrespondenceApiService,
   CorrespondenceMailboxSummary,
 } from '../../../shared/data-access/correspondence-api.service';
-import { buildDashboardSnapshot, DashboardSnapshot } from './dashboard-metrics';
+import { buildDashboardSnapshot, buildSecretaryDashboardSnapshot, DashboardSnapshot } from './dashboard-metrics';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -32,13 +32,14 @@ export class DashboardPageComponent implements OnInit {
   readonly labels = computed(() => this.translation.text().dashboard);
   readonly role = computed(() =>
     this.session.effectiveRole());
+  readonly secretaryMode = this.session.secretaryMailbox;
   readonly stats = signal<DashboardSnapshot | null>(null);
   readonly loading = signal(false);
   readonly failed = signal(false);
 
   readonly roleLabel = computed(() => {
     const role = this.role();
-    if (role === 'SECRETARY') return 'Secretary';
+    if (this.secretaryMode() || role === 'SECRETARY') return 'Secretary';
     if (role === 'TARASOL_ADMIN') return 'Organization Admin';
     if (role === 'TARASOL_DELEGATE') return 'Delegated Cases';
     return role ? this.labels().role[role] : '';
@@ -54,6 +55,20 @@ export class DashboardPageComponent implements OnInit {
     this.failed.set(false);
     this.stats.set(null);
     try {
+      if (this.secretaryMode()) {
+        const unitCode = this.session.secretaryInboxUnitCode();
+        if (!unitCode) throw new Error('No authorized secretary unit');
+        const pages = await firstValueFrom(forkJoin({
+          all: this.api.listSecretaryInbox(unitCode, 0, 7, 'all'),
+          urgent: this.api.listSecretaryInbox(unitCode, 0, 7, 'needs_action'),
+          handled: this.api.listSecretaryInbox(unitCode, 0, 1, 'handled'),
+          archived: this.api.listSecretaryInbox(unitCode, 0, 1, 'archived'),
+        }));
+        this.stats.set(buildSecretaryDashboardSnapshot(
+          pages.all, pages.urgent, pages.handled, pages.archived,
+        ));
+        return;
+      }
       const pages = await firstValueFrom(forkJoin({
         all: this.api.listMailbox('inbox', 0, 7, 'all'),
         urgent: this.api.listMailbox('inbox', 0, 7, 'needs_action'),

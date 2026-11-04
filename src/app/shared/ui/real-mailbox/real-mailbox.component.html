@@ -5,7 +5,7 @@
   [searchLabel]="headings().search.label"
   [searchPlaceholder]="headings().search.placeholder"
   [primaryActionLabel]="headings().newCorrespondence"
-  [showPrimaryAction]="session.effectiveRole() != null"
+  [showPrimaryAction]="!secretaryMode() && session.effectiveRole() != null"
   [showSearch]="false"
   [detailOpen]="mobileDetailsOpen()"
   (primaryAction)="openCompose()"
@@ -162,8 +162,10 @@
                 <div class="mailbox-featured-packet__actions">
                   <button type="button" class="mailbox-action"
                     (click)="openDocument(packet)">{{ labels().openDocument }}</button>
-                  <button type="button" class="mailbox-share-button"
-                    (click)="beginShare(packet)">{{ shareText().share }}</button>
+                  @if (!secretaryMode()) {
+                    <button type="button" class="mailbox-share-button"
+                      (click)="beginShare(packet)">{{ shareText().share }}</button>
+                  }
                 </div>
               </div>
             }
@@ -192,9 +194,11 @@
                             </span>
                             <span class="mailbox-file-open">{{ labels().openDocument }}</span>
                           </button>
-                          <button type="button" class="mailbox-share-button"
-                            [disabled]="document.mimeType !== 'application/pdf'"
-                            (click)="beginShare(document)">{{ shareText().share }}</button>
+                          @if (!secretaryMode()) {
+                            <button type="button" class="mailbox-share-button"
+                              [disabled]="document.mimeType !== 'application/pdf'"
+                              (click)="beginShare(document)">{{ shareText().share }}</button>
+                          }
                         </li>
                       }
                     </ul>
@@ -215,9 +219,11 @@
                           </span>
                           <span class="mailbox-file-open">{{ labels().openDocument }}</span>
                         </button>
-                        <button type="button" class="mailbox-share-button"
-                          [disabled]="document.mimeType !== 'application/pdf'"
-                          (click)="beginShare(document)">{{ shareText().share }}</button>
+                        @if (!secretaryMode()) {
+                          <button type="button" class="mailbox-share-button"
+                            [disabled]="document.mimeType !== 'application/pdf'"
+                            (click)="beginShare(document)">{{ shareText().share }}</button>
+                        }
                       </li>
                     }
                   </ul>
@@ -533,6 +539,7 @@
 @if (previewDocument(); as document) {
   @if (selectedId(); as technicalId) {
     <app-correspondence-document-preview
+      [secretaryUnitCode]="secretaryUnitCode()"
       [technicalId]="technicalId"
       [document]="document"
       (closed)="closePreview()"

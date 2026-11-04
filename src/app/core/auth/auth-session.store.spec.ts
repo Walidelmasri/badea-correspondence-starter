@@ -135,6 +135,55 @@ describe('AuthSessionStore', () => {
     expect(store.effectiveDepartmentCode()).toBe('118');
   });
 
+  it('keeps Admin + Secretary access distinct from Director authority and validates unit selection', () => {
+    const store = new AuthSessionStore();
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '99999', username: 'walid.salem', nameEnglish: 'Walid', nameArabic: null,
+      department: { code: '117', nameEnglish: 'DT', nameArabic: null },
+      tarasolAdministrator: true, correspondenceRole: 'TARASOL_ADMIN',
+      managerWorkspaces: [], secretaryUnits: [
+        { code: '117', nameEnglish: 'DT', nameArabic: null },
+        { code: '118', nameEnglish: 'HR', nameArabic: null },
+      ],
+    }});
+    expect(store.secretaryMailbox()).toBe(true);
+    expect(store.effectiveRole()).toBe('TARASOL_ADMIN');
+    expect(store.activeManagerWorkspace()).toBeNull();
+    expect(store.secretaryInboxUnitCode()).toBe('117');
+    expect(() => store.selectSecretaryUnit('119')).toThrow();
+    store.selectSecretaryUnit('118');
+    expect(store.secretaryInboxUnitCode()).toBe('118');
+    store.clear();
+    expect(store.secretaryMailbox()).toBe(false);
+    expect(store.secretaryInboxUnitCode()).toBeNull();
+  });
+
+  it('does not replace a genuine Director/Office workspace with secretary read access', () => {
+    const store = new AuthSessionStore();
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '18284', username: 'ndjack', nameEnglish: 'NDjack', nameArabic: null,
+      department: null, correspondenceRole: 'DIRECTOR',
+      secretaryUnits: [{ code: '118', nameEnglish: 'HR', nameArabic: null }],
+      managerWorkspaces: [{ code: '118', nameEnglish: 'HR', nameArabic: null,
+        capacity: 'ACTING_MANAGER', role: 'DIRECTOR' }],
+    }});
+    expect(store.secretaryMailbox()).toBe(false);
+    expect(store.effectiveRole()).toBe('DIRECTOR');
+    expect(store.effectiveDepartmentCode()).toBe('118');
+  });
+
+  it('does not grant secretary mailbox access from Admin alone or stale assignments', () => {
+    const store = new AuthSessionStore();
+    store.setCurrentUser({ ...currentUser, employeeProfile: {
+      employeeId: '99999', username: 'walid.salem', nameEnglish: 'Walid', nameArabic: null,
+      department: null, correspondenceRole: 'TARASOL_ADMIN',
+      secretaryUnits: [],
+    }});
+    expect(store.secretaryMailbox()).toBe(false);
+    expect(store.secretaryInboxUnitCode()).toBeNull();
+    expect(() => store.selectSecretaryUnit('117')).toThrow();
+  });
+
   it('tracks the authenticated user and clears the complete session', () => {
     const store =
       new AuthSessionStore();

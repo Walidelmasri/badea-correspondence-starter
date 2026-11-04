@@ -4,7 +4,7 @@ import {
   CorrespondenceMailboxPage,
   CorrespondenceMailboxSummary,
 } from '../../../shared/data-access/correspondence-api.service';
-import { buildDashboardSnapshot } from './dashboard-metrics';
+import { buildDashboardSnapshot, buildSecretaryDashboardSnapshot } from './dashboard-metrics';
 
 const inboxPage = (total: number): CorrespondenceMailboxPage =>
   ({ total, offset: 0, limit: 1, items: [] });
@@ -44,6 +44,21 @@ describe('dashboard metrics', () => {
       ['action-0', 'action-1', 'action-2', 'action-3']);
     expect(snapshot.recent.map(entry => entry.technicalId)).toEqual(
       actionItems.map(entry => entry.technicalId));
+  });
+
+  it('uses secretary Inbox totals without inventing personal Sent and Draft counts', () => {
+    const snapshot = buildSecretaryDashboardSnapshot(
+      inboxPage(17), inboxPage(4), inboxPage(11), inboxPage(2),
+    );
+    expect(snapshot.received).toBe(17);
+    expect(snapshot.needsAction).toBe(4);
+    expect(snapshot.sent).toBeNull();
+    expect(snapshot.drafts).toBeNull();
+    expect(snapshot.segments.reduce((total, segment) => total + segment.percentage, 0))
+      .toBeCloseTo(100);
+    expect(() => buildSecretaryDashboardSnapshot(
+      inboxPage(2), inboxPage(-1), inboxPage(1), inboxPage(0),
+    )).toThrow();
   });
 
   it('handles an empty repository without inventing metrics', () => {

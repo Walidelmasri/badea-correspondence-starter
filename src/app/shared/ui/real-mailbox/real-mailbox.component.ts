@@ -61,6 +61,9 @@ export class RealMailboxComponent implements OnInit {
   private readonly unreadStore = inject(UnreadInboxStore);
   readonly session = inject(AuthSessionStore);
   readonly translation = inject(TranslationService);
+  readonly secretaryMode = computed(() => this.box() === 'inbox' && this.session.secretaryMailbox());
+  readonly secretaryUnitCode = computed(() => this.secretaryMode()
+    ? this.session.secretaryInboxUnitCode() : null);
 
   readonly headings = computed(() => this.box() === 'inbox'
     ? this.translation.text().inbox
@@ -296,7 +299,10 @@ export class RealMailboxComponent implements OnInit {
     this.forwardUncertain.set(false);
     this.continueUncertain.set(false);
     try {
-      const page = await firstValueFrom(this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
+      const unit = this.secretaryUnitCode();
+      const page = await firstValueFrom(this.secretaryMode()
+        ? this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
+        : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView()));
       if (version !== this.pageVersion) return;
       this.page.set(page);
       const requestedId = this.box() === 'inbox'
@@ -358,23 +364,30 @@ export class RealMailboxComponent implements OnInit {
     this.historyLoading.set(true);
     this.detailsLoading.set(true);
     try {
-      const result = await firstValueFrom(this.api.getDetails(id));
+      const unit = this.secretaryUnitCode();
+      const result = await firstValueFrom(this.secretaryMode()
+        ? this.api.getSecretaryInboxDetails(unit!, id)
+        : this.api.getDetails(id));
       if (version !== this.detailVersion || this.selectedId() !== id) return;
       this.details.set(result);
       this.detailsLoading.set(false);
       if (openedByUser) void this.acknowledgeRead(id);
       // Assignment API is independent of correspondence details/history.
-      try {
-        const assigned = await firstValueFrom(this.api.getDepartmentAssignments(id));
-        if (version === this.detailVersion && this.selectedId() === id) {
-          this.assignments.set(assigned.items);
+      if (!this.secretaryMode()) {
+        try {
+          const assigned = await firstValueFrom(this.api.getDepartmentAssignments(id));
+          if (version === this.detailVersion && this.selectedId() === id) {
+            this.assignments.set(assigned.items);
+          }
+        } catch {
+          // Existing correspondence may be pre-distribution; keep its PDFs readable.
         }
-      } catch {
-        // Existing correspondence may be pre-distribution; keep its PDFs readable.
       }
       // History failure must never block correspondence details or PDF viewing.
       try {
-        const actionPage = await firstValueFrom(this.api.getHistory(id));
+        const actionPage = await firstValueFrom(this.secretaryMode()
+          ? this.api.getSecretaryInboxHistory(unit!, id)
+          : this.api.getHistory(id));
         if (version === this.detailVersion && this.selectedId() === id) {
           this.history.set(actionPage.items);
         }
@@ -392,7 +405,8 @@ export class RealMailboxComponent implements OnInit {
   }
 
   private async acknowledgeRead(id: string): Promise<void> {
-    if (this.box() !== 'inbox') return;
+    // Secretary read receipts do not yet have a separate authorized write API.
+    if (this.box() !== 'inbox' || this.secretaryMode()) return;
     const item = this.page()?.items.find(value => value.technicalId === id);
     if (!item?.unread || !item.incomingSequence) return;
     try {
@@ -421,6 +435,7 @@ export class RealMailboxComponent implements OnInit {
   }
 
   openCompose(): void {
+    if (this.secretaryMode()) return;
     void this.router.navigate([composeRouteForRole(this.session.effectiveRole())]);
   }
 
@@ -470,7 +485,7 @@ export class RealMailboxComponent implements OnInit {
   }
 
   beginShare(document: CorrespondenceDetails['documents'][number]): void {
-    if (document.mimeType !== 'application/pdf' || !this.details()) return;
+    if (this.secretaryMode() || document.mimeType !== 'application/pdf' || !this.details()) return;
     ++this.shareVersion;
     this.sharePreviousFocus = globalThis.document?.activeElement as HTMLElement | null;
     this.sharingDocument.set(document);

@@ -48,6 +48,30 @@ export class AuthSessionStore {
   readonly effectiveDepartmentCode = computed(() => this.activeWorkspace()?.code
     ?? this.currentUserState()?.employeeProfile?.department?.code ?? null);
 
+  // Secretary is an additional Oracle capacity, independent of Tarasol Admin.
+  // Never treat secretary group membership as a Director/Office appointment.
+  private readonly secretaryUnitState = signal<string | null>(null);
+  readonly secretaryMailbox = computed(() => {
+    const role = this.effectiveRole();
+    return (role === 'SECRETARY' || role === 'TARASOL_ADMIN')
+      && !!this.currentUserState()?.employeeProfile?.secretaryUnits?.length;
+  });
+  readonly availableSecretaryUnits = computed(() => this.secretaryMailbox()
+    ? (this.currentUserState()?.employeeProfile?.secretaryUnits ?? []) : []);
+  readonly secretaryInboxUnitCode = computed(() => {
+    if (!this.secretaryMailbox()) return null;
+    const units = this.availableSecretaryUnits();
+    const chosen = this.secretaryUnitState();
+    return units.some(unit => unit.code === chosen) ? chosen : (units[0]?.code ?? null);
+  });
+
+  selectSecretaryUnit(code: string): void {
+    if (!this.availableSecretaryUnits().some(unit => unit.code === code)) {
+      throw new Error('Secretary unit not present in authenticated profile');
+    }
+    this.secretaryUnitState.set(code);
+  }
+
   selectWorkspace(code: string | null): void {
     if (code && !this.availableWorkspaces()
       .some(workspace => workspace.code === code)) {
@@ -111,6 +135,11 @@ export class AuthSessionStore {
     user: CurrentUser,
   ): void {
     if (this.currentUserState()?.employeeProfile?.employeeId !== user.employeeProfile?.employeeId
+        || !(user.employeeProfile?.secretaryUnits ?? [])
+          .some(unit => unit.code === this.secretaryUnitState())) {
+      this.secretaryUnitState.set(null);
+    }
+    if (this.currentUserState()?.employeeProfile?.employeeId !== user.employeeProfile?.employeeId
       || !(user.employeeProfile?.managerWorkspaces ?? [])
           .some(w => w.code === this.workspaceUnitState())) {
       this.workspaceUnitState.set(null);
@@ -129,6 +158,7 @@ export class AuthSessionStore {
     this.ticketState.set(null);
     this.currentUserState.set(null);
     this.workspaceUnitState.set(null);
+    this.secretaryUnitState.set(null);
 
     try {
       sessionStorage.removeItem(

@@ -21,15 +21,26 @@
     </a>
 
     <nav class="app-navigation" aria-label="Main navigation">
-      @if (auth.currentUser()?.employeeProfile?.correspondenceRole !== 'SECRETARY'
+      @if (session.secretaryMailbox()) {
+        @for (item of navigation; track item.key) {
+          @if (item.key === 'dashboard' || item.key === 'inbox') {
+            <a class="app-navigation__item" [routerLink]="item.route"
+              routerLinkActive="app-navigation__item--active"
+              [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+              {{ translation.text().navigation[item.key] }}
+            </a>
+          }
+        }
+      } @else if (auth.currentUser()?.employeeProfile?.correspondenceRole !== 'SECRETARY'
         && auth.currentUser()?.employeeProfile?.correspondenceRole !== 'TARASOL_ADMIN'
         && auth.currentUser()?.employeeProfile?.correspondenceRole !== 'TARASOL_DELEGATE') {
-      @for (item of navigation; track item.key) {
-      <a class="app-navigation__item" [routerLink]="item.route" routerLinkActive="app-navigation__item--active"
-        [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
-        {{ translation.text().navigation[item.key] }}
-      </a>
-      }
+        @for (item of navigation; track item.key) {
+          <a class="app-navigation__item" [routerLink]="item.route"
+            routerLinkActive="app-navigation__item--active"
+            [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+            {{ translation.text().navigation[item.key] }}
+          </a>
+        }
       }
       @if (auth.currentUser()?.employeeProfile?.delegationUnits?.length) {
         <a class="app-navigation__item" routerLink="/tarasol/delegated"
@@ -64,6 +75,19 @@
     </nav>
 
     <div class="app-header__actions">
+      @if (session.secretaryMailbox() && session.availableSecretaryUnits().length > 1) {
+        <label class="app-workspace-picker">
+          <span>{{ translation.language() === 'ar' ? 'وحدة السكرتارية' : 'Secretary unit' }}</span>
+          <select [value]="session.secretaryInboxUnitCode() ?? ''"
+            (change)="chooseSecretaryUnit($event)"
+            [attr.aria-label]="translation.language() === 'ar' ? 'اختر وحدة السكرتارية' : 'Select secretary unit'">
+            @for (unit of session.availableSecretaryUnits(); track unit.code) {
+              <option [value]="unit.code">{{ translation.language() === 'ar'
+                ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}</option>
+            }
+          </select>
+        </label>
+      }
       @if (session.showWorkspacePicker()) {
         <label class="app-workspace-picker">
           <span>{{ translation.language() === 'ar' ? 'الصفة الإدارية' : 'Workspace' }}</span>
@@ -82,6 +106,7 @@
           </select>
         </label>
       }
+      @if (!session.secretaryMailbox()) {
       <div class="app-notifications">
         <button type="button" class="app-notifications__trigger"
           [attr.aria-label]="notificationText().title"
@@ -130,6 +155,7 @@
           </div>
         }
       </div>
+      }
       @if (auth.currentUser(); as user) {
       <div class="app-header__user">
         <strong class="app-header__user-name">

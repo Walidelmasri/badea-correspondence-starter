@@ -83,6 +83,15 @@ export class AppComponent {
 
   readonly session = inject(AuthSessionStore);
 
+  chooseSecretaryUnit(event: Event): void {
+    const code = (event.target as HTMLSelectElement).value;
+    this.session.selectSecretaryUnit(code);
+    this.notifications.invalidateForWorkspaceChange();
+    void this.router.navigate(['/inbox'], {
+      queryParams: { view: 'needs_action', unit: code },
+    });
+  }
+
   chooseWorkspace(event: Event): void {
     const code = (event.target as HTMLSelectElement).value || null;
     this.session.selectWorkspace(code);

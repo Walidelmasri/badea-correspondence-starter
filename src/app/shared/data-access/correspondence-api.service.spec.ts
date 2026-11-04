@@ -574,4 +574,42 @@ describe('CorrespondenceApiService', () => {
     request.flush({ technicalId: id, state: 'WITH_PRESIDENT' });
   });
 
+  it('uses secretary-scoped Inbox URLs and explicitly selected unit codes', () => {
+    const id = '7fc41b5b-aceb-48fc-9f36-367e4a36e207';
+    const pdf = 'e7c41b5b-aceb-48fc-9f36-367e4a36e207';
+    const root = '/alfresco/service/badea/tarasol/secretary/inbox';
+    service.listSecretaryInbox('117', 10, 10, 'needs_action').subscribe();
+    service.getSecretaryInboxDetails('117', id).subscribe();
+    service.getSecretaryInboxHistory('117', id).subscribe();
+    service.getSecretaryInboxDocument('117', id, pdf).subscribe();
+
+    const list = http.expectOne(req => req.url === root);
+    expect(list.request.method).toBe('GET');
+    expect(list.request.params.get('unitCode')).toBe('117');
+    expect(list.request.params.get('offset')).toBe('10');
+    expect(list.request.params.get('limit')).toBe('10');
+    expect(list.request.params.get('view')).toBe('needs_action');
+    list.flush({ items: [], offset: 10, limit: 10, total: 0 });
+
+    const details = http.expectOne(req => req.url === `${root}/${id}`);
+    const history = http.expectOne(req => req.url === `${root}/${id}/history`);
+    const document = http.expectOne(req => req.url === `${root}/${id}/documents/${pdf}/content`);
+    for (const req of [details, history, document]) {
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('unitCode')).toBe('117');
+    }
+    expect(document.request.responseType).toBe('blob');
+    details.flush({ technicalId: id, documents: [] });
+    history.flush({ items: [], total: 0 });
+    document.flush(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
+  });
+
+  it('preserves the ordinary Director mailbox endpoint and does not add secretary parameters', () => {
+    service.listMailbox('inbox', 0, 10, 'needs_action').subscribe();
+    const req = http.expectOne(request => request.url === '/alfresco/service/badea/correspondence');
+    expect(req.request.params.get('box')).toBe('inbox');
+    expect(req.request.params.has('unitCode')).toBe(false);
+    req.flush({ items: [], offset: 0, limit: 10, total: 0 });
+  });
+
 });
