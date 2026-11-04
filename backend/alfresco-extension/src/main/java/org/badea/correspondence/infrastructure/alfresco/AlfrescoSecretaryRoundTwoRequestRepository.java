@@ -18,6 +18,7 @@ import org.badea.correspondence.application.DepartmentAssignmentStatus;
 import org.badea.correspondence.application.DepartmentRecipientType;
 import org.badea.correspondence.application.OfficeCycleConflictException;
 import org.badea.correspondence.directory.DepartmentCode;
+import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceState;
 
 /** Persists a secretary's pending follow-up request without advancing the workflow cycle. */
@@ -34,6 +35,14 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
     private static final QName DECIDED_BY = q("roundTwoRequestDecidedBy");
     private static final QName DECIDED_AT = q("roundTwoRequestDecidedAt");
     private static final QName RETURN_REASON = q("roundTwoRequestReturnReason");
+    private static final QName RETURN_VERSION = q("roundTwoRequestReturnVersion");
+    private static final QName DECISION_EVENT = q("secretaryRoundTwoDecisionEvent");
+    private static final QName EVENT_REQUEST = q("roundTwoDecisionRequestId");
+    private static final QName EVENT_ACTION = q("roundTwoDecisionAction");
+    private static final QName EVENT_ACTOR = q("roundTwoDecisionActor");
+    private static final QName EVENT_AT = q("roundTwoDecisionAt");
+    private static final QName EVENT_REASON = q("roundTwoDecisionReason");
+    private static final QName EVENT_VERSION = q("roundTwoDecisionReturnVersion");
     private static final QName STATE = q("state");
     private static final QName ASSIGNED_ROLE = q("assignedRole");
     private final NodeService nodes;
@@ -42,12 +51,18 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
 
     public record Request(String requestId, String technicalId, String unitCode,
             String ownerEmployeeId, String reason, long expectedCycle, String status,
-            Instant requestedAt, String returnReason) {
+            Instant requestedAt, String returnReason, long returnVersion) {
+        public Request(String requestId, String technicalId, String unitCode,
+                String ownerEmployeeId, String reason, long expectedCycle, String status,
+                Instant requestedAt, String returnReason) {
+            this(requestId, technicalId, unitCode, ownerEmployeeId, reason,
+                expectedCycle, status, requestedAt, returnReason, 0);
+        }
         public Request(String requestId, String technicalId, String unitCode,
                 String ownerEmployeeId, String reason, long expectedCycle, String status,
                 Instant requestedAt) {
             this(requestId, technicalId, unitCode, ownerEmployeeId, reason,
-                expectedCycle, status, requestedAt, null);
+                expectedCycle, status, requestedAt, null, 0);
         }
     }
 
@@ -70,15 +85,20 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
             if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())) continue;
             NodeRef node = assoc.getChildRef();
             if (!TYPE.equals(nodes.getType(node))) continue;
-            if (!"PENDING".equals(nodes.getProperty(node, STATUS))) continue;
             long expected = AlfrescoCorrespondenceCycleReader.number(
                     nodes.getProperty(node, CYCLE), "roundTwoRequestCycle");
             if (expected != cycle) continue;
             Request existing = read(technicalId, node);
-            if (existing.unitCode().equals(unit.value())
+            if ("PENDING".equals(existing.status())
+                    && existing.unitCode().equals(unit.value())
                     && existing.ownerEmployeeId().equals(ownerEmployeeId)
-                    && existing.reason().equals(reason)) return existing;
-            throw new OfficeCycleConflictException("Another follow-up request is pending for this cycle");
+                    && existing.reason().equals(reason)) {
+                if (!existing.requestId().equals(nodes.getProperty(caseNode, PENDING_ID)))
+                    throw new OfficeCycleConflictException("Pending request marker has changed");
+                return existing;
+            }
+            if (!"APPROVED".equals(existing.status()))
+                throw new OfficeCycleConflictException("An existing follow-up request must be resolved first");
         }
         String id = UUID.randomUUID().toString();
         Instant now = clock.instant();
@@ -90,6 +110,7 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         properties.put(REASON, reason);
         properties.put(CYCLE, cycle);
         properties.put(STATUS, "PENDING");
+        properties.put(RETURN_VERSION, 0L);
         properties.put(REQUESTED_AT, Date.from(now));
         ChildAssociationRef created = nodes.createNode(caseNode, ContentModel.ASSOC_CONTAINS,
                 q("secretary-round-two-" + id), TYPE, properties);
@@ -120,6 +141,75 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         return latest;
     }
 
+    /** Private, cycle-bound record; the caller must enforce the secretary group and Oracle grant. */
+    public Request editable(String technicalId, DepartmentCode unit, String ownerEmployeeId,
+            String requestId) {
+        NodeRef parent = locator.locate(technicalId);
+        return requireEditable(parent, technicalId, unit, ownerEmployeeId, requestId).request();
+    }
+
+    /** Explanation edits never clear the manager's return reason or trigger a workflow transition. */
+    public Request revise(String technicalId, DepartmentCode unit, String ownerEmployeeId,
+            String requestId, long expectedReturnVersion, String reason) {
+        if (reason == null || reason.isBlank() || reason.trim().length() > 2000)
+            throw new IllegalArgumentException("Follow-up reason must contain 1-2000 characters");
+        NodeRef parent = locator.locate(technicalId);
+        Pending entry = requireEditable(parent, technicalId, unit, ownerEmployeeId, requestId);
+        requireReturnedVersion(entry.request(), expectedReturnVersion);
+        String clean = reason.trim();
+        if (!clean.equals(entry.request().reason())) {
+            nodes.setProperty(entry.node(), REASON, clean);
+            recordEvent(parent, entry.request(), "REVISED", ownerEmployeeId, clean,
+                expectedReturnVersion);
+        }
+        return read(technicalId, entry.node());
+    }
+
+    /** Only the same returned request can be resubmitted; the return-version token prevents replay. */
+    public Request resubmit(String technicalId, DepartmentCode unit, String ownerEmployeeId,
+            String requestId, long expectedReturnVersion) {
+        NodeRef parent = locator.locate(technicalId);
+        Pending entry = requireEditable(parent, technicalId, unit, ownerEmployeeId, requestId);
+        requireReturnedVersion(entry.request(), expectedReturnVersion);
+        nodes.setProperty(entry.node(), STATUS, "PENDING");
+        nodes.setProperty(entry.node(), REQUESTED_AT, Date.from(clock.instant()));
+        recordEvent(parent, entry.request(), "RESUBMITTED", ownerEmployeeId, null,
+            expectedReturnVersion);
+        // The parent write participates in Alfresco optimistic concurrency with manager decisions.
+        nodes.setProperty(parent, PENDING_ID, requestId);
+        return read(technicalId, entry.node());
+    }
+
+    private Pending requireEditable(NodeRef parent, String technicalId, DepartmentCode unit,
+            String ownerEmployeeId, String requestId) {
+        if (requestId == null || !requestId.matches("[0-9a-fA-F-]{36}"))
+            throw new IllegalArgumentException("Valid request ID required");
+        long cycle = requireCompletedTo(parent, unit);
+        for (ChildAssociationRef assoc : nodes.getChildAssocs(parent)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())) continue;
+            NodeRef child = assoc.getChildRef();
+            if (!TYPE.equals(nodes.getType(child))
+                    || !requestId.equals(nodes.getProperty(child, REQUEST_ID))) continue;
+            Request stored = read(technicalId, child);
+            if (!ownerEmployeeId.equals(stored.ownerEmployeeId()))
+                throw new CorrespondenceAuthorizationException("Only the request creator may revise");
+            if (!unit.value().equals(stored.unitCode()) || stored.expectedCycle() != cycle)
+                throw new OfficeCycleConflictException("Request cycle or unit has changed");
+            Object pointer = nodes.getProperty(parent, PENDING_ID);
+            if (("PENDING".equals(stored.status()) && requestId.equals(pointer))
+                    || ("RETURNED".equals(stored.status()) && pointer == null))
+                return new Pending(child, stored);
+            throw new OfficeCycleConflictException("Request is not editable");
+        }
+        throw new OfficeCycleConflictException("Request is not editable");
+    }
+
+    private static void requireReturnedVersion(Request request, long expectedReturnVersion) {
+        if (!"RETURNED".equals(request.status())
+                || expectedReturnVersion < 0 || request.returnVersion() != expectedReturnVersion)
+            throw new OfficeCycleConflictException("Return version is stale or already resubmitted");
+    }
+
     /** Reads only the request currently awaiting a decision for this unit and workflow cycle. */
     public Request pending(String technicalId, DepartmentCode unit) {
         NodeRef parent = locator.locate(technicalId);
@@ -137,7 +227,7 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         long nextCycle = continuation.getAsLong();
         if (nextCycle != entry.request().expectedCycle() + 1)
             throw new OfficeCycleConflictException("Unexpected continuation cycle");
-        saveDecision(parent, entry.node(), managerEmployeeId, "APPROVED", null);
+        saveDecision(parent, entry, managerEmployeeId, "APPROVED", null);
         return new Decision(requestId, technicalId, "APPROVED", nextCycle);
     }
 
@@ -148,7 +238,7 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
             throw new IllegalArgumentException("Return reason must contain 1-2000 characters");
         NodeRef parent = locator.locate(technicalId);
         Pending entry = pendingRequest(parent, technicalId, unit, requestId);
-        saveDecision(parent, entry.node(), managerEmployeeId, "RETURNED", reason.trim());
+        saveDecision(parent, entry, managerEmployeeId, "RETURNED", reason.trim());
         return new Decision(requestId, technicalId, "RETURNED", entry.request().expectedCycle());
     }
 
@@ -176,16 +266,41 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
         throw new OfficeCycleConflictException("Pending request not found");
     }
 
-    private void saveDecision(NodeRef parent, NodeRef request,
+    private void saveDecision(NodeRef parent, Pending entry,
             String employeeId, String status, String returnReason) {
         if (employeeId == null || employeeId.isBlank())
             throw new IllegalArgumentException("Manager identity required");
+        NodeRef request = entry.node();
+        long version = entry.request().returnVersion();
+        if ("RETURNED".equals(status)) {
+            version = Math.addExact(version, 1);
+            nodes.setProperty(request, RETURN_VERSION, version);
+        }
         nodes.setProperty(request, STATUS, status);
         nodes.setProperty(request, DECIDED_BY, employeeId);
         nodes.setProperty(request, DECIDED_AT, Date.from(clock.instant()));
         if (returnReason != null) nodes.setProperty(request, RETURN_REASON, returnReason);
+        recordEvent(parent, entry.request(), status, employeeId, returnReason, version);
         // Optimistic concurrency on the parent serializes decisions and further requests.
         nodes.setProperty(parent, PENDING_ID, null);
+    }
+
+    /** Append-only sibling nodes retain each decision across repeated return/resubmit cycles. */
+    private void recordEvent(NodeRef parent, Request request, String action, String actor,
+            String reason, long version) {
+        String id = UUID.randomUUID().toString();
+        Map<QName, Serializable> properties = new HashMap<>();
+        properties.put(ContentModel.PROP_NAME, "secretary-decision-" + id);
+        properties.put(EVENT_REQUEST, request.requestId());
+        properties.put(EVENT_ACTION, action);
+        properties.put(EVENT_ACTOR, actor);
+        properties.put(EVENT_AT, Date.from(clock.instant()));
+        properties.put(EVENT_VERSION, version);
+        if (reason != null) properties.put(EVENT_REASON, reason);
+        ChildAssociationRef created = nodes.createNode(parent, ContentModel.ASSOC_CONTAINS,
+            q("secretary-decision-" + id), DECISION_EVENT, properties);
+        if (created == null || created.getChildRef() == null)
+            throw new CorrespondenceRepositoryException("Unable to persist secretary decision history");
     }
 
     private long requireCompletedTo(NodeRef caseNode, DepartmentCode unit) {
@@ -221,8 +336,15 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
             Serializable returned = nodes.getProperty(node, RETURN_REASON);
             if (returned != null && !(returned instanceof String))
                 throw new IllegalArgumentException("Invalid return reason");
+            Serializable versionValue = nodes.getProperty(node, RETURN_VERSION);
+            if (versionValue != null && !(versionValue instanceof Number))
+                throw new IllegalArgumentException("Invalid return version");
+            long version = versionValue == null ? 0 : ((Number) versionValue).longValue();
+            if (version < 0 || (versionValue instanceof java.math.BigDecimal decimal
+                    && decimal.stripTrailingZeros().scale() > 0))
+                throw new IllegalArgumentException("Invalid return version");
             return new Request(id, technicalId, unit, owner, reason, cycle, status,
-                date.toInstant(), returned == null ? null : (String) returned);
+                date.toInstant(), returned == null ? null : (String) returned, version);
         } catch (RuntimeException invalid) {
             throw new CorrespondenceRepositoryException("Invalid saved secretary follow-up request", invalid);
         }

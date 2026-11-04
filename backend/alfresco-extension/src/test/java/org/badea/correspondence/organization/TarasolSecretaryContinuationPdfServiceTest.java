@@ -39,11 +39,14 @@ class TarasolSecretaryContinuationPdfServiceTest {
             Instant.parse("2026-11-04T12:00:00Z"));
     }
 
-    @Test void secretaryCannotMutateReturnedOrStaleRequest() {
+    @Test void secretaryCanReviseReturnedRequestButCannotAccessAnApprovedOne() {
         when(secretaryRequests.current(secretary, unit, CASE)).thenReturn(request("RETURNED"));
+        service.upload(secretary, unit, CASE, REQUEST, "x.pdf", new byte[]{1});
+        verify(store).upload(CASE, unit, "99999", REQUEST, "x.pdf", new byte[]{1});
+        when(secretaryRequests.current(secretary, unit, CASE)).thenReturn(request("APPROVED"));
         assertThrows(OfficeCycleConflictException.class,
             () -> service.upload(secretary, unit, CASE, REQUEST, "x.pdf", new byte[]{1}));
-        verifyNoInteractions(store);
+        verifyNoMoreInteractions(store);
     }
 
     @Test void managerMustHaveLiveAppointmentAndMatchingRequestToPreview() {

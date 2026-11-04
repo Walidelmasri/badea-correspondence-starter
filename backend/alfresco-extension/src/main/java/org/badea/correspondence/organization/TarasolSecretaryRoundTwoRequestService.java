@@ -44,6 +44,23 @@ public final class TarasolSecretaryRoundTwoRequestService {
             requests.current(technicalId, unit, actor.employeeId().value()));
     }
 
+    public AlfrescoSecretaryRoundTwoRequestRepository.Request revise(EmployeeDirectoryEntry actor,
+            DepartmentCode unit, String technicalId, String requestId,
+            long returnVersion, String reason) {
+        authorize(actor, unit);
+        return inbox.readCase(actor, unit, technicalId, () ->
+            requests.revise(technicalId, unit, actor.employeeId().value(),
+                requestId, returnVersion, reason));
+    }
+
+    public AlfrescoSecretaryRoundTwoRequestRepository.Request resubmit(EmployeeDirectoryEntry actor,
+            DepartmentCode unit, String technicalId, String requestId, long returnVersion) {
+        authorize(actor, unit);
+        return inbox.readCase(actor, unit, technicalId, () ->
+            requests.resubmit(technicalId, unit, actor.employeeId().value(),
+                requestId, returnVersion));
+    }
+
     private void authorize(EmployeeDirectoryEntry actor, DepartmentCode unit) {
         Objects.requireNonNull(actor);
         Objects.requireNonNull(unit);

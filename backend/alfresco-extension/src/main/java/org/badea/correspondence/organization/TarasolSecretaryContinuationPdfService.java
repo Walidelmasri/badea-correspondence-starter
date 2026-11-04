@@ -26,7 +26,8 @@ public final class TarasolSecretaryContinuationPdfService {
     public void authorizeSecretary(EmployeeDirectoryEntry actor, DepartmentCode unit,
             String technicalId, String requestId) {
         var current = secretaryRequests.current(actor, unit, technicalId);
-        if (current == null || !"PENDING".equals(current.status())
+        if (current == null || !("PENDING".equals(current.status())
+                || "RETURNED".equals(current.status()))
                 || !current.requestId().equals(requestId))
             throw new OfficeCycleConflictException("No editable continuation request");
     }

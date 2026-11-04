@@ -37,7 +37,7 @@ import { CorrespondenceDocumentPreviewComponent } from '../correspondence-docume
 import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
-import { PendingRoundContinuation, StagedContinuationPdf, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
+import { PendingRoundContinuation, SecretaryContinuationRequest, StagedContinuationPdf, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
 
 const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
@@ -117,6 +117,58 @@ export class RealMailboxComponent implements OnInit {
   readonly roundStagedLoaded = signal(false);
   readonly roundStagedPreview = signal<StagedContinuationPdf | null>(null);
   private roundReviewVersion = 0;
+  // The same existing Inbox detail view hosts a secretary's personal follow-up.
+  // Only the backend can authorize a request or confirm its workflow cycle.
+  readonly secretaryRoundRequest = signal<SecretaryContinuationRequest | null>(null);
+  readonly secretaryRoundLoading = signal(false);
+  readonly secretaryRoundError = signal(false);
+  readonly secretaryRoundDocuments = signal<readonly StagedContinuationPdf[]>([]);
+  readonly secretaryRoundDocumentsLoaded = signal(false);
+  readonly secretaryRoundReason = signal('');
+  readonly secretaryRoundBusy = signal(false);
+  readonly secretaryRoundUncertain = signal(false);
+  readonly secretaryRoundNotice = signal<'submitted' | 'saved' | 'resubmitted' | 'uploaded'
+    | 'deleted' | 'invalid' | 'failed' | 'stale' | 'uncertain' | null>(null);
+  readonly secretaryRoundPreview = signal<StagedContinuationPdf | null>(null);
+  private secretaryRoundVersion = 0;
+  readonly canSecretaryRound = computed(() => this.box() === 'inbox' && this.secretaryMode()
+    && !!this.secretaryUnitCode() && this.details()?.state === 'WITH_DIRECTOR'
+    && this.details()?.technicalId === this.selectedId());
+  readonly secretaryRoundLabels = computed(() => this.translation.language() === 'ar' ? {
+    title: 'متابعة المراسلة عبر المدير', round: 'الجولة التالية',
+    explanation: 'شرح المتابعة', start: 'إرسال طلب المتابعة للمدير',
+    pending: 'بانتظار قرار المدير', returned: 'أعيد للتعديل',
+    approved: 'تمت الموافقة', returnReason: 'ملاحظات المدير',
+    stage: 'مرفقات الجولة الجديدة (PDF)', noFiles: 'لا توجد ملفات مرفقة',
+    choose: 'إرفاق ملفات PDF', open: 'عرض', remove: 'حذف',
+    save: 'حفظ التعديلات', resubmit: 'إعادة الإرسال للمدير',
+    refresh: 'تحديث حالة الطلب', loading: 'جارٍ تحميل الطلب',
+    loadError: 'تعذر التحقق من الطلب. حدّث قبل إجراء أي تعديل.',
+    invalid: 'اختر ملفات PDF صالحة (حتى 5 ملفات في المرة، 25 ميغابايت لكل ملف).',
+    failed: 'تعذر حفظ الإجراء. تحقق من الحالة قبل المحاولة.',
+    stale: 'تغيرت حالة الطلب أو الجولة. حدّث قبل المتابعة.',
+    uncertain: 'النتيجة غير مؤكدة؛ حدّث الحالة قبل أي إعادة إرسال.',
+    submitted: 'أُرسل طلب المتابعة للمدير', saved: 'حُفظت التعديلات',
+    resubmitted: 'أُعيد تقديم الطلب للمدير', uploaded: 'أُضيفت الملفات', deleted: 'حُذف الملف',
+    hint: 'تظهر الطلبات الجديدة للمدير فور إنشائها. راجع المرفقات قبل طلب الموافقة؛ لا تبدأ الجولة إلا باعتماد المدير.',
+  } : {
+    title: 'Secretary follow-up via manager', round: 'Next round',
+    explanation: 'Follow-up explanation', start: 'Request Manager Approval',
+    pending: 'Awaiting manager decision', returned: 'Returned for revision',
+    approved: 'Approved', returnReason: 'Manager return reason',
+    stage: 'New-round PDF attachments', noFiles: 'No staged PDFs',
+    choose: 'Attach PDFs', open: 'Preview', remove: 'Remove',
+    save: 'Save Changes', resubmit: 'Resubmit to Manager',
+    refresh: 'Refresh Request Status', loading: 'Loading request',
+    loadError: 'Could not verify the request. Refresh before making changes.',
+    invalid: 'Choose valid PDFs (up to 5 per selection, 25 MB each).',
+    failed: 'Action failed. Verify the request before retrying.',
+    stale: 'The request or workflow cycle changed. Refresh before proceeding.',
+    uncertain: 'Result uncertain. Refresh the request before attempting another write.',
+    submitted: 'Follow-up sent for manager approval', saved: 'Changes saved',
+    resubmitted: 'Request resubmitted to manager', uploaded: 'PDFs attached', deleted: 'PDF removed',
+    hint: 'New requests become visible to the manager immediately. Review attachments before approval; only the manager can start the next round.',
+  });
   readonly roundLabels = computed(() => this.translation.language() === 'ar' ? {
     heading: 'طلبات متابعة السكرتارية', pending: 'بانتظار موافقة المدير',
     request: 'طلب متابعة المراسلة', round: 'الجولة التالية',
@@ -408,6 +460,7 @@ export class RealMailboxComponent implements OnInit {
     this.closeShare();
     this.selectedPending.set(null);
     this.clearRoundSelection();
+    this.clearSecretaryRound();
     this.pendingDocuments.set([]);
     this.pendingMetadata.set(null);
     this.pendingDocumentsLoaded.set(false);
@@ -520,6 +573,7 @@ export class RealMailboxComponent implements OnInit {
     this.closeShare();
     this.closePendingPreview();
     this.clearRoundSelection();
+    this.clearSecretaryRound();
     ++this.detailVersion;
     this.selectedId.set(null);
     this.details.set(null);
@@ -627,6 +681,7 @@ export class RealMailboxComponent implements OnInit {
     ++this.pendingDocumentVersion;
     this.selectedPending.set(null);
     this.clearRoundSelection();
+    this.clearSecretaryRound();
     ++this.detailVersion;
     this.selectedId.set(null);
     this.details.set(null);
@@ -755,9 +810,261 @@ export class RealMailboxComponent implements OnInit {
   closeRoundStagedPreview(): void { this.roundStagedPreview.set(null); }
 
 
+  private clearSecretaryRound(): void {
+    ++this.secretaryRoundVersion;
+    this.secretaryRoundRequest.set(null);
+    this.secretaryRoundDocuments.set([]);
+    this.secretaryRoundDocumentsLoaded.set(false);
+    this.secretaryRoundPreview.set(null);
+    this.secretaryRoundReason.set('');
+    this.secretaryRoundLoading.set(false);
+    this.secretaryRoundError.set(false);
+    this.secretaryRoundUncertain.set(false);
+    this.secretaryRoundNotice.set(null);
+  }
+
+  private validSecretaryRoundRequest(request: SecretaryContinuationRequest, id: string,
+      unit: string): boolean {
+    return request.technicalId === id && request.unitCode === unit
+      && request.expectedCycle === this.details()?.currentWorkflowCycle
+      && ['PENDING', 'RETURNED'].includes(request.status)
+      && !!request.requestId && Number.isSafeInteger(request.returnVersion)
+      && request.returnVersion >= 0;
+  }
+
+  private async loadSecretaryRound(id: string, unit: string): Promise<void> {
+    const version = ++this.secretaryRoundVersion;
+    this.secretaryRoundLoading.set(true);
+    this.secretaryRoundError.set(false);
+    this.secretaryRoundDocumentsLoaded.set(false);
+    this.secretaryRoundRequest.set(null);
+    this.secretaryRoundDocuments.set([]);
+    this.secretaryRoundPreview.set(null);
+    try {
+      let request: SecretaryContinuationRequest;
+      try {
+        request = await firstValueFrom(this.roundApi.secretaryRequest(unit, id));
+      } catch (error: unknown) {
+        if (error instanceof HttpErrorResponse && error.status === 404) {
+          // A missing personal request is normal. 403 and 409 are not.
+          return;
+        }
+        throw error;
+      }
+      if (version !== this.secretaryRoundVersion || !this.canSecretaryRound()
+          || this.selectedId() !== id || this.secretaryUnitCode() !== unit) return;
+      if (!this.validSecretaryRoundRequest(request, id, unit)) {
+        this.secretaryRoundError.set(true);
+        return;
+      }
+      const response = await firstValueFrom(this.roundApi.secretaryDocuments(unit, id, request.requestId));
+      if (version !== this.secretaryRoundVersion || this.selectedId() !== id
+          || this.secretaryUnitCode() !== unit) return;
+      if (!Array.isArray(response.items) || response.items.some(pdf =>
+          !pdf.nodeId || !pdf.filename || pdf.mimeType !== 'application/pdf'
+          || pdf.workflowCycle !== request.expectedCycle + 1)) {
+        this.secretaryRoundError.set(true);
+        return;
+      }
+      this.secretaryRoundRequest.set(request);
+      this.secretaryRoundReason.set(request.reason);
+      this.secretaryRoundDocuments.set(response.items);
+      this.secretaryRoundDocumentsLoaded.set(true);
+    } catch {
+      if (version === this.secretaryRoundVersion) this.secretaryRoundError.set(true);
+    } finally {
+      if (version === this.secretaryRoundVersion) this.secretaryRoundLoading.set(false);
+    }
+  }
+
+  refreshSecretaryRound(): void {
+    const id = this.selectedId();
+    const unit = this.secretaryUnitCode();
+    if (!this.canSecretaryRound() || !id || !unit || this.secretaryRoundBusy()) return;
+    this.secretaryRoundUncertain.set(false);
+    this.secretaryRoundNotice.set(null);
+    void this.loadSecretaryRound(id, unit);
+  }
+
+  updateSecretaryRoundReason(event: Event): void {
+    this.secretaryRoundReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  private secretaryRoundWriteContext(): { id: string; unit: string; request: SecretaryContinuationRequest } | null {
+    const id = this.selectedId();
+    const unit = this.secretaryUnitCode();
+    const request = this.secretaryRoundRequest();
+    if (!id || !unit || !request || !this.canSecretaryRound() || this.secretaryRoundBusy()
+        || this.secretaryRoundUncertain() || this.secretaryRoundError()
+        || !this.secretaryRoundDocumentsLoaded()
+        || !this.validSecretaryRoundRequest(request, id, unit)) return null;
+    return { id, unit, request };
+  }
+
+  private secretaryRoundStillSelected(id: string, unit: string, version: number): boolean {
+    return version === this.secretaryRoundVersion && this.canSecretaryRound()
+      && this.selectedId() === id && this.secretaryUnitCode() === unit;
+  }
+
+  private secretaryRoundFailure(error: unknown): void {
+    const uncertain = error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500);
+    this.secretaryRoundUncertain.set(uncertain);
+    this.secretaryRoundNotice.set(uncertain ? 'uncertain'
+      : error instanceof HttpErrorResponse && error.status === 409 ? 'stale' : 'failed');
+    if (!uncertain) this.secretaryRoundError.set(true);
+  }
+
+  async createSecretaryRound(): Promise<void> {
+    const id = this.selectedId();
+    const unit = this.secretaryUnitCode();
+    const reason = this.secretaryRoundReason().trim();
+    if (!id || !unit || !this.canSecretaryRound() || this.secretaryRoundLoading()
+        || this.secretaryRoundRequest() || this.secretaryRoundError()
+        || this.secretaryRoundBusy() || this.secretaryRoundUncertain()
+        || !reason || reason.length > 2000) return;
+    const version = this.secretaryRoundVersion;
+    this.secretaryRoundBusy.set(true);
+    this.secretaryRoundNotice.set(null);
+    try {
+      const created = await firstValueFrom(this.roundApi.submitSecretaryRequest(unit, id, reason));
+      if (!this.secretaryRoundStillSelected(id, unit, version)) return;
+      if (!this.validSecretaryRoundRequest(created, id, unit)) {
+        this.secretaryRoundError.set(true);
+        this.secretaryRoundNotice.set('stale');
+        return;
+      }
+      await this.loadSecretaryRound(id, unit);
+      if (this.selectedId() === id && !this.secretaryRoundError()) this.secretaryRoundNotice.set('submitted');
+    } catch (error: unknown) {
+      if (this.secretaryRoundStillSelected(id, unit, version)) this.secretaryRoundFailure(error);
+    }
+    finally { this.secretaryRoundBusy.set(false); }
+  }
+
+  async saveSecretaryRoundRevision(): Promise<void> {
+    const context = this.secretaryRoundWriteContext();
+    const reason = this.secretaryRoundReason().trim();
+    if (!context || context.request.status !== 'RETURNED' || !reason || reason.length > 2000) return;
+    const version = this.secretaryRoundVersion;
+    this.secretaryRoundBusy.set(true);
+    this.secretaryRoundNotice.set(null);
+    try {
+      const revised = await firstValueFrom(this.roundApi.reviseSecretaryRequest(
+        context.unit, context.id, context.request.requestId, context.request.returnVersion, reason));
+      if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+      if (!this.validSecretaryRoundRequest(revised, context.id, context.unit)
+          || revised.requestId !== context.request.requestId || revised.status !== 'RETURNED') {
+        this.secretaryRoundError.set(true);
+        this.secretaryRoundNotice.set('stale');
+        return;
+      }
+      this.secretaryRoundRequest.set(revised);
+      this.secretaryRoundReason.set(revised.reason);
+      this.secretaryRoundNotice.set('saved');
+    } catch (error: unknown) {
+      if (this.secretaryRoundStillSelected(context.id, context.unit, version)) this.secretaryRoundFailure(error);
+    }
+    finally { this.secretaryRoundBusy.set(false); }
+  }
+
+  async resubmitSecretaryRound(): Promise<void> {
+    const context = this.secretaryRoundWriteContext();
+    const reason = this.secretaryRoundReason().trim();
+    if (!context || context.request.status !== 'RETURNED' || !reason || reason.length > 2000) return;
+    const version = this.secretaryRoundVersion;
+    this.secretaryRoundBusy.set(true);
+    this.secretaryRoundNotice.set(null);
+    try {
+      if (reason !== context.request.reason) {
+        const revised = await firstValueFrom(this.roundApi.reviseSecretaryRequest(
+          context.unit, context.id, context.request.requestId, context.request.returnVersion, reason));
+        if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+        if (!this.validSecretaryRoundRequest(revised, context.id, context.unit)
+            || revised.requestId !== context.request.requestId || revised.status !== 'RETURNED') {
+          this.secretaryRoundError.set(true);
+          this.secretaryRoundNotice.set('stale');
+          return;
+        }
+        this.secretaryRoundRequest.set(revised);
+      }
+      const resubmitted = await firstValueFrom(this.roundApi.resubmitSecretaryRequest(
+        context.unit, context.id, context.request.requestId, context.request.returnVersion));
+      if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+      if (!this.validSecretaryRoundRequest(resubmitted, context.id, context.unit)
+          || resubmitted.requestId !== context.request.requestId || resubmitted.status !== 'PENDING') {
+        this.secretaryRoundError.set(true);
+        this.secretaryRoundNotice.set('stale');
+        return;
+      }
+      await this.loadSecretaryRound(context.id, context.unit);
+      if (this.selectedId() === context.id && !this.secretaryRoundError())
+        this.secretaryRoundNotice.set('resubmitted');
+    } catch (error: unknown) {
+      if (this.secretaryRoundStillSelected(context.id, context.unit, version)) this.secretaryRoundFailure(error);
+    }
+    finally { this.secretaryRoundBusy.set(false); }
+  }
+
+  async uploadSecretaryRoundFiles(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const incoming = Array.from(input.files ?? []);
+    input.value = '';
+    const context = this.secretaryRoundWriteContext();
+    if (!context || !incoming.length) return;
+    const valid = queueFollowUpFiles([], incoming);
+    if (!valid || valid.some(file => file.type !== 'application/pdf')) {
+      this.secretaryRoundNotice.set('invalid');
+      return;
+    }
+    const version = this.secretaryRoundVersion;
+    this.secretaryRoundBusy.set(true);
+    this.secretaryRoundNotice.set(null);
+    try {
+      for (const file of valid) {
+        await firstValueFrom(this.roundApi.uploadSecretaryDocument(
+          context.unit, context.id, context.request.requestId, file));
+        if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+      }
+      await this.loadSecretaryRound(context.id, context.unit);
+      if (this.selectedId() === context.id && !this.secretaryRoundError())
+        this.secretaryRoundNotice.set('uploaded');
+    } catch (error: unknown) {
+      if (this.secretaryRoundStillSelected(context.id, context.unit, version)) this.secretaryRoundFailure(error);
+    }
+    finally { this.secretaryRoundBusy.set(false); }
+  }
+
+  async deleteSecretaryRoundFile(pdf: StagedContinuationPdf): Promise<void> {
+    const context = this.secretaryRoundWriteContext();
+    if (!context || !this.secretaryRoundDocuments().some(document => document.nodeId === pdf.nodeId)) return;
+    const version = this.secretaryRoundVersion;
+    this.secretaryRoundBusy.set(true);
+    this.secretaryRoundNotice.set(null);
+    try {
+      await firstValueFrom(this.roundApi.deleteSecretaryDocument(
+        context.unit, context.id, context.request.requestId, pdf.nodeId));
+      if (!this.secretaryRoundStillSelected(context.id, context.unit, version)) return;
+      await this.loadSecretaryRound(context.id, context.unit);
+      if (this.selectedId() === context.id && !this.secretaryRoundError())
+        this.secretaryRoundNotice.set('deleted');
+    } catch (error: unknown) {
+      if (this.secretaryRoundStillSelected(context.id, context.unit, version)) this.secretaryRoundFailure(error);
+    }
+    finally { this.secretaryRoundBusy.set(false); }
+  }
+
+  openSecretaryRoundPdf(pdf: StagedContinuationPdf): void {
+    if (!this.secretaryRoundBusy() && this.secretaryRoundDocumentsLoaded()
+        && this.secretaryRoundDocuments().some(file => file.nodeId === pdf.nodeId)) {
+      this.secretaryRoundPreview.set(pdf);
+    }
+  }
+
+  closeSecretaryRoundPdf(): void { this.secretaryRoundPreview.set(null); }
 
   private async loadDetails(id: string, openedByUser = false): Promise<void> {
     const version = ++this.detailVersion;
+    this.clearSecretaryRound();
     this.details.set(null);
     this.detailsError.set(false);
     this.history.set(null);
@@ -785,6 +1092,11 @@ export class RealMailboxComponent implements OnInit {
       if (version !== this.detailVersion || this.selectedId() !== id) return;
       this.details.set(result);
       this.detailsLoading.set(false);
+      if (this.box() === 'inbox' && this.secretaryMode()
+          && result.state === 'WITH_DIRECTOR' && unit) {
+        void this.loadSecretaryRound(id, unit);
+      }
+
       if (openedByUser) void this.acknowledgeRead(id);
       // Assignment API is independent of correspondence details/history.
       if (!this.secretaryMode()) {

@@ -1,0 +1,237 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router } from '@angular/router';
+import { of, throwError } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { UnreadInboxStore } from '../../../core/notifications/unread-inbox.store';
+import { CorrespondenceService } from '../../../core/correspondence/correspondence.service';
+import { TranslationService } from '../../../core/i18n/translation.service';
+import { TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
+import { TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
+import { CorrespondenceApiService } from '../../data-access/correspondence-api.service';
+import { RealMailboxComponent } from './real-mailbox.component';
+
+const technicalId = '7fc41b5b-aceb-48fc-9f36-367e4a36e207';
+const requestId = '5fc41b5b-aceb-48fc-9f36-367e4a36e207';
+const inboxItem = { technicalId, subject: 'Digital Transformation follow-up',
+  state: 'WITH_DIRECTOR', modifiedAt: '2026-11-04T09:00:00Z',
+  senderName: 'Director', documentNumber: '117/2026/42', unread: false };
+const pending = { technicalId, requestId, unitCode: '117',
+  status: 'PENDING' as const, expectedCycle: 3, returnVersion: 0,
+  reason: 'We need another round', returnReason: null,
+  requestedAt: '2026-11-04T09:00:00Z' };
+const returned = { ...pending, status: 'RETURNED' as const, returnVersion: 2,
+  returnReason: 'Please replace the wrong PDF' };
+const pdf = { nodeId: 'stage-1', filename: 'round-4.pdf',
+  mimeType: 'application/pdf' as const, sizeBytes: 12, workflowCycle: 4 };
+
+describe('Secretary Round N continuation in the existing Inbox', () => {
+  let mailbox: RealMailboxComponent;
+  let rounds: {
+    secretaryRequest: ReturnType<typeof vi.fn>;
+    secretaryDocuments: ReturnType<typeof vi.fn>;
+    submitSecretaryRequest: ReturnType<typeof vi.fn>;
+    reviseSecretaryRequest: ReturnType<typeof vi.fn>;
+    resubmitSecretaryRequest: ReturnType<typeof vi.fn>;
+    uploadSecretaryDocument: ReturnType<typeof vi.fn>;
+    deleteSecretaryDocument: ReturnType<typeof vi.fn>;
+  };
+  let correspondence: {
+    listSecretaryInbox: ReturnType<typeof vi.fn>;
+    getSecretaryInboxDetails: ReturnType<typeof vi.fn>;
+    getSecretaryInboxHistory: ReturnType<typeof vi.fn>;
+    continueDirectorCycle: ReturnType<typeof vi.fn>;
+    transitionCorrespondence: ReturnType<typeof vi.fn>;
+  };
+  let secretary: { secretaryMailbox: () => boolean; secretaryInboxUnitCode: () => string | null;
+    activeManagerWorkspace: () => null; availableWorkspaces: () => never[];
+    effectiveDepartmentCode: () => string; effectiveRole: () => string };
+
+  beforeEach(() => {
+    rounds = {
+      secretaryRequest: vi.fn(() => of(returned)),
+      secretaryDocuments: vi.fn(() => of({ items: [pdf] })),
+      submitSecretaryRequest: vi.fn(() => of(pending)),
+      reviseSecretaryRequest: vi.fn(() => of({ ...returned, reason: 'Corrected follow-up' })),
+      resubmitSecretaryRequest: vi.fn(() => of({ ...returned, status: 'PENDING' as const })),
+      uploadSecretaryDocument: vi.fn(() => of(pdf)),
+      deleteSecretaryDocument: vi.fn(() => of(undefined)),
+    };
+    correspondence = {
+      listSecretaryInbox: vi.fn(() => of({ items: [inboxItem], total: 1, offset: 0, limit: 10 })),
+      getSecretaryInboxDetails: vi.fn(() => of({ technicalId, subject: inboxItem.subject,
+        state: 'WITH_DIRECTOR', currentWorkflowCycle: 3, bodyText: 'Existing text',
+        documents: [], generatedDocuments: [] })),
+      getSecretaryInboxHistory: vi.fn(() => of({ items: [], total: 0 })),
+      continueDirectorCycle: vi.fn(), transitionCorrespondence: vi.fn(),
+    };
+    secretary = {
+      secretaryMailbox: () => true,
+      secretaryInboxUnitCode: () => '117',
+      activeManagerWorkspace: () => null, availableWorkspaces: () => [],
+      effectiveDepartmentCode: () => '117', effectiveRole: () => 'SECRETARY',
+    };
+    TestBed.configureTestingModule({ providers: [
+      { provide: AuthSessionStore, useValue: secretary },
+      { provide: TarasolRoundContinuationApiService, useValue: rounds },
+      { provide: TarasolSecretaryApiService, useValue: {} },
+      { provide: CorrespondenceApiService, useValue: correspondence },
+      { provide: CorrespondenceService, useValue: { getDepartments: vi.fn(() => of([])) } },
+      { provide: TranslationService, useValue: { language: () => 'en' } },
+      { provide: Router, useValue: { navigate: vi.fn() } },
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+      { provide: UnreadInboxStore, useValue: {} },
+    ] });
+    mailbox = TestBed.runInInjectionContext(() => new RealMailboxComponent());
+    Object.defineProperty(mailbox, 'box', { value: () => 'inbox' });
+  });
+
+  async function loadReturned(): Promise<void> {
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('RETURNED'));
+    expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(true);
+  }
+
+  it('shows only the secretary-owned returned request, its manager reason and staged Round 4 PDFs', async () => {
+    await loadReturned();
+    expect(mailbox.canSecretaryRound()).toBe(true);
+    expect(rounds.secretaryRequest).toHaveBeenCalledWith('117', technicalId);
+    expect(rounds.secretaryDocuments).toHaveBeenCalledWith('117', technicalId, requestId);
+    expect(mailbox.secretaryRoundRequest()?.returnReason).toBe(returned.returnReason);
+    expect(mailbox.secretaryRoundDocuments()).toEqual([pdf]);
+    mailbox.openSecretaryRoundPdf(pdf);
+    expect(mailbox.secretaryRoundPreview()?.nodeId).toBe(pdf.nodeId);
+    expect(mailbox.details()?.documents).toEqual([]);
+  });
+
+  it('saves a returned explanation without modifying the workflow or sending to a manager yet', async () => {
+    await loadReturned();
+    mailbox.secretaryRoundReason.set('Corrected follow-up');
+    await mailbox.saveSecretaryRoundRevision();
+    expect(rounds.reviseSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
+      requestId, 2, 'Corrected follow-up');
+    expect(rounds.resubmitSecretaryRequest).not.toHaveBeenCalled();
+    expect(mailbox.secretaryRoundNotice()).toBe('saved');
+    expect(correspondence.continueDirectorCycle).not.toHaveBeenCalled();
+  });
+
+  it('revises first and then resubmits the same return version; never invokes Director continuation', async () => {
+    await loadReturned();
+    mailbox.secretaryRoundReason.set('Corrected follow-up');
+    rounds.secretaryRequest.mockReturnValue(of({ ...returned, reason: 'Corrected follow-up', status: 'PENDING' }));
+    await mailbox.resubmitSecretaryRound();
+    expect(rounds.reviseSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
+      requestId, 2, 'Corrected follow-up');
+    expect(rounds.resubmitSecretaryRequest).toHaveBeenCalledWith('117', technicalId, requestId, 2);
+    expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING');
+    expect(mailbox.secretaryRoundNotice()).toBe('resubmitted');
+    expect(correspondence.continueDirectorCycle).not.toHaveBeenCalled();
+    expect(correspondence.transitionCorrespondence).not.toHaveBeenCalled();
+  });
+
+  it('uploads a validated staged PDF to its exact request, never into official documents', async () => {
+    await loadReturned();
+    const file = new File(['%PDF-1.7\n'], 'replacement.pdf', { type: 'application/pdf' });
+    const input = { files: [file], value: 'replacement.pdf' } as unknown as HTMLInputElement;
+    rounds.secretaryDocuments.mockReturnValue(of({ items: [pdf] }));
+    await mailbox.uploadSecretaryRoundFiles({ target: input } as unknown as Event);
+    expect(rounds.uploadSecretaryDocument).toHaveBeenCalledWith('117', technicalId, requestId, file);
+    expect(input.value).toBe('');
+    expect(mailbox.secretaryRoundNotice()).toBe('uploaded');
+  });
+
+  it('deletes only an explicitly selected staged PDF and reloads the list', async () => {
+    await loadReturned();
+    rounds.secretaryDocuments.mockReturnValue(of({ items: [] }));
+    await mailbox.deleteSecretaryRoundFile(pdf);
+    expect(rounds.deleteSecretaryDocument).toHaveBeenCalledWith('117', technicalId, requestId, pdf.nodeId);
+    expect(mailbox.secretaryRoundDocuments()).toEqual([]);
+    expect(mailbox.secretaryRoundNotice()).toBe('deleted');
+  });
+
+  it('does not revise or resubmit a pending request without a manager return', async () => {
+    rounds.secretaryRequest.mockReturnValue(of(pending));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING'));
+    mailbox.secretaryRoundReason.set('Unauthorized pending edit');
+    await mailbox.saveSecretaryRoundRevision();
+    await mailbox.resubmitSecretaryRound();
+    expect(rounds.reviseSecretaryRequest).not.toHaveBeenCalled();
+    expect(rounds.resubmitSecretaryRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects a PDF from another workflow round even when its request ID is valid', async () => {
+    rounds.secretaryDocuments.mockReturnValue(of({ items: [{ ...pdf, workflowCycle: 3 }] }));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundError()).toBe(true));
+    expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(false);
+    await mailbox.deleteSecretaryRoundFile(pdf);
+    expect(rounds.deleteSecretaryDocument).not.toHaveBeenCalled();
+  });
+
+  it('refuses to reuse an old return token after HTTP 409', async () => {
+    await loadReturned();
+    rounds.resubmitSecretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
+    await mailbox.resubmitSecretaryRound();
+    expect(mailbox.secretaryRoundNotice()).toBe('stale');
+    await mailbox.resubmitSecretaryRound();
+    expect(rounds.resubmitSecretaryRequest).toHaveBeenCalledOnce();
+  });
+
+  it('does not retry a lost resubmission response without a fresh status check', async () => {
+    await loadReturned();
+    rounds.resubmitSecretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+    await mailbox.resubmitSecretaryRound();
+    expect(mailbox.secretaryRoundUncertain()).toBe(true);
+    await mailbox.resubmitSecretaryRound();
+    expect(rounds.resubmitSecretaryRequest).toHaveBeenCalledOnce();
+  });
+
+  it('treats 404 as no personal request, but never mistakes a 403 for an empty request', async () => {
+    rounds.secretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(rounds.secretaryRequest).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mailbox.secretaryRoundLoading()).toBe(false));
+    expect(mailbox.secretaryRoundRequest()).toBeNull();
+    expect(mailbox.secretaryRoundError()).toBe(false);
+    rounds.secretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+    mailbox.refreshSecretaryRound();
+    await vi.waitFor(() => expect(mailbox.secretaryRoundError()).toBe(true));
+    await mailbox.createSecretaryRound();
+    expect(rounds.submitSecretaryRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects mismatched rounds rather than offering stale PDF edits', async () => {
+    rounds.secretaryRequest.mockReturnValue(of({ ...returned, expectedCycle: 2 }));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundError()).toBe(true));
+    expect(rounds.secretaryDocuments).not.toHaveBeenCalled();
+    expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(false);
+  });
+
+  it('does not offer secretary actions to an ordinary Director account', async () => {
+    secretary.secretaryMailbox = () => false;
+    await mailbox.loadPage(0);
+    expect(mailbox.canSecretaryRound()).toBe(false);
+    expect(rounds.secretaryRequest).not.toHaveBeenCalled();
+    await mailbox.createSecretaryRound();
+    expect(rounds.submitSecretaryRequest).not.toHaveBeenCalled();
+  });
+
+  it('creates a new request only after the no-current-request response', async () => {
+    rounds.secretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(rounds.secretaryRequest).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mailbox.secretaryRoundLoading()).toBe(false));
+    mailbox.secretaryRoundReason.set('Review evidence in next round');
+    rounds.secretaryRequest.mockReturnValue(of({ ...pending, reason: 'Review evidence in next round' }));
+    await mailbox.createSecretaryRound();
+    expect(rounds.submitSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
+      'Review evidence in next round');
+    expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING');
+    expect(mailbox.secretaryRoundNotice()).toBe('submitted');
+    expect(correspondence.continueDirectorCycle).not.toHaveBeenCalled();
+  });
+});

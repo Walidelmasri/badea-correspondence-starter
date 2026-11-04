@@ -7,6 +7,7 @@ import org.badea.correspondence.application.OfficeCycleConflictException;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.organization.TarasolSecretaryRoundTwoRequestService;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.extensions.webscripts.AbstractWebScript;
 import org.springframework.extensions.webscripts.Status;
@@ -17,13 +18,20 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebScript {
     private final CurrentEmployeeService employees;
     private final TarasolSecretaryRoundTwoRequestService requests;
-    private final boolean writing;
+    private final String mode;
 
     public TarasolSecretaryRoundTwoRequestWebScript(CurrentEmployeeService employees,
             TarasolSecretaryRoundTwoRequestService requests, boolean writing) {
+        this(employees, requests, writing ? "SUBMIT" : "CURRENT");
+    }
+
+    public TarasolSecretaryRoundTwoRequestWebScript(CurrentEmployeeService employees,
+            TarasolSecretaryRoundTwoRequestService requests, String mode) {
         this.employees = Objects.requireNonNull(employees);
         this.requests = Objects.requireNonNull(requests);
-        this.writing = writing;
+        if (!java.util.Set.of("CURRENT", "SUBMIT", "REVISE", "RESUBMIT").contains(mode))
+            throw new IllegalArgumentException("Unknown secretary request mode");
+        this.mode = mode;
     }
 
     @Override public void execute(WebScriptRequest request, WebScriptResponse response) throws IOException {
@@ -35,8 +43,23 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
                 throw new IllegalArgumentException("Secretary unit required");
             DepartmentCode unit = new DepartmentCode(code);
             var employee = employees.getCurrentEmployee();
-            var outcome = writing ? requests.submit(employee, unit, id, reason(request))
-                : requests.current(employee, unit, id);
+            var outcome = switch (mode) {
+                case "CURRENT" -> requests.current(employee, unit, id);
+                case "SUBMIT" -> requests.submit(employee, unit, id, reason(request));
+                case "REVISE" -> {
+                    JSONObject payload = body(request);
+                    requireFields(payload, "requestId", "returnVersion", "reason");
+                    yield requests.revise(employee, unit, id, requestId(payload),
+                        version(payload), text(payload, "reason"));
+                }
+                case "RESUBMIT" -> {
+                    JSONObject payload = body(request);
+                    requireFields(payload, "requestId", "returnVersion");
+                    yield requests.resubmit(employee, unit, id, requestId(payload),
+                        version(payload));
+                }
+                default -> throw new IllegalStateException("Unsupported request mode");
+            };
             if (outcome == null) { respond(response, Status.STATUS_NOT_FOUND,
                     new JSONObject().put("code", "NO_CURRENT_REQUEST")); return; }
             respond(response, Status.STATUS_OK, new JSONObject()
@@ -45,6 +68,7 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
                 .put("unitCode", outcome.unitCode())
                 .put("status", outcome.status())
                 .put("expectedCycle", outcome.expectedCycle())
+                .put("returnVersion", outcome.returnVersion())
                 .put("reason", outcome.reason())
                 .put("returnReason", outcome.returnReason() == null
                     ? JSONObject.NULL : outcome.returnReason())
@@ -60,12 +84,47 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
     }
 
     private static String reason(WebScriptRequest request) throws IOException {
+        JSONObject json = body(request);
+        requireFields(json, "reason");
+        return text(json, "reason");
+    }
+
+    private static JSONObject body(WebScriptRequest request) throws IOException {
         if (request.getContent() == null || request.getContent().getContent() == null)
             throw new IllegalArgumentException("JSON body required");
-        JSONObject json = new JSONObject(request.getContent().getContent());
-        if (json.length() != 1 || !json.has("reason") || !(json.get("reason") instanceof String text))
-            throw new IllegalArgumentException("Only reason is supported");
-        return text;
+        try { return new JSONObject(request.getContent().getContent()); }
+        catch (JSONException malformed) { throw new IllegalArgumentException("Invalid JSON", malformed); }
+    }
+
+    private static void requireFields(JSONObject json, String... fields) {
+        if (json.length() != fields.length
+                || java.util.Arrays.stream(fields).anyMatch(field -> !json.has(field)))
+            throw new IllegalArgumentException("Unexpected request body");
+    }
+
+    private static String text(JSONObject json, String field) {
+        Object raw = json.opt(field);
+        if (!(raw instanceof String value))
+            throw new IllegalArgumentException("Invalid " + field);
+        return value;
+    }
+
+    private static String requestId(JSONObject json) {
+        String id = text(json, "requestId");
+        try {
+            if (java.util.UUID.fromString(id).toString().equals(id)) return id;
+        } catch (IllegalArgumentException invalid) { /* rejected below */ }
+        throw new IllegalArgumentException("Invalid request ID");
+    }
+
+    private static long version(JSONObject json) {
+        Object raw = json.opt("returnVersion");
+        if (!(raw instanceof Number) || !raw.toString().matches("0|[1-9][0-9]*"))
+            throw new IllegalArgumentException("Invalid return version");
+        try { return Long.parseLong(raw.toString()); }
+        catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("Invalid return version", invalid);
+        }
     }
 
     private static void respond(WebScriptResponse response, int status, JSONObject result) throws IOException {

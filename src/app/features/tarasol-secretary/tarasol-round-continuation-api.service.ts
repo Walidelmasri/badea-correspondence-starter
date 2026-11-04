@@ -47,6 +47,8 @@ export interface SecretaryContinuationRequest {
   readonly unitCode: string;
   readonly status: 'PENDING' | 'RETURNED' | 'APPROVED';
   readonly expectedCycle: number;
+  /** Incremented on each manager return. Required to prevent stale resubmissions. */
+  readonly returnVersion: number;
   readonly reason: string;
   readonly returnReason: string | null;
   readonly requestedAt: string;
@@ -94,6 +96,22 @@ export class TarasolRoundContinuationApiService {
     return this.http.post<SecretaryContinuationRequest>(
       `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}`,
       { reason },
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  reviseSecretaryRequest(unitCode: string, technicalId: string, requestId: string,
+    returnVersion: number, reason: string): Observable<SecretaryContinuationRequest> {
+    return this.http.put<SecretaryContinuationRequest>(
+      `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}`,
+      { requestId, returnVersion, reason },
+      { params: new HttpParams().set('unitCode', unitCode) });
+  }
+
+  resubmitSecretaryRequest(unitCode: string, technicalId: string, requestId: string,
+    returnVersion: number): Observable<SecretaryContinuationRequest> {
+    return this.http.post<SecretaryContinuationRequest>(
+      `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}/resubmit`,
+      { requestId, returnVersion },
       { params: new HttpParams().set('unitCode', unitCode) });
   }
 

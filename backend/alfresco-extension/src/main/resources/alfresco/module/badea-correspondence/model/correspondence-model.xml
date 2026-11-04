@@ -439,6 +439,21 @@
                 <property name="bc:roundTwoRequestDecidedAt"><type>d:datetime</type></property>
                 <property name="bc:roundTwoRequestReturnReason"><type>d:text</type></property>
                 <property name="bc:roundTwoRequestDocumentsRevision"><type>d:long</type></property>
+                <property name="bc:roundTwoRequestReturnVersion"><type>d:long</type></property>
+            </properties>
+        </type>
+
+        <!-- Append-only events persist every manager return/approval and secretary revision. -->
+        <type name="bc:secretaryRoundTwoDecisionEvent">
+            <title>Secretary Continuation Decision Event</title>
+            <parent>cm:content</parent>
+            <properties>
+                <property name="bc:roundTwoDecisionRequestId"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoDecisionAction"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoDecisionActor"><type>d:text</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoDecisionAt"><type>d:datetime</type><mandatory>true</mandatory></property>
+                <property name="bc:roundTwoDecisionReason"><type>d:text</type></property>
+                <property name="bc:roundTwoDecisionReturnVersion"><type>d:long</type><mandatory>true</mandatory></property>
             </properties>
         </type>
 

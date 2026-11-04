@@ -63,6 +63,26 @@ describe('TarasolRoundContinuationApiService', () => {
       expectedCycle: 3, reason: 'Additional documents', returnReason: null, requestedAt: '2026-11-04' });
   });
 
+  it('revises only the returned request and resubmits with the exact manager return version', () => {
+    api.reviseSecretaryRequest('117', technicalId, requestId, 3, 'Corrected reason').subscribe();
+    const revised = http.expectOne(item => item.url.endsWith(`/secretary/round-two/${technicalId}`));
+    expect(revised.request.method).toBe('PUT');
+    expect(revised.request.params.get('unitCode')).toBe('117');
+    expect(revised.request.body).toEqual({ requestId, returnVersion: 3, reason: 'Corrected reason' });
+    revised.flush({ requestId, technicalId, unitCode: '117', status: 'RETURNED',
+      returnVersion: 3, expectedCycle: 4, reason: 'Corrected reason',
+      returnReason: 'Replace the PDF', requestedAt: '2026-11-04' });
+
+    api.resubmitSecretaryRequest('117', technicalId, requestId, 3).subscribe();
+    const resubmitted = http.expectOne(item => item.url.endsWith(`/secretary/round-two/${technicalId}/resubmit`));
+    expect(resubmitted.request.method).toBe('POST');
+    expect(resubmitted.request.params.get('unitCode')).toBe('117');
+    expect(resubmitted.request.body).toEqual({ requestId, returnVersion: 3 });
+    resubmitted.flush({ requestId, technicalId, unitCode: '117', status: 'PENDING',
+      returnVersion: 3, expectedCycle: 4, reason: 'Corrected reason',
+      returnReason: 'Replace the PDF', requestedAt: '2026-11-04' });
+  });
+
   it('previews staged PDFs using the secretary-only endpoint', () => {
     api.secretaryPreview('117', technicalId, requestId, 'pdf-node').subscribe(result =>
       expect(result.type).toBe('application/pdf'));

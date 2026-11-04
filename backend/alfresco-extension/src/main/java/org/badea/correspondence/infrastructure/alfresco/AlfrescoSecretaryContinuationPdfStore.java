@@ -67,7 +67,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
             String requestId, String filename, byte[] bytes) {
         String cleanName = filename(filename);
         validatePdf(bytes);
-        Located located = requirePending(technicalId, unit, requestId, ownerId);
+        Located located = requireRequest(technicalId, unit, requestId, ownerId);
         var children = staged(located.parent(), requestId);
         for (NodeRef existing : children) {
             Pdf metadata = metadata(existing, located.metadata().expectedCycle() + 1);
@@ -107,7 +107,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public List<Pdf> list(String technicalId, DepartmentCode unit, String requestId,
             String secretaryOwnerOrNull) {
-        Located located = requirePending(technicalId, unit, requestId, secretaryOwnerOrNull);
+        Located located = requireRequest(technicalId, unit, requestId, secretaryOwnerOrNull);
         List<Pdf> result = new ArrayList<>();
         for (NodeRef child : staged(located.parent(), requestId)) {
             result.add(metadata(child, located.metadata().expectedCycle() + 1));
@@ -119,7 +119,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public Preview open(String technicalId, DepartmentCode unit, String requestId,
             String secretaryOwnerOrNull, String documentId) {
-        Located located = requirePending(technicalId, unit, requestId, secretaryOwnerOrNull);
+        Located located = requireRequest(technicalId, unit, requestId, secretaryOwnerOrNull);
         NodeRef child = requireDocument(located.parent(), requestId, documentId);
         Pdf pdf = metadata(child, located.metadata().expectedCycle() + 1);
         ContentReader reader = content.getReader(child, ContentModel.PROP_CONTENT);
@@ -132,7 +132,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
 
     public void delete(String technicalId, DepartmentCode unit, String ownerId,
             String requestId, String documentId) {
-        Located located = requirePending(technicalId, unit, requestId, ownerId);
+        Located located = requireRequest(technicalId, unit, requestId, ownerId);
         NodeRef child = requireDocument(located.parent(), requestId, documentId);
         nodes.deleteNode(child);
         bumpRevision(located);
@@ -141,7 +141,7 @@ public final class AlfrescoSecretaryContinuationPdfStore {
     /** Call BEFORE continueCycle and within the SAME REQUIRED Alfresco transaction. */
     public void promote(String technicalId, DepartmentCode unit, String requestId,
             long nextCycle) {
-        Located located = requirePending(technicalId, unit, requestId, null);
+        Located located = requireRequest(technicalId, unit, requestId, null);
         if (nextCycle != located.metadata().expectedCycle() + 1)
             throw new OfficeCycleConflictException("Cannot promote PDFs into a different round");
         List<NodeRef> documents = staged(located.parent(), requestId);
@@ -182,25 +182,31 @@ public final class AlfrescoSecretaryContinuationPdfStore {
         // The continuation + APPROVED decision must occur in this REQUIRED transaction.
     }
 
-    private Located requirePending(String technicalId, DepartmentCode unit,
+    private Located requireRequest(String technicalId, DepartmentCode unit,
             String requestId, String ownerOrNull) {
         if (!canonical(technicalId) || !canonical(requestId))
             throw new IllegalArgumentException("Canonical correspondence/request ID required");
-        var pending = requests.pending(technicalId, unit);
-        if (pending == null || !requestId.equals(pending.requestId())
-                || !"PENDING".equals(pending.status()))
-            throw new OfficeCycleConflictException("Continuation request is not pending");
-        if (ownerOrNull != null && !ownerOrNull.equals(pending.ownerEmployeeId()))
+        var selected = ownerOrNull == null
+            ? requests.pending(technicalId, unit)
+            : requests.editable(technicalId, unit, ownerOrNull, requestId);
+        if (selected == null || !requestId.equals(selected.requestId())
+                || (ownerOrNull == null && !"PENDING".equals(selected.status()))
+                || (ownerOrNull != null && !"PENDING".equals(selected.status())
+                    && !"RETURNED".equals(selected.status())))
+            throw new OfficeCycleConflictException("Continuation request is not editable");
+        if (ownerOrNull != null && !ownerOrNull.equals(selected.ownerEmployeeId()))
             throw new CorrespondenceAuthorizationException("Not the request's secretary creator");
         NodeRef parent = locator.locate(technicalId);
-        if (!requestId.equals(nodes.getProperty(parent, PENDING_ID)))
+        Object marker = nodes.getProperty(parent, PENDING_ID);
+        if (("PENDING".equals(selected.status()) && !requestId.equals(marker))
+                || ("RETURNED".equals(selected.status()) && marker != null))
             throw new OfficeCycleConflictException("Continuation request has changed");
         for (ChildAssociationRef association : nodes.getChildAssocs(parent)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
             NodeRef child = association.getChildRef();
             if (REQUEST_TYPE.equals(nodes.getType(child))
                     && requestId.equals(nodes.getProperty(child, REQUEST_ID)))
-                return new Located(parent, child, pending);
+                return new Located(parent, child, selected);
         }
         throw new OfficeCycleConflictException("Pending request record unavailable");
     }
@@ -248,7 +254,8 @@ public final class AlfrescoSecretaryContinuationPdfStore {
             throw new CorrespondenceRepositoryException("Invalid request document revision");
         nodes.setProperty(located.request(), DOCUMENT_REVISION, revision + 1);
         // Parent write serializes upload/delete with an in-flight manager decision.
-        nodes.setProperty(located.parent(), PENDING_ID, located.metadata().requestId());
+        nodes.setProperty(located.parent(), PENDING_ID,
+            "PENDING".equals(located.metadata().status()) ? located.metadata().requestId() : null);
     }
 
     private static String filename(String raw) {

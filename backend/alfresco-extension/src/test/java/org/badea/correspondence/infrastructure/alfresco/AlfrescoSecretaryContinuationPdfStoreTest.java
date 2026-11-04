@@ -51,6 +51,10 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
             new AlfrescoSecretaryRoundTwoRequestRepository.Request(REQUEST, CASE,
                 "117", "99999", "Follow up", 3L, "PENDING",
                 Instant.parse("2026-11-04T12:00:00Z")));
+        when(requests.editable(CASE, UNIT, "99999", REQUEST)).thenReturn(
+            new AlfrescoSecretaryRoundTwoRequestRepository.Request(REQUEST, CASE,
+                "117", "99999", "Follow up", 3L, "PENDING",
+                Instant.parse("2026-11-04T12:00:00Z")));
         when(nodes.getProperty(parent, q("roundTwoPendingRequestId"))).thenReturn(REQUEST);
         when(requestAssoc.getTypeQName()).thenReturn(ContentModel.ASSOC_CONTAINS);
         when(requestAssoc.getChildRef()).thenReturn(request);
@@ -81,6 +85,8 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
     }
 
     @Test void rejectionOfWrongOwnerOccursBeforeAnyDocumentWrite() {
+        when(requests.editable(CASE, UNIT, "wrong-owner", REQUEST)).thenThrow(
+            new CorrespondenceAuthorizationException("Wrong secretary"));
         assertThrows(CorrespondenceAuthorizationException.class,
             () -> store.upload(CASE, UNIT, "wrong-owner", REQUEST, "x.pdf", validPdf()));
         verify(nodes, never()).createNode(any(), any(), any(), any(), anyMap());
@@ -173,6 +179,8 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
 
     @Test void onlyThePendingRequestOwnerCanDeleteStagedPdf() {
         stagedPdf();
+        when(requests.editable(CASE, UNIT, "wrong-owner", REQUEST)).thenThrow(
+            new CorrespondenceAuthorizationException("Wrong secretary"));
         assertThrows(CorrespondenceAuthorizationException.class,
             () -> store.delete(CASE, UNIT, "wrong-owner", REQUEST, DOC));
         verify(nodes, never()).deleteNode(any());
@@ -184,6 +192,21 @@ class AlfrescoSecretaryContinuationPdfStoreTest {
         verify(nodes).deleteNode(document);
         verify(nodes, never()).deleteNode(parent);
         verify(nodes).setProperty(request, q("roundTwoRequestDocumentsRevision"), 1L);
+    }
+
+    @Test void returnedRequestOwnerCanListAndDeleteStagedPdfsWithoutReopeningManagerApproval() {
+        stagedPdf();
+        when(requests.editable(CASE, UNIT, "99999", REQUEST)).thenReturn(
+            new AlfrescoSecretaryRoundTwoRequestRepository.Request(REQUEST, CASE,
+                "117", "99999", "Follow up", 3L, "RETURNED",
+                Instant.parse("2026-11-04T12:00:00Z"), "Wrong PDF", 1L));
+        when(nodes.getProperty(parent, q("roundTwoPendingRequestId"))).thenReturn(null);
+        assertEquals(1, store.list(CASE, UNIT, REQUEST, "99999").size());
+        store.delete(CASE, UNIT, "99999", REQUEST, DOC);
+        verify(nodes).deleteNode(document);
+        verify(nodes).setProperty(parent, q("roundTwoPendingRequestId"), null);
+        verify(nodes, never()).setProperty(parent, q("roundTwoPendingRequestId"), REQUEST);
+        verify(nodes, never()).deleteNode(request);
     }
 
     @Test void pdfMagicAndPathTraversalAreRejected() {

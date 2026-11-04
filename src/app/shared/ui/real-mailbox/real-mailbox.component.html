@@ -537,6 +537,94 @@
               }
             </section>
           }
+          @if (canSecretaryRound()) {
+            <section class="mailbox-detail__section mailbox-assignment-form"
+              aria-labelledby="secretary-round-title">
+              <h3 id="secretary-round-title">{{ secretaryRoundLabels().title }} ·
+                {{ secretaryRoundLabels().round }} {{ full.currentWorkflowCycle == null ? '—' : full.currentWorkflowCycle + 1 }}</h3>
+              <p>{{ secretaryRoundLabels().hint }}</p>
+              @if (secretaryRoundNotice(); as notice) {
+                <p class="mailbox-transition-notice"
+                  [attr.role]="notice === 'failed' || notice === 'uncertain' || notice === 'stale' || notice === 'invalid' ? 'alert' : 'status'">
+                  {{ secretaryRoundLabels()[notice] }}
+                </p>
+              }
+              @if (secretaryRoundLoading()) {
+                <p role="status">{{ secretaryRoundLabels().loading }}</p>
+              } @else if (secretaryRoundError()) {
+                <p role="alert">{{ secretaryRoundLabels().loadError }}</p>
+              } @else if (secretaryRoundRequest(); as request) {
+                <p class="mailbox-assignment-chip">
+                  {{ request.status === 'PENDING' ? secretaryRoundLabels().pending :
+                    request.status === 'RETURNED' ? secretaryRoundLabels().returned : secretaryRoundLabels().approved }}
+                </p>
+                @if (request.returnReason) {
+                  <strong>{{ secretaryRoundLabels().returnReason }}</strong>
+                  <p dir="auto">{{ request.returnReason }}</p>
+                }
+                <label for="secretary-round-reason">{{ secretaryRoundLabels().explanation }}</label>
+                <textarea id="secretary-round-reason" rows="4" maxlength="2000"
+                  [value]="secretaryRoundReason()"
+                  [readOnly]="request.status !== 'RETURNED'"
+                  [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
+                  (input)="updateSecretaryRoundReason($event)"></textarea>
+                <h4>{{ secretaryRoundLabels().stage }} · {{ secretaryRoundLabels().round }} {{ request.expectedCycle + 1 }}</h4>
+                @if (secretaryRoundDocumentsLoaded()) {
+                  @if (secretaryRoundDocuments().length === 0) {
+                    <p>{{ secretaryRoundLabels().noFiles }}</p>
+                  } @else {
+                    <ul class="mailbox-follow-up-files">
+                      @for (pdf of secretaryRoundDocuments(); track pdf.nodeId) {
+                        <li>
+                          <span class="mailbox-follow-up-files__name">
+                            <strong dir="auto">{{ pdf.filename }}</strong>
+                            <small>{{ formatSize(pdf.sizeBytes) }}</small>
+                          </span>
+                          <button type="button" class="mailbox-history-trigger"
+                            [disabled]="secretaryRoundBusy()"
+                            (click)="openSecretaryRoundPdf(pdf)">{{ secretaryRoundLabels().open }}</button>
+                          <button type="button" class="mailbox-follow-up-files__remove"
+                            [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
+                            [attr.aria-label]="secretaryRoundLabels().remove + ': ' + pdf.filename"
+                            (click)="deleteSecretaryRoundFile(pdf)">×</button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  <div class="mailbox-follow-up-picker">
+                    <input id="secretary-round-files" type="file" accept="application/pdf,.pdf" multiple
+                      class="mailbox-follow-up-picker__input"
+                      [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
+                      (change)="uploadSecretaryRoundFiles($event)" />
+                    <label for="secretary-round-files" class="mailbox-follow-up-picker__button">
+                      <span aria-hidden="true">＋</span> {{ secretaryRoundLabels().choose }}
+                    </label>
+                  </div>
+                  @if (request.status === 'RETURNED') {
+                    <div class="mailbox-follow-up-picker">
+                      <button type="button" class="mailbox-action"
+                        [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
+                        (click)="saveSecretaryRoundRevision()">{{ secretaryRoundLabels().save }}</button>
+                      <button type="button" class="mailbox-action"
+                        [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
+                        (click)="resubmitSecretaryRound()">{{ secretaryRoundLabels().resubmit }}</button>
+                    </div>
+                  }
+                }
+              } @else {
+                <label for="secretary-round-reason-new">{{ secretaryRoundLabels().explanation }}</label>
+                <textarea id="secretary-round-reason-new" rows="4" maxlength="2000"
+                  [value]="secretaryRoundReason()" [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
+                  (input)="updateSecretaryRoundReason($event)"></textarea>
+                <button type="button" class="mailbox-action"
+                  [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
+                  (click)="createSecretaryRound()">{{ secretaryRoundLabels().start }}</button>
+              }
+              <button type="button" class="mailbox-history-trigger"
+                [disabled]="secretaryRoundBusy() || secretaryRoundLoading()"
+                (click)="refreshSecretaryRound()">{{ secretaryRoundLabels().refresh }}</button>
+            </section>
+          }
           @if (canDirectorFollowUp()) {
             <section class="mailbox-detail__section mailbox-assignment-form" aria-labelledby="director-follow-up-title">
               <h3 id="director-follow-up-title">{{ labels().directorFollowUpTitle }}</h3>
@@ -804,6 +892,17 @@
       [technicalId]="request.technicalId"
       [document]="document"
       (closed)="closeRoundPreview()"
+    />
+  }
+}
+
+@if (secretaryRoundPreview(); as pdf) {
+  @if (secretaryRoundRequest(); as request) {
+    <app-correspondence-document-preview
+      [technicalId]="request.technicalId"
+      [document]="pdf"
+      [secretaryRoundRequest]="{unitCode: request.unitCode, requestId: request.requestId}"
+      (closed)="closeSecretaryRoundPdf()"
     />
   }
 }

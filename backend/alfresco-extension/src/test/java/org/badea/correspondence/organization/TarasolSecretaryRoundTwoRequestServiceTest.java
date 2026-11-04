@@ -66,4 +66,29 @@ class TarasolSecretaryRoundTwoRequestServiceTest {
             () -> service.submit(actor, unit, ID, "  "));
         verifyNoInteractions(repo);
     }
+
+    @Test void returnedRevisionAndResubmissionAlwaysCheckSecretaryAccessAndCaseVisibility() {
+        String requestId = "12345678-1234-1234-1234-123456789abc";
+        service.revise(actor, unit, ID, requestId, 2, "Revised explanation");
+        service.resubmit(actor, unit, ID, requestId, 2);
+        verify(repo).revise(ID, unit, "99999", requestId, 2, "Revised explanation");
+        verify(repo).resubmit(ID, unit, "99999", requestId, 2);
+        verify(inbox, times(2)).readCase(eq(actor), eq(unit), eq(ID), any());
+    }
+
+    @Test void revokedOracleAssignmentBlocksEditsAndResubmission() {
+        when(access.hasActiveSecretaryAssignment(actor.employeeId(), unit)).thenReturn(false);
+        assertThrows(CorrespondenceAuthorizationException.class, () ->
+            service.revise(actor, unit, ID, "request-1", 1, "New explanation"));
+        assertThrows(CorrespondenceAuthorizationException.class, () ->
+            service.resubmit(actor, unit, ID, "request-1", 1));
+        verifyNoInteractions(repo);
+    }
+
+    @Test void lostSecretaryGroupBlocksEditsEvenWithAnActiveAssignment() {
+        when(groups.getAuthoritiesForUser("walid.salem")).thenReturn(Set.of());
+        assertThrows(CorrespondenceAuthorizationException.class, () ->
+            service.revise(actor, unit, ID, "request-1", 1, "New explanation"));
+        verifyNoInteractions(repo);
+    }
 }

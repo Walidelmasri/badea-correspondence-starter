@@ -8,7 +8,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Date;
+import java.io.Serializable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.alfresco.model.ContentModel;
 import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
@@ -60,6 +64,11 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
             .thenReturn("manager-1");
         when(nodes.getProperty(assignment, AlfrescoDepartmentAssignmentReader.q("assignmentCompletedAt")))
             .thenReturn(Date.from(Instant.parse("2026-11-04T12:00:00Z")));
+        var eventCreated = mock(ChildAssociationRef.class);
+        when(eventCreated.getChildRef()).thenReturn(mock(NodeRef.class));
+        when(nodes.createNode(eq(parent), eq(ContentModel.ASSOC_CONTAINS), any(),
+            eq(AlfrescoDepartmentAssignmentReader.q("secretaryRoundTwoDecisionEvent")), anyMap()))
+            .thenReturn(eventCreated);
     }
 
     @Test void createsCycleBoundRequestWithoutAdvancingCorrespondence() {
@@ -102,6 +111,8 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
             .thenReturn(2L);
         when(nodes.getProperty(old, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestAt")))
             .thenReturn(Date.from(Instant.parse("2026-11-04T12:00:00Z")));
+        when(nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")))
+            .thenReturn("request-old");
         assertEquals("request-old", repo.submit(ID, new DepartmentCode("117"),
             "99999", "Reason").requestId());
         verify(nodes, never()).createNode(any(), any(), any(), any(), anyMap());
@@ -166,6 +177,153 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
             .thenReturn(Date.from(Instant.parse("2026-11-04T12:00:00Z")));
     }
 
+    private void returnedAtCycle(long cycle) {
+        pendingAtCycle(cycle);
+        when(nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")))
+            .thenReturn(null);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus")))
+            .thenReturn("RETURNED");
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnVersion")))
+            .thenReturn(1L);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnReason")))
+            .thenReturn("Replace incorrect PDF");
+    }
+
+    @Test void returnedExplanationCanBeRevisedWithoutClearingManagerDecision() {
+        returnedAtCycle(5L);
+        var revised = repo.revise(ID, new DepartmentCode("117"), "99999", REQUEST_ID, 1L,
+            "  Corrected follow-up  ");
+        assertEquals("RETURNED", revised.status());
+        assertEquals("Replace incorrect PDF", revised.returnReason());
+        assertEquals(1L, revised.returnVersion());
+        verify(nodes).setProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReason"), "Corrected follow-up");
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")), any());
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoCorrespondenceCycleReader.CURRENT), any());
+    }
+
+    @Test void sameReturnedRequestResubmitsForManagerWithoutCreatingAnotherRequest() {
+        returnedAtCycle(4L);
+        repo.resubmit(ID, new DepartmentCode("117"), "99999", REQUEST_ID, 1L);
+        verify(nodes).setProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus"), "PENDING");
+        verify(nodes).setProperty(parent,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId"), REQUEST_ID);
+        verify(nodes, never()).createNode(eq(parent), any(), any(),
+            eq(AlfrescoDepartmentAssignmentReader.q("secretaryRoundTwoRequest")), anyMap());
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoCorrespondenceCycleReader.CURRENT), any());
+    }
+
+    @Test void replayWrongOwnerOrWrongReturnVersionCannotReviseOrResubmit() {
+        returnedAtCycle(4L);
+        assertThrows(org.badea.correspondence.security.CorrespondenceAuthorizationException.class,
+            () -> repo.revise(ID, new DepartmentCode("117"), "another-owner", REQUEST_ID,
+                1L, "Revision"));
+        assertThrows(OfficeCycleConflictException.class,
+            () -> repo.resubmit(ID, new DepartmentCode("117"), "99999", REQUEST_ID, 0L));
+        assertThrows(OfficeCycleConflictException.class,
+            () -> repo.revise(ID, new DepartmentCode("117"), "99999", REQUEST_ID,
+                2L, "Revision"));
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")), any());
+    }
+
+    @Test void staleCycleOrNewPendingRequestPreventsReturnedRevisionAndResubmission() {
+        returnedAtCycle(4L);
+        when(nodes.getProperty(parent, AlfrescoCorrespondenceCycleReader.CURRENT)).thenReturn(5L);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.resubmit(ID,
+            new DepartmentCode("117"), "99999", REQUEST_ID, 1L));
+        when(nodes.getProperty(parent, AlfrescoCorrespondenceCycleReader.CURRENT)).thenReturn(4L);
+        when(nodes.getProperty(parent, AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId")))
+            .thenReturn("22222222-2222-4222-8222-222222222222");
+        assertThrows(OfficeCycleConflictException.class, () -> repo.revise(ID,
+            new DepartmentCode("117"), "99999", REQUEST_ID, 1L, "Revision"));
+        verify(nodes, never()).setProperty(eq(followUp),
+            eq(AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReason")), any());
+    }
+
+    @Test void repeatedRequestCannotResubmitAfterAlreadyPendingOrSecondReturn() {
+        pendingAtCycle(4L);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnVersion")))
+            .thenReturn(1L);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.resubmit(ID,
+            new DepartmentCode("117"), "99999", REQUEST_ID, 1L));
+        returnedAtCycle(4L);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnVersion")))
+            .thenReturn(2L);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.resubmit(ID,
+            new DepartmentCode("117"), "99999", REQUEST_ID, 1L));
+    }
+
+    @Test void anotherNewRequestCannotReplaceReturnedRequestForSameRound() {
+        returnedAtCycle(4L);
+        assertThrows(OfficeCycleConflictException.class, () -> repo.submit(ID,
+            new DepartmentCode("117"), "another-secretary", "Different request"));
+        verify(nodes, never()).createNode(eq(parent), any(), any(),
+            eq(AlfrescoDepartmentAssignmentReader.q("secretaryRoundTwoRequest")), anyMap());
+    }
+
+    @Test void returnEditResubmitApproveAdvancesExactlyOnceWithoutLosingTheOriginalReturn() {
+        pendingAtCycle(3L);
+        var marker = AlfrescoDepartmentAssignmentReader.q("roundTwoPendingRequestId");
+        var status = AlfrescoDepartmentAssignmentReader.q("roundTwoRequestStatus");
+        var explanation = AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReason");
+        var reason = AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnReason");
+        var version = AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnVersion");
+        var updatedAt = AlfrescoDepartmentAssignmentReader.q("roundTwoRequestAt");
+        Map<org.alfresco.service.namespace.QName, Serializable> state = new HashMap<>();
+        state.put(status, "PENDING");
+        state.put(explanation, "Please continue");
+        state.put(version, 0L);
+        state.put(updatedAt, Date.from(Instant.parse("2026-11-04T12:00:00Z")));
+        for (var key : List.of(status, explanation, reason, version, updatedAt)) {
+            when(nodes.getProperty(followUp, key)).thenAnswer(call -> state.get(key));
+        }
+        doAnswer(call -> {
+            state.put(call.getArgument(1), call.getArgument(2));
+            return null;
+        }).when(nodes).setProperty(eq(followUp), any(), nullable(Serializable.class));
+
+        AtomicReference<Serializable> pointer = new AtomicReference<>(REQUEST_ID);
+        when(nodes.getProperty(parent, marker)).thenAnswer(call -> pointer.get());
+        doAnswer(call -> {
+            pointer.set(call.getArgument(2));
+            return null;
+        }).when(nodes).setProperty(eq(parent), eq(marker), nullable(Serializable.class));
+
+        var returned = repo.returnForRevision(ID, new DepartmentCode("117"),
+            REQUEST_ID, "200", "New version of the report required");
+        assertEquals("RETURNED", returned.status());
+        assertNull(pointer.get());
+        assertEquals(1L, repo.current(ID, new DepartmentCode("117"), "99999").returnVersion());
+        var revised = repo.revise(ID, new DepartmentCode("117"), "99999", REQUEST_ID,
+            1L, "Revised report attached");
+        assertEquals("RETURNED", revised.status());
+        assertEquals("Revised report attached", revised.reason());
+        assertEquals("New version of the report required", revised.returnReason());
+
+        var pending = repo.resubmit(ID, new DepartmentCode("117"), "99999", REQUEST_ID, 1L);
+        assertEquals("PENDING", pending.status());
+        assertEquals(REQUEST_ID, pointer.get());
+        assertEquals("New version of the report required", pending.returnReason());
+        assertEquals("Revised report attached", repo.pending(ID, new DepartmentCode("117")).reason());
+        assertThrows(OfficeCycleConflictException.class, () -> repo.resubmit(ID,
+            new DepartmentCode("117"), "99999", REQUEST_ID, 1L));
+
+        var next = repo.approve(ID, new DepartmentCode("117"), REQUEST_ID,
+            "200", () -> 4L);
+        assertEquals(4L, next.workflowCycle());
+        assertNull(pointer.get());
+        assertEquals("APPROVED", state.get(status));
+        assertThrows(OfficeCycleConflictException.class, () -> repo.approve(ID,
+            new DepartmentCode("117"), REQUEST_ID, "200", () -> 5L));
+        verify(nodes, never()).setProperty(eq(parent),
+            eq(AlfrescoCorrespondenceCycleReader.CURRENT), any());
+    }
+
     @Test void managerCanReadOnlyCurrentCycleAndUnitPendingRequest() {
         pendingAtCycle(3L);
         assertEquals(3L, repo.pending(ID, new DepartmentCode("117")).expectedCycle());
@@ -201,6 +359,10 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
         verify(nodes).setProperty(followUp,
             AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnReason"),
             "Needs new attachment");
+        verify(nodes).setProperty(followUp,
+            AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnVersion"), 1L);
+        verify(nodes).createNode(eq(parent), eq(ContentModel.ASSOC_CONTAINS), any(),
+            eq(AlfrescoDepartmentAssignmentReader.q("secretaryRoundTwoDecisionEvent")), anyMap());
         verify(nodes, never()).setProperty(eq(parent),
             eq(AlfrescoCorrespondenceCycleReader.CURRENT), any());
     }
