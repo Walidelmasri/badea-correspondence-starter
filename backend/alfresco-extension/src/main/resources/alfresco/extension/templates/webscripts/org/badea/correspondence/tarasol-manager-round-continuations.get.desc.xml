@@ -1,0 +1,8 @@
+<webscript>
+    <shortname>Manager pending secretary continuation queue</shortname>
+    <description>Read-only pending follow-up requests scoped to an active manager appointment</description>
+    <url>/badea/tarasol/manager/round-continuations</url>
+    <format default="json">argument</format>
+    <authentication>user</authentication>
+    <transaction allow="readonly">required</transaction>
+</webscript>

@@ -15,6 +15,7 @@ import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoSecretaryRoundTwoRequestRepository;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
@@ -30,8 +31,9 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
     private final AlfrescoSecretaryRoundTwoRequestRepository repository =
         mock(AlfrescoSecretaryRoundTwoRequestRepository.class);
     private final OfficeCycleContinuationService cycles = mock(OfficeCycleContinuationService.class);
+    private final AlfrescoCorrespondenceMailboxLister mailbox = mock(AlfrescoCorrespondenceMailboxLister.class);
     private final TarasolSecretaryRoundContinuationApprovalService service =
-        new TarasolSecretaryRoundContinuationApprovalService(organization, roles, repository, cycles);
+        new TarasolSecretaryRoundContinuationApprovalService(organization, roles, repository, cycles, mailbox);
     private final DepartmentCode unit = new DepartmentCode("117");
     private final EmployeeDirectoryEntry manager = new EmployeeDirectoryEntry(
         new EmployeeId("200"), new DirectoryUsername("manager.test"),
@@ -50,6 +52,68 @@ class TarasolSecretaryRoundContinuationApprovalServiceTest {
             new AlfrescoSecretaryRoundTwoRequestRepository.Request(REQUEST, CASE,
                 unit.value(), owner, "Follow up", cycle, "PENDING",
                 Instant.parse("2026-11-04T12:00:00Z")));
+    }
+
+    @Test void managerQueueFiltersBeforePaginationAndDoesNotAdvanceCycles() {
+        authorize(CorrespondenceActorRole.DIRECTOR, unit);
+        var first = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(CASE,
+            "Returned case", "117-A", "WITH_DIRECTOR", "117", "Originator",
+            Instant.parse("2026-11-04T11:00:00Z"), Instant.parse("2026-11-04T12:00:00Z"));
+        var other = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(
+            "117a0e57-bc77-4475-a06f-c72aaa0949c4", "No pending", null,
+            "WITH_DIRECTOR", "117", "Originator",
+            Instant.parse("2026-11-04T10:00:00Z"), Instant.parse("2026-11-04T11:00:00Z"));
+        when(mailbox.list("inbox", CorrespondenceActorRole.DIRECTOR, unit,
+            "200", "all", 0, 100)).thenReturn(
+                new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                    List.of(first, other), 0, 100, 2));
+        pending("99999", 3L);
+        var result = service.pendingQueue(manager, unit, 0, 10);
+        assertEquals(1, result.total());
+        assertEquals(CASE, result.items().get(0).technicalId());
+        assertEquals(REQUEST, result.items().get(0).requestId());
+        assertEquals("Returned case", result.items().get(0).subject());
+        assertTrue(service.pendingQueue(manager, unit, 1, 10).items().isEmpty());
+        verifyNoInteractions(cycles);
+    }
+
+    @Test void managerQueueScansLaterPagesAndSkipsAnotherUnitsRequest() {
+        authorize(CorrespondenceActorRole.DIRECTOR, unit);
+        var first = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(
+            "117a0e57-bc77-4475-a06f-c72aaa0949c4", "Other unit request", null,
+            "WITH_DIRECTOR", "117", "Sender",
+            Instant.parse("2026-11-04T10:00:00Z"), Instant.parse("2026-11-04T11:00:00Z"));
+        var next = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(CASE,
+            "My unit request", null, "WITH_DIRECTOR", "117", "Sender",
+            Instant.parse("2026-11-04T11:00:00Z"), Instant.parse("2026-11-04T12:00:00Z"));
+        when(mailbox.list("inbox", CorrespondenceActorRole.DIRECTOR, unit,
+            "200", "all", 0, 100)).thenReturn(
+                new AlfrescoCorrespondenceMailboxLister.MailboxPage(List.of(first), 0, 100, 2));
+        when(mailbox.list("inbox", CorrespondenceActorRole.DIRECTOR, unit,
+            "200", "all", 1, 100)).thenReturn(
+                new AlfrescoCorrespondenceMailboxLister.MailboxPage(List.of(next), 1, 100, 2));
+        when(repository.pending(first.technicalId(), unit)).thenThrow(
+            new org.badea.correspondence.application.OfficeCycleConflictException(
+                "Request belongs to another unit"));
+        pending("99999", 4L);
+        var result = service.pendingQueue(manager, unit, 0, 10);
+        assertEquals(1, result.total());
+        assertEquals(CASE, result.items().get(0).technicalId());
+    }
+
+    @Test void unauthorizedManagerCannotDiscoverAnyPendingContinuation() {
+        when(roles.resolveWorkspace(unit.value(), manager))
+            .thenThrow(new CorrespondenceAuthorizationException("No active Tarasol appointment for workspace"));
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.pendingQueue(manager, unit, 0, 10));
+        verifyNoInteractions(mailbox, repository, cycles);
+    }
+
+    @Test void invalidPaginationRejectedBeforeReadingMailbox() {
+        authorize(CorrespondenceActorRole.DIRECTOR, unit);
+        assertThrows(IllegalArgumentException.class,
+            () -> service.pendingQueue(manager, unit, 0, 101));
+        verifyNoInteractions(mailbox, repository, cycles);
     }
 
     @Test void authorizedDirectorApprovesUsingExistingCycleService() {

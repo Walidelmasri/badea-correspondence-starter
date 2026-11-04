@@ -1129,6 +1129,7 @@
         <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
         <constructor-arg ref="badeaSecretaryRoundTwoRequestRepository" />
         <constructor-arg ref="badeaOfficeCycleContinuationService" />
+        <constructor-arg ref="badeaCorrespondenceMailboxLister" />
     </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-manager-round-continuation.get"
           class="org.badea.correspondence.webscript.TarasolSecretaryRoundContinuationApprovalWebScript"
@@ -1143,6 +1144,13 @@
         <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
         <constructor-arg ref="badeaSecretaryRoundContinuationApprovalService" />
         <constructor-arg value="true" />
+    </bean>
+
+    <bean id="webscript.org.badea.correspondence.tarasol-manager-round-continuations.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundContinuationQueueWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundContinuationApprovalService" />
     </bean>
 
     <!-- Independent secretary approval lifecycle. Secretary access requires

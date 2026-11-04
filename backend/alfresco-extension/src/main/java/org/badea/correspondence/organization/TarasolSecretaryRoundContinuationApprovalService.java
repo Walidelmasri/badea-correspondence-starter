@@ -1,6 +1,9 @@
 package org.badea.correspondence.organization;
 
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
+import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.badea.correspondence.application.OfficeCycleContinuationService;
 import org.badea.correspondence.application.TransitionCorrespondenceCommand;
@@ -19,15 +22,69 @@ public final class TarasolSecretaryRoundContinuationApprovalService {
     private final CorrespondenceActorRoleResolver roles;
     private final AlfrescoSecretaryRoundTwoRequestRepository requests;
     private final OfficeCycleContinuationService cycles;
+    private final AlfrescoCorrespondenceMailboxLister mailbox;
+    private static final int SCAN_PAGE_SIZE = 100;
+    private static final int MAX_SCAN_ITEMS = 10000;
 
     public TarasolSecretaryRoundContinuationApprovalService(TarasolOrganizationReader organization,
             CorrespondenceActorRoleResolver roles,
             AlfrescoSecretaryRoundTwoRequestRepository requests,
-            OfficeCycleContinuationService cycles) {
+            OfficeCycleContinuationService cycles,
+            AlfrescoCorrespondenceMailboxLister mailbox) {
         this.organization = Objects.requireNonNull(organization);
         this.roles = Objects.requireNonNull(roles);
         this.requests = Objects.requireNonNull(requests);
         this.cycles = Objects.requireNonNull(cycles);
+        this.mailbox = Objects.requireNonNull(mailbox);
+    }
+
+    public record PendingItem(String technicalId, String requestId, String unitCode,
+            String ownerEmployeeId, String subject, String documentNumber,
+            String reason, long expectedCycle, java.time.Instant requestedAt) { }
+    public record PendingPage(List<PendingItem> items, int total, int offset, int limit) {
+        public PendingPage { items = List.copyOf(items); }
+    }
+
+    /** Manager-only discovery. Never rely on the client to provide correspondence IDs.
+     * This uses the already-authorized unit Inbox; an indexed query is needed for large datasets.
+     */
+    public PendingPage pendingQueue(EmployeeDirectoryEntry manager, DepartmentCode unit,
+            int offset, int limit) {
+        managerRole(manager, unit);
+        if (offset < 0 || limit < 1 || limit > 100)
+            throw new IllegalArgumentException("Invalid queue pagination");
+        return AuthenticationUtil.runAsSystem(() -> {
+            List<PendingItem> found = new ArrayList<>();
+            int scanned = 0;
+            while (true) {
+                var page = mailbox.list("inbox", CorrespondenceActorRole.DIRECTOR, unit,
+                    manager.employeeId().value(), "all", scanned, SCAN_PAGE_SIZE);
+                for (var item : page.items()) {
+                    AlfrescoSecretaryRoundTwoRequestRepository.Request request;
+                    try {
+                        request = requests.pending(item.technicalId(), unit);
+                    } catch (org.badea.correspondence.application.OfficeCycleConflictException staleOrOtherUnit) {
+                        // A correspondence may be visible to more than one TO unit;
+                        // only the unit owning the pending request may see it here.
+                        continue;
+                    }
+                    if (request != null && "PENDING".equals(request.status())) {
+                        found.add(new PendingItem(item.technicalId(), request.requestId(),
+                            request.unitCode(), request.ownerEmployeeId(), item.subject(),
+                            item.documentNumber(), request.reason(), request.expectedCycle(),
+                            request.requestedAt()));
+                    }
+                }
+                scanned += page.items().size();
+                if (scanned >= page.total()) break;
+                if (page.items().isEmpty() || scanned >= MAX_SCAN_ITEMS)
+                    throw new IllegalStateException("Continuation queue needs an indexed search");
+            }
+            // The source mailbox is ordered newest-first. Always page AFTER filtering.
+            int from = Math.min(offset, found.size());
+            return new PendingPage(found.subList(from, Math.min(found.size(), from + limit)),
+                found.size(), offset, limit);
+        });
     }
 
     public AlfrescoSecretaryRoundTwoRequestRepository.Request pending(
