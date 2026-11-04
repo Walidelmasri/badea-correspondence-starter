@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CorrespondenceDraftPage,
   CorrespondenceMailboxPage,
+  CorrespondenceMailboxSummary,
 } from '../../../shared/data-access/correspondence-api.service';
 import { buildDashboardSnapshot } from './dashboard-metrics';
 
@@ -22,6 +23,27 @@ describe('dashboard metrics', () => {
     expect(snapshot.drafts).toBe(6);
     expect(snapshot.segments.reduce((sum, segment) =>
       sum + segment.percentage, 0)).toBeCloseTo(100);
+  });
+
+  it('uses action-needed items for the main dashboard list without changing total received', () => {
+    const item = (id: string): CorrespondenceMailboxSummary => ({
+      technicalId: id, subject: id, documentNumber: null,
+      createdAt: '2026-11-04T09:00:00Z', modifiedAt: '2026-11-04T09:00:00Z',
+      state: 'WITH_DIRECTOR', originDepartmentCode: '117',
+      senderName: 'Test employee', needsAction: true, unread: false, incomingSequence: 1,
+    });
+    const all = { ...inboxPage(20), items: [item('handled-old')] };
+    const actionItems = Array.from({ length: 7 }, (_, index) => item(`action-${index}`));
+    const actionable = { ...inboxPage(7), items: actionItems };
+    const snapshot = buildDashboardSnapshot(
+      all, actionable, inboxPage(13), inboxPage(0), inboxPage(4), draftPage(1),
+    );
+    expect(snapshot.received).toBe(20);
+    expect(snapshot.needsAction).toBe(7);
+    expect(snapshot.urgent.map(entry => entry.technicalId)).toEqual(
+      ['action-0', 'action-1', 'action-2', 'action-3']);
+    expect(snapshot.recent.map(entry => entry.technicalId)).toEqual(
+      actionItems.map(entry => entry.technicalId));
   });
 
   it('handles an empty repository without inventing metrics', () => {

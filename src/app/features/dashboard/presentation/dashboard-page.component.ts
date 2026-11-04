@@ -56,7 +56,7 @@ export class DashboardPageComponent implements OnInit {
     try {
       const pages = await firstValueFrom(forkJoin({
         all: this.api.listMailbox('inbox', 0, 7, 'all'),
-        urgent: this.api.listMailbox('inbox', 0, 4, 'needs_action'),
+        urgent: this.api.listMailbox('inbox', 0, 7, 'needs_action'),
         handled: this.api.listMailbox('inbox', 0, 1, 'handled'),
         archived: this.api.listMailbox('inbox', 0, 1, 'archived'),
         sent: this.api.listMailbox('sent', 0, 1),

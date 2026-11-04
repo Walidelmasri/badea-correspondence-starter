@@ -28,22 +28,22 @@
     </div>
   } @else if (stats(); as s) {
     <div class="dashboard__stats">
-      <a routerLink="/inbox" class="stat stat--received">
+      <a routerLink="/inbox" [queryParams]="{ view: 'all' }" class="stat stat--received">
         <span class="stat__label">{{ labels().stats.received }}</span>
         <strong class="stat__number">{{ s.received }}</strong>
         <span class="stat__meta">{{ labels().openInbox }} <span aria-hidden="true">↗</span></span>
       </a>
-      <a routerLink="/inbox" class="stat stat--action">
+      <a routerLink="/inbox" [queryParams]="{ view: 'needs_action' }" class="stat stat--action">
         <span class="stat__label">{{ labels().stats.needsAction }}</span>
         <strong class="stat__number">{{ s.needsAction }}</strong>
         <span class="stat__meta">{{ labels().focusHint }}</span>
       </a>
-      <a routerLink="/inbox" class="stat">
+      <a routerLink="/inbox" [queryParams]="{ view: 'handled' }" class="stat">
         <span class="stat__label">{{ labels().stats.handled }}</span>
         <strong class="stat__number">{{ s.handled }}</strong>
         <span class="stat__meta">{{ labels().handledStatus }}</span>
       </a>
-      <a routerLink="/inbox" class="stat">
+      <a routerLink="/inbox" [queryParams]="{ view: 'archived' }" class="stat">
         <span class="stat__label">{{ labels().stats.archived }}</span>
         <strong class="stat__number">{{ s.archived }}</strong>
         <span class="stat__meta">{{ labels().archivedStatus }}</span>
@@ -85,7 +85,7 @@
         } @else {
           <div class="dashboard__empty">{{ labels().empty }}</div>
         }
-        <a routerLink="/inbox" class="panel__link">{{ labels().openInbox }} <span aria-hidden="true">↗</span></a>
+        <a routerLink="/inbox" [queryParams]="{ view: 'needs_action' }" class="panel__link">{{ labels().openInbox }} <span aria-hidden="true">↗</span></a>
       </section>
 
       <section class="panel panel--distribution">

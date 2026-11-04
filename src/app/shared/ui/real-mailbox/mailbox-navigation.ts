@@ -12,3 +12,17 @@ export function composeRouteForRole(role: ComposeActorRole): string {
     default: return '/inbox';
   }
 }
+
+/** Default Inbox to actionable correspondence while honoring explicit filter links. */
+export function inboxViewFromQuery(value: string | null): 'all' | 'unread' | 'needs_action' | 'handled' | 'archived' {
+  switch (value) {
+    case 'all':
+    case 'unread':
+    case 'needs_action':
+    case 'handled':
+    case 'archived':
+      return value;
+    default:
+      return 'needs_action';
+  }
+}

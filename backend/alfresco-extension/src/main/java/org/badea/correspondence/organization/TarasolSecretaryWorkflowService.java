@@ -2,6 +2,8 @@ package org.badea.correspondence.organization;
 
 import java.util.List;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
+import org.alfresco.service.cmr.security.AuthorityService;
+import org.badea.correspondence.security.AuthenticatedUserProvider;
 import java.util.Objects;
 import java.util.Set;
 
@@ -28,15 +30,21 @@ public final class TarasolSecretaryWorkflowService {
     private final TarasolOrganizationReader organization;
     private final CorrespondenceActorRoleResolver roles;
     private final AlfrescoCorrespondenceRepository correspondence;
+    private final AuthorityService authorityService;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
     public TarasolSecretaryWorkflowService(TarasolEffectiveAccessReader access,
             TarasolOrganizationReader organization,
             CorrespondenceActorRoleResolver roles,
-            AlfrescoCorrespondenceRepository correspondence) {
+            AlfrescoCorrespondenceRepository correspondence,
+            AuthorityService authorityService,
+            AuthenticatedUserProvider authenticatedUserProvider) {
         this.access = Objects.requireNonNull(access);
         this.organization = Objects.requireNonNull(organization);
         this.roles = Objects.requireNonNull(roles);
         this.correspondence = Objects.requireNonNull(correspondence);
+        this.authorityService = Objects.requireNonNull(authorityService);
+        this.authenticatedUserProvider = Objects.requireNonNull(authenticatedUserProvider);
     }
 
     public String create(EmployeeDirectoryEntry secretary, DepartmentCode unit,
@@ -213,7 +221,8 @@ public final class TarasolSecretaryWorkflowService {
     }
 
     private void requireSecretary(EmployeeDirectoryEntry actor, DepartmentCode unit) {
-        if (!access.hasActiveSecretaryAssignment(actor.employeeId(), unit)) throw denied();
+        if (!TarasolSecretaryGroupPolicy.isMember(authorityService, authenticatedUserProvider)
+                || !access.hasActiveSecretaryAssignment(actor.employeeId(), unit)) throw denied();
     }
 
     private CorrespondenceActorRoleResolver.Workspace requireManager(

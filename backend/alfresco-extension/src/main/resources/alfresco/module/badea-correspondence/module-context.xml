@@ -1013,14 +1013,17 @@
         <constructor-arg value="false" />
         <constructor-arg value="true" />
     </bean>
-    <!-- Independent secretary approval lifecycle. Fail-closed through Oracle
-         grants and authenticated manager workspaces. -->
+    <!-- Independent secretary approval lifecycle. Secretary access requires
+         group membership and Oracle grants; manager approval retains its
+         existing authorized managerial workspace checks. -->
     <bean id="badeaTarasolSecretaryWorkflowService"
           class="org.badea.correspondence.organization.TarasolSecretaryWorkflowService" lazy-init="true">
         <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
         <constructor-arg ref="badeaCorrespondenceOrganizationReader" />
         <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
         <constructor-arg ref="badeaCorrespondenceRepository" />
+        <constructor-arg ref="authorityService" />
+        <constructor-arg ref="badeaCorrespondenceAuthenticatedUserProvider" />
     </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-secretary-workflow.get"
           class="org.badea.correspondence.webscript.TarasolSecretaryWorkflowWebScript"

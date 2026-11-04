@@ -58,7 +58,7 @@ export function buildDashboardSnapshot(
     sent: sent.total,
     drafts: drafts.total,
     urgent: needsAction.items.slice(0, 4),
-    recent: all.items.slice(0, 7),
+    recent: needsAction.items.slice(0, 7),
     segments: parts.map(part => ({
       ...part,
       percentage: denominator === 0 ? 0 : 100 * part.total / denominator,

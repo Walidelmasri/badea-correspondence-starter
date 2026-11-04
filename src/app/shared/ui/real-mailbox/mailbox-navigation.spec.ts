@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeRouteForRole, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
+import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 
 describe('correspondence creation navigation', () => {
   it('opens the separate Director, Office and President creation pages', () => {
@@ -13,5 +13,12 @@ describe('correspondence creation navigation', () => {
   });
   it('retains ten-item mailbox pagination', () => {
     expect(MAILBOX_PAGE_SIZE).toBe(10);
+  });
+  it('starts Inbox on needs action and preserves deep links to every filter', () => {
+    expect(inboxViewFromQuery(null)).toBe('needs_action');
+    expect(inboxViewFromQuery('unknown')).toBe('needs_action');
+    for (const view of ['all', 'unread', 'needs_action', 'handled', 'archived']) {
+      expect(inboxViewFromQuery(view)).toBe(view);
+    }
   });
 });

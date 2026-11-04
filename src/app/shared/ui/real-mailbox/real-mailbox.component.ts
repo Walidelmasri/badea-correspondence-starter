@@ -34,7 +34,7 @@ import { queueFollowUpFiles } from './follow-up-file-queue';
 import { groupSourceDocuments, sourceDocumentsForRound } from './source-document-rounds';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
-import { composeRouteForRole, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
+import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 
 const PAGE_SIZE = MAILBOX_PAGE_SIZE;
@@ -67,7 +67,7 @@ export class RealMailboxComponent implements OnInit {
     : this.translation.text().sent);
   readonly labels = computed(() => this.translation.text().mailbox);
 
-  readonly inboxView = signal<CorrespondenceInboxView>('all');
+  readonly inboxView = signal<CorrespondenceInboxView>('needs_action');
   readonly inboxViews: readonly CorrespondenceInboxView[] =
     ['all', 'unread', 'needs_action', 'handled', 'archived'];
   readonly page = signal<CorrespondenceMailboxPage | null>(null);
@@ -243,8 +243,8 @@ export class RealMailboxComponent implements OnInit {
     // block authenticated mailbox access or document preview.
     void this.loadDepartments();
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
-      this.inboxView.set(this.box() === 'inbox' && params.get('view') === 'unread'
-        ? 'unread' : 'all');
+      this.inboxView.set(this.box() === 'inbox'
+        ? inboxViewFromQuery(params.get('view')) : 'all');
       // Invalidate any in-flight page fetch when opening a notification.
       ++this.pageVersion;
       this.loading.set(false);

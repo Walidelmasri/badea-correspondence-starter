@@ -13,6 +13,8 @@ import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeId;
+import org.alfresco.service.cmr.security.AuthorityService;
+import org.badea.correspondence.security.AuthenticatedUserProvider;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceRepository;
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -31,8 +33,17 @@ class TarasolSecretaryWorkflowServiceTest {
     private final TarasolOrganizationReader organization = mock(TarasolOrganizationReader.class);
     private final CorrespondenceActorRoleResolver roles = mock(CorrespondenceActorRoleResolver.class);
     private final AlfrescoCorrespondenceRepository repo = mock(AlfrescoCorrespondenceRepository.class);
+    private final AuthorityService authorityService = mock(AuthorityService.class);
+    private final AuthenticatedUserProvider authenticatedUserProvider = mock(AuthenticatedUserProvider.class);
     private final TarasolSecretaryWorkflowService service =
-        new TarasolSecretaryWorkflowService(access, organization, roles, repo);
+        new TarasolSecretaryWorkflowService(access, organization, roles, repo,
+            authorityService, authenticatedUserProvider);
+
+    private void secretaryGroup() {
+        when(authenticatedUserProvider.getUsername()).thenReturn("test.secretary");
+        when(authorityService.getAuthoritiesForUser("test.secretary"))
+            .thenReturn(Set.of(TarasolSecretaryGroupPolicy.AUTHORITY));
+    }
 
     private EmployeeDirectoryEntry employee(String id) {
         return new EmployeeDirectoryEntry(new EmployeeId(id), new DirectoryUsername("emp." + id),
@@ -140,6 +151,7 @@ class TarasolSecretaryWorkflowServiceTest {
 
     @Test
     void secretaryCannotCreateOrSubmitWithoutActiveAssignment() {
+        secretaryGroup();
         var secretary = employee("300");
         assertThrows(CorrespondenceAuthorizationException.class,
             () -> service.create(secretary, hr, "Request", "Body"));
@@ -149,9 +161,28 @@ class TarasolSecretaryWorkflowServiceTest {
     }
 
     @Test
+    void oracleSecretaryAssignmentWithoutAlfrescoGroupIsDenied() {
+        var secretary = employee("300");
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.create(secretary, hr, "Request", "Body"));
+        verifyNoInteractions(repo);
+    }
+
+    @Test
+    void secretaryGroupWithoutActiveOracleUnitIsDenied() {
+        secretaryGroup();
+        var secretary = employee("300");
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.page(secretary, hr, false, 0, 20));
+        verifyNoInteractions(repo);
+    }
+
+    @Test
     void secretarySubmitAndManagerReturnPreserveActualActors() {
         var secretary = employee("300");
         var manager = employee("200");
+        secretaryGroup();
         when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
         when(repo.readSecretaryDraft(CASE)).thenReturn(new AlfrescoCorrespondenceRepository.SecretaryDraft(
             CASE, hr.value(), "Report", "Body", secretary.employeeId().value(), "DRAFT"),
@@ -173,6 +204,7 @@ class TarasolSecretaryWorkflowServiceTest {
     @Test
     void secretaryCanSeeOnlyOwnPagedSubmittedAndApprovedCases() {
         var secretary = employee("300");
+        secretaryGroup();
         when(access.hasActiveSecretaryAssignment(secretary.employeeId(), hr)).thenReturn(true);
         var sent = new AlfrescoCorrespondenceRepository.SecretaryDraft(CASE, hr.value(),
             "Sent report", "Body", "300", "APPROVED");

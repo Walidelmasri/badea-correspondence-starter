@@ -198,12 +198,13 @@ class CurrentEmployeeWebScriptTest {
     }
 
     @Test
-    void secretaryWithoutDirectorGroupReceivesOnlySecretaryWorkspace() throws IOException {
+    void secretaryWithOnlySecretaryGroupReceivesOnlySecretaryWorkspace() throws IOException {
         var authority = mock(AuthorityService.class);
         var identity = mock(AuthenticatedUserProvider.class);
         var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
         when(identity.getUsername()).thenReturn("test.user");
-        when(authority.getAuthoritiesForUser("test.user")).thenReturn(Set.of());
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of(org.badea.correspondence.organization.TarasolSecretaryGroupPolicy.AUTHORITY));
         when(roleResolver.resolveCurrentUserRole())
             .thenThrow(new CorrespondenceAuthorizationException("No workflow group"));
         when(access.findCurrentSecretaryUnits(new EmployeeId("10001")))
@@ -215,6 +216,79 @@ class CurrentEmployeeWebScriptTest {
         assertEquals("SECRETARY", result.getString("correspondenceRole"));
         assertEquals(1, result.getJSONArray("secretaryUnits").length());
         assertEquals(0, result.getJSONArray("managerWorkspaces").length());
+    }
+
+    @Test
+    void directorKeepsOwnWorkspaceAndGetsOptionalSecretaryUnitOnlyWithGroup() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user")).thenReturn(Set.of(
+            "GROUP_BADEA_CORRESPONDENCE_DIRECTORS",
+            org.badea.correspondence.organization.TarasolSecretaryGroupPolicy.AUTHORITY));
+        when(roleResolver.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.DIRECTOR);
+        when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(CorrespondenceActorRole.DIRECTOR));
+        when(access.findCurrentSecretaryUnits(new EmployeeId("10001"))).thenReturn(List.of(
+            new org.badea.correspondence.organization.TarasolEffectiveAccessReader.SecretaryUnit(
+                "118", "Human Resources", null)));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("DIRECTOR", result.getString("correspondenceRole"));
+        assertEquals(1, result.getJSONArray("secretaryUnits").length());
+    }
+
+    @Test
+    void directorWithoutSecretaryGroupDoesNotReceiveSecretaryUnits() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of("GROUP_BADEA_CORRESPONDENCE_DIRECTORS"));
+        when(roleResolver.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.DIRECTOR);
+        when(roleResolver.resolveCurrentUserRoles()).thenReturn(Set.of(CorrespondenceActorRole.DIRECTOR));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("DIRECTOR", result.getString("correspondenceRole"));
+        assertEquals(0, result.getJSONArray("secretaryUnits").length());
+        verify(access, never()).findCurrentSecretaryUnits(any());
+    }
+
+    @Test
+    void oracleOnlySecretaryIsDeniedWithoutSecretaryGroup() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user")).thenReturn(Set.of());
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No workflow group"));
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
+        verify(access, never()).findCurrentSecretaryUnits(any());
+    }
+
+    @Test
+    void secretaryGroupWithoutOracleAssignmentIsDenied() throws IOException {
+        var authority = mock(AuthorityService.class);
+        var identity = mock(AuthenticatedUserProvider.class);
+        var access = mock(org.badea.correspondence.organization.TarasolEffectiveAccessReader.class);
+        when(identity.getUsername()).thenReturn("test.user");
+        when(authority.getAuthoritiesForUser("test.user"))
+            .thenReturn(Set.of(org.badea.correspondence.organization.TarasolSecretaryGroupPolicy.AUTHORITY));
+        when(roleResolver.resolveCurrentUserRole())
+            .thenThrow(new CorrespondenceAuthorizationException("No workflow group"));
+        when(access.findCurrentSecretaryUnits(any())).thenReturn(List.of());
+        when(access.findCurrentDelegationUnits(any())).thenReturn(List.of());
+        webScript = new CurrentEmployeeWebScript(employeeService, roleResolver,
+            null, authority, identity, access);
+        JSONObject result = execute();
+        assertEquals("CORRESPONDENCE_FORBIDDEN", result.getString("code"));
     }
 
     @Test

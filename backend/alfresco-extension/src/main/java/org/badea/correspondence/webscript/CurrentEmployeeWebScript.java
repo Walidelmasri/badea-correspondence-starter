@@ -17,6 +17,7 @@ import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 import org.badea.correspondence.directory.DepartmentDirectoryException;
 import org.badea.correspondence.infrastructure.oracle.TarasolOrganizationReader;
 import org.badea.correspondence.organization.TarasolEffectiveAccessReader;
+import org.badea.correspondence.organization.TarasolSecretaryGroupPolicy;
 import org.json.JSONArray;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
@@ -101,9 +102,9 @@ public final class CurrentEmployeeWebScript
             throws IOException {
 
         try {
-            // Ordinary workflow roles still come from Alfresco groups. A
-            // secretary without any such group may enter ONLY through a
-            // current Oracle secretary assignment, never as a Director.
+            // Existing workflow groups remain unchanged. Secretary access
+            // requires its Alfresco group AND an active Oracle unit assignment;
+            // neither alone confers a Director workspace.
             CorrespondenceActorRole role;
             EmployeeDirectoryEntry employee;
             List<TarasolEffectiveAccessReader.SecretaryUnit> secretaryUnits = List.of();
@@ -129,7 +130,9 @@ public final class CurrentEmployeeWebScript
                     role = CorrespondenceActorRole.TARASOL_ADMIN;
                 } else {
                     if (effectiveAccess == null) throw denied;
-                    secretaryUnits = effectiveAccess.findCurrentSecretaryUnits(employee.employeeId());
+                    if (authorities.contains(TarasolSecretaryGroupPolicy.AUTHORITY)) {
+                        secretaryUnits = effectiveAccess.findCurrentSecretaryUnits(employee.employeeId());
+                    }
                     if (secretaryUnits.isEmpty()) {
                         delegationUnits = effectiveAccess.findCurrentDelegationUnits(employee.employeeId());
                         if (delegationUnits.isEmpty()) throw denied;
@@ -141,7 +144,8 @@ public final class CurrentEmployeeWebScript
                 groups = Set.of();
             }
             if (effectiveAccess != null && secretaryUnits.isEmpty()
-                    && role != CorrespondenceActorRole.SECRETARY) {
+                    && role != CorrespondenceActorRole.SECRETARY
+                    && TarasolSecretaryGroupPolicy.isMember(authorityService, userProvider)) {
                 // Optional secretary workspaces must not prevent established
                 // Director/Office/President logins when the new grant read fails.
                 try {
