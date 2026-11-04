@@ -134,7 +134,7 @@ public final class GetCorrespondenceDetailsWebScript
         }
     }
 
-    private static JSONObject serialize(
+    static JSONObject serialize(
             CorrespondenceDetails details) {
 
         JSONObject result = new JSONObject();

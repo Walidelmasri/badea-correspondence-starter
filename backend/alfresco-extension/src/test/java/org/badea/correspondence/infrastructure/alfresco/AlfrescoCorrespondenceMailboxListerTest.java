@@ -69,6 +69,33 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
+    void exactCaseReadMatchesDirectorUnitInboxAndNeverExposesDrafts() {
+        String id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+        prop("state", "WITH_DIRECTOR");
+        prop("assignedRole", "DIRECTOR");
+        prop("assignedDepartmentCode", "117");
+        assertEquals(1, lister.list("inbox", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "99999", "all", 0, 10).total());
+        assertTrue(lister.containsDirectorInboxCase(id, DEPARTMENT));
+        assertFalse(lister.containsDirectorInboxCase(id, new DepartmentCode("118")));
+        assertFalse(lister.containsDirectorInboxCase("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", DEPARTMENT));
+        prop("state", "DRAFT");
+        assertEquals(0, lister.list("inbox", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "99999", "all", 0, 10).total());
+        assertFalse(lister.containsDirectorInboxCase(id, DEPARTMENT));
+    }
+
+    @Test
+    void exactCaseReadRejectsAnUnreceivedOfficeCaseAndMalformedIds() {
+        String id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+        assertEquals(0, lister.list("inbox", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "99999", "all", 0, 10).total());
+        assertFalse(lister.containsDirectorInboxCase(id, DEPARTMENT));
+        assertThrows(IllegalArgumentException.class,
+                () -> lister.containsDirectorInboxCase("not-an-id", DEPARTMENT));
+    }
+
+    @Test
     void directorSentContainsOnlyTheirOwnSubmittedCorrespondence() {
         action("10001", "DIRECTOR", "PRESIDENT_OFFICE", null);
         var page = lister.list("sent", CorrespondenceActorRole.DIRECTOR,

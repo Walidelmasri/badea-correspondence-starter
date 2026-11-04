@@ -120,6 +120,46 @@ public final class AlfrescoCorrespondenceMailboxLister {
         return new MailboxPage(matches.subList(from, to), offset, limit, total);
     }
 
+    /** Exact-case membership check using the same Director Inbox criteria as list().
+     * Caller must separately check secretary group and active Oracle unit grant.
+     * This method must be invoked inside the existing institutional read scope.
+     */
+    public boolean containsDirectorInboxCase(String technicalId, DepartmentCode department) {
+        Objects.requireNonNull(technicalId, "technicalId must not be null");
+        Objects.requireNonNull(department, "department must not be null");
+        if (!java.util.UUID.fromString(technicalId).toString().equals(technicalId)) {
+            throw new IllegalArgumentException("Canonical correspondence ID required");
+        }
+        NodeRef root = folders.locateCorrespondenceRoot();
+        boolean seen = false;
+        boolean visible = false;
+        for (ChildAssociationRef folderAssoc : nodes.getChildAssocs(root)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(folderAssoc.getTypeQName())) continue;
+            NodeRef folder = folderAssoc.getChildRef();
+            if (!ContentModel.TYPE_FOLDER.equals(nodes.getType(folder))) continue;
+            for (ChildAssociationRef assoc : nodes.getChildAssocs(folder)) {
+                if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())) continue;
+                NodeRef node = assoc.getChildRef();
+                if (!TYPE_CORRESPONDENCE.equals(nodes.getType(node))) continue;
+                if (!technicalId.equals(optional(node, PROP_TECHNICAL_ID))) continue;
+                if (seen) throw new CorrespondenceRepositoryException("Duplicate correspondence ID");
+                seen = true;
+                CorrespondenceState state = readState(node);
+                if (state == CorrespondenceState.DRAFT) continue;
+                boolean receivedByUnit = departmentAssignments.read(node).stream()
+                        .anyMatch(a -> a.isVisibleTo(department));
+                boolean activeAssignment = receivedByUnit && departmentAssignments.readCurrent(node)
+                        .stream().anyMatch(a -> a.isActionableFor(department));
+                boolean active = isAssigned(node, state, CorrespondenceActorRole.DIRECTOR,
+                        department) || activeAssignment;
+                boolean receivedByHistory = participationReader.read(node).stream()
+                        .anyMatch(a -> a.receivedBy(CorrespondenceActorRole.DIRECTOR, department));
+                visible = active || receivedByUnit || receivedByHistory;
+            }
+        }
+        return visible;
+    }
+
     private boolean collect(NodeRef folder, String box, CorrespondenceActorRole role,
             DepartmentCode department, String employeeId, String view,
             List<MailboxSummary> matches) {

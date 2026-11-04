@@ -52,6 +52,29 @@ class TarasolSecretarySharedInboxServiceTest {
     }
 
     @Test
+    void caseReadRequiresBothGrantsAndActualInboxMembership() {
+        String id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+        permitSecretaryGroup();
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), unit)).thenReturn(true);
+        when(mailbox.containsDirectorInboxCase(id, unit)).thenReturn(true);
+        assertEquals("approved", service.readCase(secretary, unit, id, () -> "approved"));
+        verify(mailbox).containsDirectorInboxCase(id, unit);
+        when(mailbox.containsDirectorInboxCase(id, unit)).thenReturn(false);
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> service.readCase(secretary, unit, id, () -> "private"));
+    }
+
+    @Test
+    void caseReadNeverRunsForWrongUnitOrNonSecretary() {
+        String id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+        permitSecretaryGroup();
+        when(access.hasActiveSecretaryAssignment(secretary.employeeId(), unit)).thenReturn(true);
+        assertThrows(CorrespondenceAuthorizationException.class,
+                () -> service.readCase(secretary, other, id, () -> "private"));
+        verifyNoInteractions(mailbox);
+    }
+
+    @Test
     void oracleAssignmentWithoutSecretaryGroupIsDenied() {
         when(access.hasActiveSecretaryAssignment(secretary.employeeId(), unit)).thenReturn(true);
         assertThrows(CorrespondenceAuthorizationException.class,

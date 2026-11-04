@@ -30,6 +30,31 @@ public final class TarasolSecretarySharedInboxService {
         this.authenticatedUser = Objects.requireNonNull(authenticatedUser);
     }
 
+    /** Read one already-visible department Inbox case; never expand Director writes.
+     * Authorization is performed under the real caller before the privileged read.
+     */
+    public <T> T readCase(EmployeeDirectoryEntry actor, DepartmentCode unit,
+            String technicalId, java.util.function.Supplier<T> operation) {
+        Objects.requireNonNull(actor);
+        Objects.requireNonNull(unit);
+        Objects.requireNonNull(operation);
+        if (!TarasolSecretaryGroupPolicy.isMember(authorities, authenticatedUser)
+                || !access.hasActiveSecretaryAssignment(actor.employeeId(), unit)) {
+            throw new CorrespondenceAuthorizationException("Secretary Inbox access denied");
+        }
+        if (technicalId == null || !technicalId.matches(
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            throw new IllegalArgumentException("Canonical correspondence ID required");
+        }
+        return AuthenticationUtil.runAsSystem(() -> {
+            if (!mailbox.containsDirectorInboxCase(technicalId, unit)) {
+                // Do not distinguish a missing case from a case outside the shared Inbox.
+                throw new CorrespondenceAuthorizationException("Secretary Inbox case denied");
+            }
+            return operation.get();
+        });
+    }
+
     public AlfrescoCorrespondenceMailboxLister.MailboxPage list(
             EmployeeDirectoryEntry actor, DepartmentCode unit, String view,
             int offset, int limit) {
