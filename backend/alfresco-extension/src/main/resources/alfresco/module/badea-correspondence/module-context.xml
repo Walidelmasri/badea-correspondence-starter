@@ -1111,14 +1111,14 @@
           parent="webscript" lazy-init="true">
         <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
         <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
-        <constructor-arg value="true" />
+        <constructor-arg value="SUBMIT" />
     </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-request.get"
           class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
           parent="webscript" lazy-init="true">
         <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
         <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
-        <constructor-arg value="false" />
+        <constructor-arg value="CURRENT" />
     </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-request.put"
           class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"

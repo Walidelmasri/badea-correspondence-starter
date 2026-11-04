@@ -21,11 +21,6 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
     private final String mode;
 
     public TarasolSecretaryRoundTwoRequestWebScript(CurrentEmployeeService employees,
-            TarasolSecretaryRoundTwoRequestService requests, boolean writing) {
-        this(employees, requests, writing ? "SUBMIT" : "CURRENT");
-    }
-
-    public TarasolSecretaryRoundTwoRequestWebScript(CurrentEmployeeService employees,
             TarasolSecretaryRoundTwoRequestService requests, String mode) {
         this.employees = Objects.requireNonNull(employees);
         this.requests = Objects.requireNonNull(requests);
