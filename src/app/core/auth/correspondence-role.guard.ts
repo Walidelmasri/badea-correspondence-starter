@@ -63,14 +63,14 @@ export const directorRoleGuard: CanActivateFn = () => {
 
   return router.createUrlTree(['/inbox']);
 };
-/** A secretary has only the dedicated personal-draft/approval workspace. */
+/** Secretary-only and Admin+Secretary accounts use the standard mailbox. */
 export const secretaryDashboardGuard: CanActivateFn = () => {
   const session = inject(AuthSessionStore);
-  // A secretary with an active unit uses the existing Dashboard/Inbox.
-  // Keep the legacy draft workspace for users without a resolved unit.
+  // An active secretary assignment is required before any secretary mailbox read.
+  // Do not send an unassigned secretary into a removed/unauthorized workflow.
   if (session.secretaryMailbox()) return true;
   if (session.currentUser()?.employeeProfile?.correspondenceRole === 'SECRETARY') {
-    return inject(Router).createUrlTree(['/tarasol/secretary']);
+    return inject(Router).createUrlTree(['/access-denied']);
   }
   if (session.currentUser()?.employeeProfile?.correspondenceRole === 'TARASOL_DELEGATE') {
     return inject(Router).createUrlTree(['/tarasol/delegated']);

@@ -29,6 +29,7 @@ import {
   composeRoleGuard,
   directorRoleGuard,
   officeRoleGuard,
+  secretaryDashboardGuard,
 } from './correspondence-role.guard';
 
 const baseUser: CurrentUser = {
@@ -59,7 +60,7 @@ describe('Correspondence role guards', () => {
 
         {
           provide: AuthSessionStore,
-          useValue: { currentUser },
+          useValue: { currentUser, secretaryMailbox: () => false },
         },
       ],
     });
@@ -182,6 +183,15 @@ describe('Correspondence role guards', () => {
     setRole('PRESIDENT_OFFICE');
     const result = runDirectorGuard() as UrlTree;
     expect(router.serializeUrl(result)).toBe('/office/new');
+  });
+
+  it('does not resurrect the obsolete page for a secretary without an active unit', () => {
+    setRole('SECRETARY');
+    const result = TestBed.runInInjectionContext(() => secretaryDashboardGuard(
+      {} as ActivatedRouteSnapshot,
+      { url: '/dashboard' } as RouterStateSnapshot,
+    )) as UrlTree;
+    expect(router.serializeUrl(result)).toBe('/access-denied');
   });
 
   it('blocks users without a correspondence role', () => {

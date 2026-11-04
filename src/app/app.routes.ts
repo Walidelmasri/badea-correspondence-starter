@@ -161,17 +161,17 @@ export const routes: Routes = [
         loadComponent: () => import('./features/tarasol-delegation/tarasol-delegation-page.component')
           .then(module => module.TarasolDelegationPageComponent),
       },
+      // Legacy standalone secretary screens are replaced by the shared Tarasol
+      // mailbox and Drafts; preserve bookmarked URLs without loading old UI.
       {
         path: 'tarasol/secretary',
-        loadComponent: () => import('./features/tarasol-secretary/tarasol-secretary-page.component')
-          .then(module => module.TarasolSecretaryPageComponent),
-        data: { mode: 'secretary' },
+        pathMatch: 'full',
+        redirectTo: 'drafts',
       },
       {
         path: 'tarasol/approvals',
-        loadComponent: () => import('./features/tarasol-secretary/tarasol-secretary-page.component')
-          .then(module => module.TarasolSecretaryPageComponent),
-        data: { mode: 'manager' },
+        pathMatch: 'full',
+        redirectTo: 'inbox',
       },
       {
         path: 'tarasol/admin/access',

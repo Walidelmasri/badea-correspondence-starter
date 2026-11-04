@@ -19,6 +19,17 @@ describe('default correspondence navigation', () => {
     expect(MAIN_NAVIGATION.some(item => item.route === '/president-review')).toBe(false);
   });
 
+  it('redirects obsolete secretary and manager approval URLs to existing pages', () => {
+    const secretary = protectedChildren?.find(route => route.path === 'tarasol/secretary');
+    const approvals = protectedChildren?.find(route => route.path === 'tarasol/approvals');
+    expect(secretary?.redirectTo).toBe('drafts');
+    expect(approvals?.redirectTo).toBe('inbox');
+    expect(secretary?.pathMatch).toBe('full');
+    expect(approvals?.pathMatch).toBe('full');
+    expect(secretary?.loadComponent).toBeUndefined();
+    expect(approvals?.loadComponent).toBeUndefined();
+  });
+
   it('exposes the public access-denied page without protecting it behind login', () => {
     const denied = routes.find(route => route.path === 'access-denied');
     expect(denied?.loadComponent).toBeDefined();

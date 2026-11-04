@@ -54,18 +54,6 @@
           {{ translation.language() === 'ar' ? 'التفويضات' : 'My Delegated Cases' }}
         </a>
       }
-      @if (auth.currentUser()?.employeeProfile?.secretaryUnits?.length) {
-        <a class="app-navigation__item" routerLink="/tarasol/secretary"
-          routerLinkActive="app-navigation__item--active">
-          {{ translation.language() === 'ar' ? 'مسودات السكرتارية' : 'My Secretary Drafts' }}
-        </a>
-      }
-      @if (session.activeManagerWorkspace()) {
-        <a class="app-navigation__item" routerLink="/tarasol/approvals"
-          routerLinkActive="app-navigation__item--active">
-          {{ translation.language() === 'ar' ? 'اعتمادات المدير' : 'Manager Approvals' }}
-        </a>
-      }
       @if ((auth.currentUser()?.employeeProfile?.tarasolAdministrator || auth.currentUser()?.capabilities.isAdmin)) {
         <a class="app-navigation__item" routerLink="/tarasol/admin/access"
           routerLinkActive="app-navigation__item--active">
