@@ -48,15 +48,15 @@ class PdfBoxOfficeActionSheetRendererTest {
         assertEquals("Digital Transformation", PdfBoxOfficeActionSheetRenderer.fitSourceField(
                 "Digital Transformation"));
         assertFalse(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex("Digital Transformation"));
-        assertEquals("Digital Transformation", String.join(" ",
-                PdfBoxOfficeActionSheetRenderer.sourceFieldLines("Digital Transformation")));
-        assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldLines(
-                "Digital Transformation").size() <= 2);
+        assertEquals(List.of("Digital Transformation"),
+                PdfBoxOfficeActionSheetRenderer.sourceFieldLines("Digital Transformation"));
+        assertEquals(List.of("إدارة التحول الرقمي"),
+                PdfBoxOfficeActionSheetRenderer.sourceFieldLines("إدارة التحول الرقمي"));
         assertFalse(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex("إدارة التحول الرقمي"));
         assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldFontSize(
                 "Digital Transformation") >= 7f);
         assertTrue(PdfBoxOfficeActionSheetRenderer.sourceFieldFontSize(
-                "Digital Transformation") < 9f);
+                "Digital Transformation") <= 9f);
         assertTrue(PdfBoxOfficeActionSheetRenderer.needsSourceAnnex(
                 "Long department/country office with multiple additional source fields"));
     }
@@ -221,6 +221,67 @@ class PdfBoxOfficeActionSheetRendererTest {
         assertEquals("مدير إدارة التحول الرقمي", PdfBoxOfficeActionSheetRenderer.recipientHeader(
             List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
                 "Digital Transformation", "إدارة التحول الرقمي")), stamp));
+    }
+
+    @Test void instructionMarksAreConfinedToMatchingCheckboxes() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261105/1", LocalDate.of(2026,11,5),
+                "Digital Transformation", "117", "Author", null, List.of());
+        var recipients = new DistributionRecipients(List.of(new DepartmentCode("117")),List.of());
+        var to = List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation", "إدارة التحول الرقمي"));
+        var renderer = new PdfBoxOfficeActionSheetRenderer();
+        var empty = new OfficeDistributionPlan(1,1,recipients,List.of(),"","","","","");
+        var checked = new OfficeDistributionPlan(1,1,recipients,
+                List.of("required-action", "study-and-opinion"),"","","","","");
+        try (var without = Loader.loadPDF(renderer.render(source,empty,to,List.of(),printContext()));
+             var with = Loader.loadPDF(renderer.render(source,checked,to,List.of(),printContext()))) {
+            assertEquals(1,with.getNumberOfPages());
+            var base = new org.apache.pdfbox.rendering.PDFRenderer(without).renderImage(0);
+            var selected = new org.apache.pdfbox.rendering.PDFRenderer(with).renderImage(0);
+            assertTrue(differentPixels(base,selected,335,385,346,396)>8,
+                    "Right-hand selected tick must be drawn inside its action box");
+            assertTrue(differentPixels(base,selected,46,385,57,396)>8,
+                    "Left-hand selected tick must be drawn inside its action box");
+            assertEquals(0,differentPixels(base,selected,23,210,572,364),
+                    "Instruction choices must not alter the department grid");
+            assertEquals(0,differentPixels(base,selected,350,585,545,623),
+                    "Instruction choices must not alter signature or date rendering");
+        }
+    }
+
+    private static int differentPixels(java.awt.image.BufferedImage left,
+            java.awt.image.BufferedImage right, int x1,int y1,int x2,int y2) {
+        int diff=0;
+        for (int y=y1; y<y2; y++) {
+            for (int x=x1; x<x2; x++) {
+                if (left.getRGB(x,y)!=right.getRGB(x,y)) diff++;
+            }
+        }
+        return diff;
+    }
+
+    @Test void longAttachmentFilenamesUseAnnexWithoutChangingOfficialSources() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261105/1", LocalDate.of(2026,11,5),
+                "Digital Transformation", "117", "Author", null,
+                List.of(new CorrespondenceDocument("1",
+                        "regional-governance-report-long-name.pdf", "application/pdf", 100),
+                        new CorrespondenceDocument("2",
+                        "presidential-departmental-communication-reference.pdf", "application/pdf", 100)));
+        assertTrue(PdfBoxOfficeActionSheetRenderer.needsAttachmentAnnex(source));
+        assertTrue(PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(source).contains("2"));
+        var recipients = new DistributionRecipients(List.of(new DepartmentCode("117")),List.of());
+        var to = List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation", "إدارة التحول الرقمي"));
+        var result = new PdfBoxOfficeActionSheetRenderer().render(source,
+                new OfficeDistributionPlan(1,1,recipients,List.of(),"","","","",""),
+                to,List.of(),printContext());
+        try (var pdf=Loader.loadPDF(result)) {
+            assertEquals(2,pdf.getNumberOfPages(),
+                    "Long attachment names belong in a separate annex, not over the signature");
+        }
+        assertEquals("regional-governance-report-long-name.pdf",source.documents().get(0).filename());
     }
 
 

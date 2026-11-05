@@ -10,7 +10,6 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.text.Normalizer;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,14 +55,12 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     private static final float DEPARTMENT_TABLE_TOP = 197f;
     private static final float DEPARTMENT_TABLE_HEADING_HEIGHT = 19f;
     private static final float DEPARTMENT_TABLE_ROW_HEIGHT = 22f;
-    private static final Map<String,float[]> ACTIONS = Map.ofEntries(
-        entry("required-action",335,395), entry("review-and-advise",335,412),
-        entry("direct-response",335,429), entry("information-and-action",335,448),
-        entry("information-and-file",335,467), entry("prepare-response",335,484),
-        entry("return-later",335,503), entry("study-and-opinion",45,395),
-        entry("discuss-directly",45,413), entry("prepare-summary",45,430),
-        entry("follow-up",45,448), entry("act-per-phone-call",45,465),
-        entry("apology",45,484));
+    private static final List<String> RIGHT_ACTION_CODES = List.of(
+            "required-action", "review-and-advise", "direct-response",
+            "information-and-action", "information-and-file", "prepare-response", "return-later");
+    private static final List<String> LEFT_ACTION_CODES = List.of(
+            "study-and-opinion", "discuss-directly", "prepare-summary", "follow-up",
+            "act-per-phone-call", "apology");
     private static final Map<String,String> ACTION_NAMES = Map.ofEntries(
         Map.entry("required-action","لإجراء اللازم وفق النظام"),
         Map.entry("review-and-advise","للمراجعة والإفادة"),
@@ -78,10 +75,6 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         Map.entry("follow-up","للمتابعة"),
         Map.entry("act-per-phone-call","للعمل حسب المكالمة الهاتفية"),
         Map.entry("apology","للاعتذار"), Map.entry("other","إجراء آخر"));
-
-    private static Map.Entry<String,float[]> entry(String name,float x,float y) {
-        return Map.entry(name,new float[]{x,y});
-    }
 
     @Override public byte[] render(CorrespondenceDetails source, OfficeDistributionPlan plan,
             List<DepartmentDirectoryEntry> to, List<DepartmentDirectoryEntry> copy,
@@ -106,10 +99,9 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     String date = source.documentDate() == null ? "" : source.documentDate().format(DATE);
                     // Keep the value fully within the date row; the department table starts below y=197.
                     outline(canvas,date,470,188,9,h,true);
-                    // The printed department/country dotted field is only x=301..384.
-                    // Clear these dots before writing the value, otherwise vector glyphs
-                    // overlay the template dots/labels and spill into adjacent fields.
-                    erase(canvas,h,301,158,85,21);
+                    // Replace the entire preprinted metadata row; the old source caption
+                    // extends into the document-number field in the Word template.
+                    erase(canvas,h,22,161.4f,552,15.5f);
                     // Keep the official "إلى السيد/" label and address department heads by title.
                     // An overlong recipient list is detailed on the annex, not written over the table.
                     String allNames = recipientHeader(to, printContext);
@@ -124,34 +116,15 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     outline(canvas,"إلى السيد /",570,121,10,h,true);
                     outline(canvas,header,544,139,9,h,true);
                     outline(canvas,fitHeader(source.subject(),10,420),469,158,10,h,true);
-                    outline(canvas,fitHeader(source.documentNumber(),9,120),471,173,9,h,true);
-                    // Source/country is on the RIGHT of its printed caption, not
-                    // across the caption or into the date/number columns.
-                    SourceFieldLayout sourceField = layoutSourceField(sourceValue(source));
-                    if (sourceField.lines().size() == 1) {
-                        outline(canvas,sourceField.lines().get(0),382,173,sourceField.fontSize(),h,true);
-                    } else {
-                        // Two compact lines fit inside the existing country/department value
-                        // rectangle; neither can cross the neighbouring printed captions.
-                        outline(canvas,sourceField.lines().get(0),382,166,sourceField.fontSize(),h,true);
-                        outline(canvas,sourceField.lines().get(1),382,175,sourceField.fontSize(),h,true);
-                    }
+                    drawMetadataRow(canvas,h,source);
                     drawDepartmentTable(canvas,h,to);
-                    for (String code : plan.actionCodes()) {
-                        float[] box = ACTIONS.get(code);
-                        if (box != null) mark(canvas,box,h);
-                    }
+                    drawActions(canvas,h,plan.actionCodes());
                     // The Word form already provides three "Copy with regards"
                     // lines. Use them before producing any continuation page.
                     for (int i = 0; i < Math.min(3, copy.size()); i++) {
                         outline(canvas, recipientName(copy.get(i)), 520, 687 + 17*i, 9, h, true);
                     }
-                    // Show the actual persisted source-PDF filenames in the printed
-                    // attachments field. Long lists are continued on an annex.
-                    if (!source.documents().isEmpty()) {
-                        erase(canvas,h,304,628.5f,242,20);
-                        outline(canvas,attachmentCoverLabel(source),536,642,8.5f,h,true);
-                    }
+                    drawAttachments(canvas,h,source);
                     // Redraw this one signing area as a coherent, right-to-left
                     // block; the Word template's old dotted labels are overlapped.
                     cleanSigningLines(canvas,h);
@@ -172,7 +145,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 if (requiresContinuation(plan, to, copy, printContext.presidentSignature() != null)
                         || textWidth(recipientHeader(to, printContext), 9) > 505
                         || textWidth(source.subject(), 10) > 420
-                        || textWidth(source.documentNumber(), 9) > 120
+                        || textWidth(source.documentNumber(), 9) > 90
                         || needsSourceAnnex(sourceValue(source))
                         || needsAttachmentAnnex(source)) {
                     appendAnnex(document,source,plan,to,copy,printContext);
@@ -286,17 +259,36 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         }
     }
 
+    private static void drawMetadataRow(PDPageContentStream canvas, float height,
+            CorrespondenceDetails source) throws IOException {
+        outline(canvas,"رقم الوثيقة:",567,174,9.5f,height,true);
+        outline(canvas,fitHeader(source.documentNumber(),9,90),495,174,9,height,true);
+        outline(canvas,"الدولة / الجهة / الإدارة:",383,174,9,height,true);
+        SourceFieldLayout field = layoutSourceField(sourceValue(source));
+        outline(canvas,field.lines().get(0),260,174,field.fontSize(),height,true);
+    }
+
+    private static final float ATTACHMENT_FIELD_WIDTH = 340f;
+
+    private static void drawAttachments(PDPageContentStream canvas, float height,
+            CorrespondenceDetails source) throws IOException {
+        erase(canvas,height,248,629,303,20);
+        outline(canvas,"المرفقات:",545,643,10,height,true);
+        outline(canvas,attachmentCoverLabel(source),477,643,9,height,true);
+    }
+
     static String attachmentCoverLabel(CorrespondenceDetails source) {
+        if (source.documents().isEmpty()) return "";
         String names = source.documents().stream().map(CorrespondenceDocument::filename)
                 .collect(java.util.stream.Collectors.joining("، "));
-        return textWidth(names,8.5f) <= 220f ? names
+        return textWidth(names,9f) <= ATTACHMENT_FIELD_WIDTH ? names
                 : "عدد المرفقات: " + source.documents().size() + " (الأسماء في الملحق)";
     }
 
     static boolean needsAttachmentAnnex(CorrespondenceDetails source) {
         String names = source.documents().stream().map(CorrespondenceDocument::filename)
                 .collect(java.util.stream.Collectors.joining("، "));
-        return textWidth(names,8.5f) > 220f;
+        return textWidth(names,9f) > ATTACHMENT_FIELD_WIDTH;
     }
 
     private static boolean requiresContinuation(OfficeDistributionPlan plan,
@@ -406,12 +398,11 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         return department.startsWith("إدارة ") ? "مدير " + department : "المسؤول عن " + department;
     }
 
-    // The preprinted value box is x=301..384 and y=158..179. Adapt to the
-    // actual JVM font metrics: one line when possible, otherwise two short
-    // lines; generate an annex only when neither bounded layout fits.
-    private static final float SOURCE_FIELD_WIDTH = 78f;
+    // The metadata row has separate, non-overlapping spaces for source and
+    // document number. Long values move to the existing annex instead of spilling.
+    private static final float SOURCE_FIELD_WIDTH = 210f;
     private static final float SOURCE_FIELD_FONT_MAX = 9f;
-    private static final float SOURCE_FIELD_FONT_MIN = 7f;
+    private static final float SOURCE_FIELD_FONT_MIN = 8f;
     private static final String SOURCE_FIELD_ANNEX = "في الملحق";
 
     private record SourceFieldLayout(List<String> lines, float fontSize, boolean annex) {}
@@ -420,38 +411,12 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         String value = text == null ? "" : text.strip();
         if (value.isEmpty()) return new SourceFieldLayout(List.of(""),SOURCE_FIELD_FONT_MAX,false);
         float width = textWidth(value,SOURCE_FIELD_FONT_MAX);
-        if (width <= SOURCE_FIELD_WIDTH) {
+        if (width <= SOURCE_FIELD_WIDTH)
             return new SourceFieldLayout(List.of(value),SOURCE_FIELD_FONT_MAX,false);
-        }
-        // Leave a small margin so font rounding does not cross the value box.
-        float singleSize = SOURCE_FIELD_FONT_MAX * (SOURCE_FIELD_WIDTH - 1f) / width;
-        if (singleSize >= SOURCE_FIELD_FONT_MIN) {
-            return new SourceFieldLayout(List.of(value),singleSize,false);
-        }
-        for (float size : new float[] {8f, SOURCE_FIELD_FONT_MIN}) {
-            List<String> lines = sourceFieldWrap(value,size);
-            if (!lines.isEmpty()) return new SourceFieldLayout(lines,size,false);
-        }
+        float size = SOURCE_FIELD_FONT_MAX * (SOURCE_FIELD_WIDTH - 2f) / width;
+        if (size >= SOURCE_FIELD_FONT_MIN)
+            return new SourceFieldLayout(List.of(value),size,false);
         return new SourceFieldLayout(List.of(SOURCE_FIELD_ANNEX),SOURCE_FIELD_FONT_MAX,true);
-    }
-
-    private static List<String> sourceFieldWrap(String value, float fontSize) {
-        var lines = new java.util.ArrayList<String>();
-        StringBuilder line = new StringBuilder();
-        for (String word : value.split("\\s+")) {
-            if (textWidth(word,fontSize) > SOURCE_FIELD_WIDTH - 1f) return List.of();
-            String candidate = line.isEmpty() ? word : line + " " + word;
-            if (textWidth(candidate,fontSize) > SOURCE_FIELD_WIDTH - 1f) {
-                if (line.isEmpty()) return List.of();
-                lines.add(line.toString());
-                if (lines.size() >= 2) return List.of();
-                line = new StringBuilder(word);
-            } else {
-                line = new StringBuilder(candidate);
-            }
-        }
-        if (!line.isEmpty()) lines.add(line.toString());
-        return List.copyOf(lines);
     }
 
     static boolean needsSourceAnnex(String text) {
@@ -593,17 +558,60 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         return lines.size()>2 ? List.of() : List.copyOf(lines);
     }
 
-    private static void mark(PDPageContentStream canvas,float[] p,float pageHeight) throws IOException {
-        float x=p[0],y=pageHeight-p[1];
-        canvas.setLineWidth(1.5f);
-        // All three vertices sit within the printed checkbox boundaries.
-        // Coordinates in DEPARTMENTS/ACTIONS are at the printed checkbox's
-        // middle-left. Keep all three check vertices inside that 11-14pt box;
-        // the previous final vertex extended above some original blue borders.
-        canvas.moveTo(x+3,y-1);canvas.lineTo(x+8,y-4);
-        canvas.lineTo(x+15,y+1);
+    private static void drawActions(PDPageContentStream canvas, float height,
+            List<String> selectedCodes) throws IOException {
+        // The preprinted checkboxes and labels are irregularly spaced. Replace
+        // only that section, preserving the department grid and explanation below.
+        erase(canvas,height,33,375,529,137);
+        canvas.saveGraphicsState();
+        canvas.setStrokingColor(0.83f,0.86f,0.89f);
+        canvas.setLineWidth(0.5f);
+        canvas.moveTo(294,height-382);
+        canvas.lineTo(294,height-507);
         canvas.stroke();
+        canvas.restoreGraphicsState();
+        drawActionColumn(canvas,height,RIGHT_ACTION_CODES,selectedCodes,335,542);
+        drawActionColumn(canvas,height,LEFT_ACTION_CODES,selectedCodes,46,277);
     }
+
+    private static void drawActionColumn(PDPageContentStream canvas, float height,
+            List<String> codes, List<String> selectedCodes, float checkboxX,
+            float textRight) throws IOException {
+        for (int row=0; row<codes.size(); row++) {
+            String code = codes.get(row);
+            float baseline = 394f + row*18f;
+            String label = ACTION_NAMES.get(code);
+            float fontSize = textWidth(label,10f)>196f ? 9f : 10f;
+            outline(canvas,label,textRight,baseline,fontSize,height,true);
+            drawActionCheckbox(canvas,height,checkboxX,baseline-9f,selectedCodes.contains(code));
+        }
+    }
+
+    private static void drawActionCheckbox(PDPageContentStream canvas, float height,
+            float x, float top, boolean checked) throws IOException {
+        float bottom = height-top-11f;
+        canvas.saveGraphicsState();
+        if (checked) {
+            canvas.setNonStrokingColor(0.92f,0.96f,0.98f);
+            canvas.addRect(x,bottom,11f,11f);
+            canvas.fill();
+        }
+        canvas.setStrokingColor(0.18f,0.30f,0.39f);
+        canvas.setLineWidth(0.85f);
+        canvas.addRect(x,bottom,11f,11f);
+        canvas.stroke();
+        if (checked) {
+            canvas.setLineWidth(1.45f);
+            canvas.setLineCapStyle(1);
+            canvas.setLineJoinStyle(1);
+            canvas.moveTo(x+2.0f,bottom+5.2f);
+            canvas.lineTo(x+4.6f,bottom+2.6f);
+            canvas.lineTo(x+9.0f,bottom+8.6f);
+            canvas.stroke();
+        }
+        canvas.restoreGraphicsState();
+    }
+
     private static void erase(PDPageContentStream canvas,float h,float x,float y,float w,float height) throws IOException {
         canvas.setNonStrokingColor(1f,1f,1f);
         canvas.addRect(x,h-y-height,w,height);
