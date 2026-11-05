@@ -57,6 +57,44 @@ class AlfrescoPresidentGeneratedDocumentStoreOfficeTest {
         assertEquals(5L, properties.getAllValues().get(0).get(AlfrescoPresidentGeneratedDocumentStore.REVISION));
         assertEquals(2L, properties.getAllValues().get(0).get(AlfrescoPresidentGeneratedDocumentStore.OFFICE_REVISION));
         assertEquals(3L, properties.getAllValues().get(1).get(AlfrescoPresidentGeneratedDocumentStore.OFFICE_REVISION));
+        assertEquals("packet-r5-o2.pdf", properties.getAllValues().get(0).get(ContentModel.PROP_NAME));
+        assertEquals("packet-r5-o3.pdf", properties.getAllValues().get(1).get(ContentModel.PROP_NAME));
+    }
+
+    @Test
+    void DifferentPresidentRevisionsCannotReuseTheSameAnnotatedOrExplanationChildName() {
+        when(locator.locate(ID)).thenReturn(parent);
+        when(nodes.getChildAssocs(parent)).thenReturn(List.of());
+        ChildAssociationRef association = mock(ChildAssociationRef.class);
+        when(association.getChildRef()).thenReturn(generated);
+        when(nodes.createNode(eq(parent), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(AlfrescoPresidentGeneratedDocumentStore.TYPE), anyMap()))
+                .thenReturn(association);
+        when(content.getWriter(eq(generated), eq(ContentModel.PROP_CONTENT), eq(true)))
+                .thenReturn(mock(ContentWriter.class));
+
+        byte[] pdf = "%PDF-test".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        EmployeeId actor = new EmployeeId("99");
+        String sourceId = "3577c748-2413-44d1-b7c7-482413c4d147";
+        String annotated = "annotated-" + sourceId + ".pdf";
+        store.save(ID, 7, "ANNOTATED_PDF", sourceId, annotated, pdf, actor);
+        store.save(ID, 8, "ANNOTATED_PDF", sourceId, annotated, pdf, actor);
+        store.save(ID, 7, "HANDWRITTEN_EXPLANATION", null,
+                "president-handwritten-explanation.pdf", pdf, actor);
+        store.save(ID, 8, "HANDWRITTEN_EXPLANATION", null,
+                "president-handwritten-explanation.pdf", pdf, actor);
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<Map<QName, Serializable>> properties = ArgumentCaptor.forClass((Class) Map.class);
+        verify(nodes, times(4)).createNode(eq(parent), eq(ContentModel.ASSOC_CONTAINS),
+                any(QName.class), eq(AlfrescoPresidentGeneratedDocumentStore.TYPE), properties.capture());
+        assertEquals(List.of(
+                "annotated-" + sourceId + "-r7.pdf",
+                "annotated-" + sourceId + "-r8.pdf",
+                "president-handwritten-explanation-r7.pdf",
+                "president-handwritten-explanation-r8.pdf"),
+                properties.getAllValues().stream()
+                        .map(value -> value.get(ContentModel.PROP_NAME)).toList());
     }
 
     @Test

@@ -130,7 +130,10 @@ public final class AlfrescoPresidentGeneratedDocumentStore implements PresidentG
             EmployeeId employee, String name) {
         NodeRef correspondence = locator.locate(technicalId);
         Map<QName, Serializable> properties = new HashMap<>();
-        properties.put(ContentModel.PROP_NAME, filename);
+        // cm:name is also a unique child name within an Alfresco folder. The association QName
+        // already includes the artifact revision, but a constant cm:name would still collide
+        // when the President or Office finalizes another revision of the same correspondence.
+        properties.put(ContentModel.PROP_NAME, revisionedFilename(filename, reviewRevision, officeRevision));
         properties.put(REVISION, reviewRevision);
         if (officeRevision != null) properties.put(OFFICE_REVISION, officeRevision);
         properties.put(KIND, artifactType);
@@ -147,6 +150,15 @@ public final class AlfrescoPresidentGeneratedDocumentStore implements PresidentG
         if (writer == null) throw new CorrespondenceRepositoryException("Generated PDF writer missing");
         writer.setMimetype("application/pdf");
         writer.putContent(new ByteArrayInputStream(pdf));
+    }
+
+    private static String revisionedFilename(String filename, long reviewRevision, Long officeRevision) {
+        if (filename == null || !filename.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+            throw new IllegalArgumentException("Generated document filename must end in .pdf");
+        }
+        String stem = filename.substring(0, filename.length() - 4);
+        return stem + "-r" + reviewRevision
+                + (officeRevision == null ? "" : "-o" + officeRevision) + ".pdf";
     }
 
     static CorrespondenceGeneratedDocument describe(NodeRef child, NodeService nodes) {
