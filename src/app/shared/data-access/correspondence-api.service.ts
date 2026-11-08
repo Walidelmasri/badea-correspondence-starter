@@ -107,6 +107,8 @@ export interface CorrespondenceDraftSummary {
   readonly documentNumber: string | null;
   readonly createdAt: string;
   readonly modifiedAt: string;
+  readonly approvalStatus?: 'DRAFT' | 'PENDING' | 'RETURNED' | 'APPROVED';
+  readonly returnReason?: string | null;
 }
 
 export interface CorrespondenceHistoryEntry {

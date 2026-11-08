@@ -61,6 +61,11 @@
                 {{ draft.subject }}
               </strong>
 
+              @if (secretaryMode() && draft.approvalStatus === 'RETURNED') {
+                <span class="drafts-card__returned">{{ translation.language() === 'ar'
+                  ? 'أُعيد للتعديل' : 'Returned for revision' }}</span>
+              }
+
               <span class="drafts-card__document-number">
                 {{
                   draft.documentNumber ||
@@ -117,6 +122,17 @@
 
           <h2>{{ draft.subject }}</h2>
         </header>
+
+        @if (secretaryMode() && draft.approvalStatus === 'RETURNED') {
+          <section class="drafts-detail__return" role="status">
+            <strong>{{ translation.language() === 'ar'
+              ? 'أُعيدت المراسلة للتعديل' : 'Returned for revision' }}</strong>
+            @if (draft.returnReason) {
+              <p><strong>{{ translation.language() === 'ar'
+                ? 'سبب الإرجاع:' : 'Manager’s reason:' }}</strong> {{ draft.returnReason }}</p>
+            }
+          </section>
+        }
 
         <dl class="drafts-detail__metadata">
           <div>

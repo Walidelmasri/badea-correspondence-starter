@@ -113,6 +113,8 @@ describe('Personal secretary Drafts in the existing Drafts page', () => {
     expect(api.listDrafts).not.toHaveBeenCalled();
     expect(api.getDetails).not.toHaveBeenCalled();
     expect(page.details()?.documents[0]?.filename).toBe('attachment.pdf');
+    expect(page.selectedDraft()?.approvalStatus).toBe('RETURNED');
+    expect(page.selectedDraft()?.returnReason).toBe('Fix document');
   });
 
   it('opens the existing Director compose component in secretary mode', async () => {

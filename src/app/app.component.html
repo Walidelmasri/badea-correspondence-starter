@@ -87,9 +87,11 @@
           <span>{{ translation.language() === 'ar' ? 'الصفة الإدارية' : 'Workspace' }}</span>
           <select [value]="session.workspaceUnit() ?? ''" (change)="chooseWorkspace($event)"
             [attr.aria-label]="translation.language() === 'ar' ? 'اختر الصفة الإدارية' : 'Select workspace'">
-            <option value="">{{ session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT_OFFICE'
-              ? (translation.language() === 'ar' ? 'مكتب الرئيس · الافتراضي' : "President's Office · default")
-              : (translation.language() === 'ar' ? 'الصفة الافتراضية' : 'Default role') }}</option>
+            @if (session.currentUser()?.employeeProfile?.correspondenceRole !== 'DIRECTOR') {
+              <option value="">{{ session.currentUser()?.employeeProfile?.correspondenceRole === 'PRESIDENT_OFFICE'
+                ? (translation.language() === 'ar' ? 'مكتب الرئيس · الافتراضي' : "President's Office · default")
+                : (translation.language() === 'ar' ? 'الصفة الافتراضية' : 'Default role') }}</option>
+            }
             @for (unit of session.availableWorkspaces(); track unit.code) {
               <option [value]="unit.code">
                 {{ translation.language() === 'ar' ? (unit.nameArabic || unit.nameEnglish) : unit.nameEnglish }}
