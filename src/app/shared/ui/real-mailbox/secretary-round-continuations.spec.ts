@@ -45,6 +45,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     listSecretaryInbox: ReturnType<typeof vi.fn>;
     getSecretaryInboxDetails: ReturnType<typeof vi.fn>;
     getSecretaryInboxHistory: ReturnType<typeof vi.fn>;
+    markSecretaryInboxRead: ReturnType<typeof vi.fn>;
+    markRead: ReturnType<typeof vi.fn>;
     continueDirectorCycle: ReturnType<typeof vi.fn>;
     transitionCorrespondence: ReturnType<typeof vi.fn>;
   };
@@ -71,6 +73,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
         state: 'WITH_DIRECTOR', currentWorkflowCycle: 3, bodyText: 'Existing text',
         documents: [], generatedDocuments: [] })),
       getSecretaryInboxHistory: vi.fn(() => of({ items: [], total: 0 })),
+      markSecretaryInboxRead: vi.fn(() => of({ readThroughSequence: 7 })),
+      markRead: vi.fn(),
       continueDirectorCycle: vi.fn(), transitionCorrespondence: vi.fn(),
     };
     secretary = {
@@ -88,7 +92,7 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
       { provide: TranslationService, useValue: { language: () => 'en' } },
       { provide: Router, useValue: { navigate: vi.fn() } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
-      { provide: UnreadInboxStore, useValue: {} },
+      { provide: UnreadInboxStore, useValue: { refresh: vi.fn() } },
     ] });
     mailbox = TestBed.runInInjectionContext(() => new RealMailboxComponent());
     Object.defineProperty(mailbox, 'box', { value: () => 'inbox' });
@@ -108,6 +112,31 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING'));
     expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(true);
   }
+
+  it('marks an explicitly opened secretary Inbox correspondence read without Director authorization', async () => {
+    correspondence.listSecretaryInbox.mockReturnValue(of({
+      items: [{ ...inboxItem, unread: true, incomingSequence: 7 }],
+      total: 1, offset: 0, limit: 10,
+    }));
+    await mailbox.loadPage(0);
+    mailbox.select(technicalId);
+    await vi.waitFor(() => expect(mailbox.page()?.items[0]?.unread).toBe(false));
+    expect(correspondence.markSecretaryInboxRead).toHaveBeenCalledWith('117', technicalId, 7);
+    expect(correspondence.markRead).not.toHaveBeenCalled();
+  });
+
+  it('keeps unread visible if the secretary read receipt is rejected', async () => {
+    correspondence.listSecretaryInbox.mockReturnValue(of({
+      items: [{ ...inboxItem, unread: true, incomingSequence: 7 }],
+      total: 1, offset: 0, limit: 10,
+    }));
+    correspondence.markSecretaryInboxRead.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+    await mailbox.loadPage(0);
+    mailbox.select(technicalId);
+    await vi.waitFor(() => expect(correspondence.markSecretaryInboxRead).toHaveBeenCalledOnce());
+    expect(mailbox.page()?.items[0]?.unread).toBe(true);
+    expect(correspondence.markRead).not.toHaveBeenCalled();
+  });
 
   it('shows only the secretary-owned returned request, its manager reason and staged Round 4 PDFs', async () => {
     await loadReturned();

@@ -57,6 +57,64 @@ describe('UnreadInboxStore workspace isolation', () => {
     expect(notifications.total()).toBe(1);
   });
 
+  it('loads unread messages from the assigned secretary unit, not the Director endpoint', async () => {
+    const api = { listMailbox: vi.fn(), listSecretaryInbox: vi.fn(() => of({
+      items: [{ technicalId: 'secretary-unread' }], total: 1,
+    })) };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: api },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser({ ...employee, employeeProfile: {
+      ...employee.employeeProfile, correspondenceRole: 'SECRETARY' as const,
+      managerWorkspaces: [],
+      secretaryUnits: [{ code: '117', nameEnglish: 'DT', nameArabic: null }],
+    } });
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    await Promise.resolve();
+    expect(notifications.available()).toBe(true);
+    expect(api.listSecretaryInbox).toHaveBeenCalledWith('117', 0, 5, 'unread');
+    expect(api.listMailbox).not.toHaveBeenCalled();
+    expect(notifications.items().map(item => item.technicalId)).toEqual(['secretary-unread']);
+  });
+
+  it('does not show late notifications from the previous secretary unit', async () => {
+    const original = new Subject<any>();
+    const switched = new Subject<any>();
+    const api = { listMailbox: vi.fn(), listSecretaryInbox: vi.fn()
+      .mockReturnValueOnce(original.asObservable())
+      .mockReturnValueOnce(switched.asObservable()) };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: api },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser({ ...employee, employeeProfile: {
+      ...employee.employeeProfile, correspondenceRole: 'SECRETARY' as const,
+      managerWorkspaces: [], secretaryUnits: [
+        { code: '117', nameEnglish: 'DT', nameArabic: null },
+        { code: '118', nameEnglish: 'HR', nameArabic: null },
+      ],
+    } });
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    expect(api.listSecretaryInbox).toHaveBeenCalledWith('117', 0, 5, 'unread');
+    session.selectSecretaryUnit('118');
+    TestBed.tick();
+    expect(api.listSecretaryInbox).toHaveBeenCalledWith('118', 0, 5, 'unread');
+    original.next({ items: [{ technicalId: 'wrong-unit' }], total: 1 });
+    original.complete();
+    await Promise.resolve();
+    expect(notifications.total()).toBe(0);
+    switched.next({ items: [{ technicalId: 'correct-unit' }], total: 1 });
+    switched.complete();
+    await Promise.resolve();
+    expect(notifications.items().map(item => item.technicalId)).toEqual(['correct-unit']);
+    expect(api.listMailbox).not.toHaveBeenCalled();
+  });
+
   it('immediately invalidates a stale notification panel when switching capacity', async () => {
     const api = { listMailbox: vi.fn().mockReturnValue(of({
       items: [{ technicalId: 'office-sensitive' }], total: 1,

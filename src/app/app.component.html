@@ -100,7 +100,7 @@
           </select>
         </label>
       }
-      @if (!session.secretaryMailbox()) {
+      @if (notifications.available()) {
       <div class="app-notifications">
         <button type="button" class="app-notifications__trigger"
           [attr.aria-label]="notificationText().title"

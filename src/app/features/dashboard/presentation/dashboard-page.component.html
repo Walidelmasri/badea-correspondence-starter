@@ -28,15 +28,15 @@
     </div>
   } @else if (stats(); as s) {
     <div class="dashboard__stats">
-      <a routerLink="/inbox" [queryParams]="{ view: 'all' }" class="stat stat--received">
-        <span class="stat__label">{{ labels().stats.received }}</span>
-        <strong class="stat__number">{{ s.received }}</strong>
-        <span class="stat__meta">{{ labels().openInbox }} <span aria-hidden="true">↗</span></span>
-      </a>
       <a routerLink="/inbox" [queryParams]="{ view: 'needs_action' }" class="stat stat--action">
         <span class="stat__label">{{ labels().stats.needsAction }}</span>
         <strong class="stat__number">{{ s.needsAction }}</strong>
         <span class="stat__meta">{{ labels().focusHint }}</span>
+      </a>
+      <a routerLink="/inbox" [queryParams]="{ view: 'all' }" class="stat stat--received">
+        <span class="stat__label">{{ labels().stats.received }}</span>
+        <strong class="stat__number">{{ s.received }}</strong>
+        <span class="stat__meta">{{ labels().openInbox }} <span aria-hidden="true">↗</span></span>
       </a>
       <a routerLink="/inbox" [queryParams]="{ view: 'handled' }" class="stat">
         <span class="stat__label">{{ labels().stats.handled }}</span>

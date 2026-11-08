@@ -420,6 +420,14 @@ export class CorrespondenceApiService {
       { params: { unitCode }, responseType: 'blob' });
   }
 
+  /** Persist only this secretary's read sequence within their authorized shared Inbox. */
+  markSecretaryInboxRead(unitCode: string, technicalId: string,
+      throughSequence: number): Observable<{ readonly readThroughSequence: number }> {
+    return this.http.post<{ readonly readThroughSequence: number }>(
+      `${SECRETARY_INBOX_URL}/${encodeURIComponent(technicalId)}/read`,
+      { throughSequence }, { params: { unitCode } });
+  }
+
   getSecretaryInboxDetails(unitCode: string, technicalId: string): Observable<CorrespondenceDetails> {
     return this.http.get<CorrespondenceDetails>(
       `${SECRETARY_INBOX_URL}/${encodeURIComponent(technicalId)}`, { params: { unitCode } });

@@ -1029,6 +1029,13 @@
         <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
         <constructor-arg ref="badeaTarasolSecretarySharedInboxService" />
     </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-inbox-read.post"
+          class="org.badea.correspondence.webscript.TarasolSecretaryInboxReadReceiptWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaTarasolSecretarySharedInboxService" />
+        <constructor-arg ref="badeaCorrespondenceReadReceipts" />
+    </bean>
     <!-- Detail, history and PDF reads for cases visible in the secretary unit Inbox. -->
     <bean id="badeaTarasolSecretaryInboxReadService"
           class="org.badea.correspondence.organization.TarasolSecretaryInboxReadService"

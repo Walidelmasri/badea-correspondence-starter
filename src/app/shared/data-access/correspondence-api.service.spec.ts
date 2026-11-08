@@ -55,6 +55,17 @@ describe('CorrespondenceApiService', () => {
     req.flush({ readThroughSequence: 7 });
   });
 
+  it('marks secretary read only through the authorized unit Inbox route', () => {
+    const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    service.markSecretaryInboxRead('117', id, 9).subscribe(result => {
+      expect(result.readThroughSequence).toBe(9);
+    });
+    const req = http.expectOne(`/alfresco/service/badea/tarasol/secretary/inbox/${id}/read?unitCode=117`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ throughSequence: 9 });
+    req.flush({ readThroughSequence: 9 });
+  });
+
   it('continues an Office correspondence cycle without client-controlled state', () => {
     const id = '11111111-1111-1111-1111-111111111111';
     service.continueOfficeCycle(id).subscribe(result => {

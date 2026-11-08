@@ -1233,12 +1233,15 @@ export class RealMailboxComponent implements OnInit {
   }
 
   private async acknowledgeRead(id: string): Promise<void> {
-    // Secretary read receipts do not yet have a separate authorized write API.
-    if (this.box() !== 'inbox' || this.secretaryMode()) return;
+    if (this.box() !== 'inbox') return;
     const item = this.page()?.items.find(value => value.technicalId === id);
     if (!item?.unread || !item.incomingSequence) return;
+    const secretaryUnit = this.secretaryMode() ? this.secretaryUnitCode() : null;
+    if (this.secretaryMode() && !secretaryUnit) return;
     try {
-      const marked = await firstValueFrom(this.api.markRead(id, item.incomingSequence));
+      const marked = await firstValueFrom(secretaryUnit
+        ? this.api.markSecretaryInboxRead(secretaryUnit, id, item.incomingSequence)
+        : this.api.markRead(id, item.incomingSequence));
       if (marked.readThroughSequence < item.incomingSequence) return;
       this.page.update(page => page ? {
         ...page,

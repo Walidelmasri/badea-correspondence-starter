@@ -24,6 +24,7 @@ export class UnreadInboxStore {
       // Read the active unit here so switching capacity invalidates pending
       // notifications even when the signed-in employee has not changed.
       this.session.workspaceUnit();
+      this.session.secretaryInboxUnitCode();
       this.session.effectiveRole();
       this.invalidateForWorkspaceChange();
       if (employeeId && this.session.isAuthenticated() && this.supportsMailbox()) {
@@ -44,17 +45,24 @@ export class UnreadInboxStore {
     const employeeId = this.session.currentUser()?.employeeProfile?.employeeId;
     if (!employeeId) return;
     const workspaceUnit = this.session.workspaceUnit();
+    const secretaryUnit = this.session.secretaryMailbox()
+      ? this.session.secretaryInboxUnitCode() : null;
+    if (this.session.secretaryMailbox() && !secretaryUnit) return;
     const version = ++this.version;
     try {
-      const result = await firstValueFrom(this.api.listMailbox('inbox', 0, 5, 'unread'));
+      const result = await firstValueFrom(secretaryUnit
+        ? this.api.listSecretaryInbox(secretaryUnit, 0, 5, 'unread')
+        : this.api.listMailbox('inbox', 0, 5, 'unread'));
       if (version !== this.version
           || this.session.currentUser()?.employeeProfile?.employeeId !== employeeId
-          || this.session.workspaceUnit() !== workspaceUnit) return;
+          || this.session.workspaceUnit() !== workspaceUnit
+          || (this.session.secretaryMailbox() ? this.session.secretaryInboxUnitCode() : null) !== secretaryUnit) return;
       this.itemsState.set(result.items);
       this.totalState.set(result.total);
       this.failed.set(false);
     } catch {
-      if (version === this.version && this.session.workspaceUnit() === workspaceUnit) {
+      if (version === this.version && this.session.workspaceUnit() === workspaceUnit
+          && (this.session.secretaryMailbox() ? this.session.secretaryInboxUnitCode() : null) === secretaryUnit) {
         this.failed.set(true);
         // Do not display stale notification counts as if they were current.
         this.itemsState.set([]);
@@ -63,10 +71,14 @@ export class UnreadInboxStore {
     }
   }
 
-  private supportsMailbox(): boolean {
+  readonly available = computed(() => {
+    if (this.session.secretaryMailbox()) return !!this.session.secretaryInboxUnitCode();
     const role = this.session.effectiveRole();
-    return role !== 'SECRETARY' && role !== 'TARASOL_ADMIN' && role !== 'TARASOL_DELEGATE';
-  }
+    return !!role && role !== 'SECRETARY' && role !== 'TARASOL_ADMIN'
+      && role !== 'TARASOL_DELEGATE';
+  });
+
+  private supportsMailbox(): boolean { return this.available(); }
 
   // Also called synchronously from the selector to prevent one frame of
   // stale Office/Director subjects being shown during a workspace switch.
