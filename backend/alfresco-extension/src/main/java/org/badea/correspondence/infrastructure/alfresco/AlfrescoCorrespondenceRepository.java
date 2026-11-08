@@ -611,7 +611,7 @@ public final class AlfrescoCorrespondenceRepository
             boolean pendingOnly, int offset, int pageSize, String personalBox) {
         if (offset < 0 || pageSize < 1 || pageSize > 50 || (pendingOnly == (ownerEmployeeId != null))
                 || (personalBox != null && (pendingOnly
-                    || !java.util.Set.of("drafts", "sent").contains(personalBox)))) {
+                    || !java.util.Set.of("drafts", "sent", "returned").contains(personalBox)))) {
             throw new IllegalArgumentException("Invalid secretary listing page");
         }
         NodeRef folder = folderLocator.locateDepartmentFolder(unit);
@@ -634,6 +634,7 @@ public final class AlfrescoCorrespondenceRepository
                     || (pendingOnly && (!"PENDING".equals(status) || !draftState))
                     || (!pendingOnly && (!owner.equals(ownerEmployeeId) || !personalCase))
                     || ("drafts".equals(personalBox) && !editableDraft)
+                    || ("returned".equals(personalBox) && !(draftState && "RETURNED".equals(status)))
                     || ("sent".equals(personalBox) && !(draftState && "PENDING".equals(status)
                         || !draftState && "APPROVED".equals(status)))) continue;
             Object modified = nodeService.getProperty(child, ContentModel.PROP_MODIFIED);

@@ -115,8 +115,8 @@
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
             <path d="M10 21h4" />
           </svg>
-          @if (notifications.hasUnread()) {
-            <span class="app-notifications__count">{{ notifications.total() }}</span>
+          @if (notifications.hasNotifications()) {
+            <span class="app-notifications__count">{{ notifications.badgeTotal() }}</span>
           }
         </button>
         @if (notifications.open()) {
@@ -128,10 +128,29 @@
             </div>
             @if (notifications.failed()) {
               <p role="alert">{{ notificationText().failed }}</p>
-            } @else if (!notifications.hasUnread()) {
+            }
+            @if (!notifications.hasNotifications()) {
               <p>{{ notificationText().empty }}</p>
             } @else {
               <ul>
+                @for (action of notifications.actionItems(); track action.kind + ':' + action.unitCode + ':' + action.technicalId) {
+                  <li>
+                    <a [routerLink]="action.kind === 'returned' ? ['/secretary/new'] : ['/inbox']"
+                      [queryParams]="action.kind === 'returned'
+                        ? { draft: action.technicalId }
+                        : { view: 'needs_action', pending: action.technicalId }"
+                      (click)="notifications.close()">
+                      <strong>{{ action.kind === 'returned'
+                        ? (translation.language() === 'ar' ? 'أُعيدت مراسلتك للتعديل' : 'Your correspondence was returned for revision')
+                        : (translation.language() === 'ar' ? 'مراسلة بانتظار موافقتك' : 'Correspondence awaiting your approval') }}</strong>
+                      <span dir="auto">{{ action.subject }}</span>
+                      @if (action.kind === 'returned' && action.returnReason) {
+                        <span dir="auto">{{ translation.language() === 'ar' ? 'سبب الإرجاع:' : 'Return reason:' }} {{ action.returnReason }}</span>
+                      }
+                      <span>{{ translation.language() === 'ar' ? 'فتح المراسلة' : 'Open correspondence' }}</span>
+                    </a>
+                  </li>
+                }
                 @for (item of notifications.items(); track item.technicalId) {
                   <li>
                     <a [routerLink]="['/inbox']"
@@ -143,10 +162,12 @@
                   </li>
                 }
               </ul>
-              <a class="app-notifications__view" routerLink="/inbox"
-                [queryParams]="{ view: 'unread' }" (click)="notifications.close()">
-                {{ notificationText().all }} ({{ notifications.total() }})
-              </a>
+              @if (notifications.total() > 0) {
+                <a class="app-notifications__view" routerLink="/inbox"
+                  [queryParams]="{ view: 'unread' }" (click)="notifications.close()">
+                  {{ notificationText().all }} ({{ notifications.total() }})
+                </a>
+              }
             }
           </div>
         }

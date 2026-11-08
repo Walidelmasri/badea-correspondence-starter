@@ -86,7 +86,9 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     TestBed.configureTestingModule({ providers: [
       { provide: AuthSessionStore, useValue: secretary },
       { provide: TarasolRoundContinuationApiService, useValue: rounds },
-      { provide: TarasolSecretaryApiService, useValue: {} },
+      { provide: TarasolSecretaryApiService, useValue: {
+        list: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 10 })),
+      } },
       { provide: CorrespondenceApiService, useValue: correspondence },
       { provide: CorrespondenceService, useValue: { getDepartments: vi.fn(() => of([])) } },
       { provide: TranslationService, useValue: { language: () => 'en' } },

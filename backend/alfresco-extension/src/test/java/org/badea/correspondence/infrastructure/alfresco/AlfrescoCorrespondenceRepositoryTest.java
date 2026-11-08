@@ -1083,11 +1083,15 @@ class AlfrescoCorrespondenceRepositoryTest {
         when(nodeService.getChildAssocs(sent)).thenReturn(java.util.List.of());
         assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Returned work is editable in personal Drafts");
+        assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "returned").total(),
+            "The secretary action queue contains their own returned correspondence");
         assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "sent").total(),
             "Returned work belongs in Drafts, not Sent");
         when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("PENDING");
         assertEquals(1, repository.pageSecretaryCases(unit, "300", false, 0, 20, "sent").total(),
             "Submitted work remains visible while the manager has not approved it");
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "returned").total(),
+            "Pending work cannot appear as a returned action");
         assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Pending approvals must not be edited in personal Drafts");
         when(nodeService.getProperty(sent, qname("secretaryOwnerEmployeeId"))).thenReturn("999");
@@ -1095,6 +1099,8 @@ class AlfrescoCorrespondenceRepositoryTest {
             "Another secretary's Sent correspondence must never be listed");
         assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "drafts").total(),
             "Another secretary's returned draft must never leak into this mailbox");
+        assertEquals(0, repository.pageSecretaryCases(unit, "300", false, 0, 20, "returned").total(),
+            "Returned work must never leak across employee owners");
         when(nodeService.getProperty(sent, qname("secretaryApprovalStatus"))).thenReturn("APPROVED");
         when(nodeService.getProperty(sent, qname("state"))).thenReturn("WITH_PRESIDENT_OFFICE");
         assertEquals(0, repository.pageSecretaryCases(unit, null, true, 0, 20).total(),

@@ -21,6 +21,42 @@
         }
       </div>
     }
+    @if (secretaryMode() && box() === 'inbox' && (inboxView() === 'needs_action' || inboxView() === 'all')) {
+      @if (returnedItems().length || returnedLoadError()) {
+        <section class="mailbox-pending-approvals" [attr.aria-label]="returnedLabels().heading">
+          <div class="mailbox-pending-heading">
+            <strong>{{ returnedLabels().heading }}</strong>
+            <span class="mailbox-count">{{ returnedTotal() }}</span>
+          </div>
+          @if (returnedLoadError()) {
+            <p role="alert" class="mailbox-transition-notice">{{ returnedLabels().failed }}</p>
+          }
+          @for (item of returnedItems(); track item.technicalId) {
+            <button type="button" class="mailbox-item" (click)="openReturned(item)">
+              <span class="mailbox-item__date">{{ formatDate(item.modifiedAt) }}</span>
+              <strong>{{ item.subject }}</strong>
+              <small>{{ returnedLabels().heading }}</small>
+              @if (item.returnReason) {
+                <span dir="auto">{{ returnedLabels().reason }} {{ item.returnReason }}</span>
+              }
+              <small>{{ returnedLabels().open }}</small>
+            </button>
+          }
+          @if (returnedTotal() > pendingPageSize) {
+            <div class="mailbox-pagination">
+              <span>{{ returnedOffset() + 1 }}–{{ returnedOffset() + returnedItems().length }}
+                {{ labels().of }} {{ returnedTotal() }}</span>
+              <div>
+                <button type="button" [disabled]="returnedOffset() === 0 || loading()"
+                  (click)="returnedPrevious()">{{ labels().previous }}</button>
+                <button type="button" [disabled]="returnedOffset() + pendingPageSize >= returnedTotal() || loading()"
+                  (click)="returnedNext()">{{ labels().next }}</button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+    }
     @if (managerApprovalUnit() && (inboxView() === 'needs_action' || inboxView() === 'all')) {
       @if (pendingApprovals().length || pendingLoadError()) {
         <section class="mailbox-pending-approvals" [attr.aria-label]="pendingLabels().heading">
@@ -99,7 +135,7 @@
         <button type="button" (click)="loadPage(0)">{{ labels().retry }}</button>
       </div>
     } @else if (page(); as results) {
-      @if (results.items.length === 0 && pendingApprovals().length === 0 && roundRequests().length === 0) {
+      @if (results.items.length === 0 && pendingApprovals().length === 0 && roundRequests().length === 0 && returnedItems().length === 0) {
         <div class="mailbox-empty">
           <strong>{{ headings().empty.title }}</strong>
           <p>{{ headings().empty.description }}</p>

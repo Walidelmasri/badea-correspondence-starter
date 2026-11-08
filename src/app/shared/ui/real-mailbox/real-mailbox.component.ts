@@ -14,6 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { managerApprovalUnit } from '../../../core/auth/manager-approval-unit';
 import { UnreadInboxStore } from '../../../core/notifications/unread-inbox.store';
 import { CorrespondenceService } from '../../../core/correspondence/correspondence.service';
 import { CorrespondenceDepartment } from '../../../core/correspondence/correspondence.model';
@@ -70,15 +71,18 @@ export class RealMailboxComponent implements OnInit {
     ? this.session.secretaryInboxUnitCode() : null);
   // A manager appointment, not Alfresco group membership alone, identifies
   // the department whose secretary submissions this Inbox may review.
-  readonly managerApprovalUnit = computed(() => {
-    if (this.box() !== 'inbox') return null;
-    const selected = this.session.activeManagerWorkspace();
-    if (selected) return selected.code;
-    const workspaces = this.session.availableWorkspaces();
-    // A single Office manager appointment needs no extra workspace selection.
-    if (workspaces.length === 1) return workspaces[0].code;
-    const code = this.session.effectiveDepartmentCode();
-    return workspaces.find(unit => unit.code === code)?.code ?? null;
+  readonly managerApprovalUnit = computed(() => this.box() === 'inbox'
+    ? managerApprovalUnit(this.session) : null);
+  readonly returnedItems = signal<readonly SecretaryDraft[]>([]);
+  readonly returnedTotal = signal(0);
+  readonly returnedOffset = signal(0);
+  readonly returnedLoadError = signal(false);
+  readonly returnedLabels = computed(() => this.translation.language() === 'ar' ? {
+    heading: 'أُعيدت للتعديل', reason: 'سبب الإرجاع:', open: 'تعديل وإعادة إرسال',
+    failed: 'تعذر تحميل المراسلات المعادة',
+  } : {
+    heading: 'Returned for revision', reason: 'Return reason:', open: 'Edit and resubmit',
+    failed: 'Could not load returned correspondence',
   });
   readonly pendingApprovals = signal<readonly SecretaryDraft[]>([]);
   readonly pendingTotal = signal(0);
@@ -447,6 +451,7 @@ export class RealMailboxComponent implements OnInit {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       this.inboxView.set(this.box() === 'inbox'
         ? inboxViewFromQuery(params.get('view')) : 'all');
+      if (params.get('pending')) this.pendingOffset.set(0);
       // Invalidate any in-flight page fetch when opening a notification.
       ++this.pageVersion;
       this.loading.set(false);
@@ -475,6 +480,7 @@ export class RealMailboxComponent implements OnInit {
     this.inboxView.set(view);
     this.pendingOffset.set(0);
     this.roundOffset.set(0);
+    this.returnedOffset.set(0);
     this.mobileDetailsOpen.set(false);
     this.selectedId.set(null);
     // Invalidate the previous page request so switching filters while loading works.
@@ -511,10 +517,12 @@ export class RealMailboxComponent implements OnInit {
       const unit = this.secretaryUnitCode();
       const managerUnit = this.managerApprovalUnit();
       const showPending = !!managerUnit && (this.inboxView() === 'needs_action' || this.inboxView() === 'all');
+      const showReturned = this.box() === 'inbox' && !!unit
+        && (this.inboxView() === 'needs_action' || this.inboxView() === 'all');
       // Never hold the normal Inbox hostage to a potentially expensive
       // continuation-request scan. The manager queue is an independent load.
       void this.loadRoundQueue(managerUnit, showPending, version);
-      const [page, pending] = await Promise.all([
+      const [page, pending, returned] = await Promise.all([
         firstValueFrom(this.secretaryMode()
           ? this.box() === 'sent'
             ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
@@ -524,11 +532,19 @@ export class RealMailboxComponent implements OnInit {
           this.pendingOffset(), PAGE_SIZE)).then(result => ({ result, failed: false }))
           .catch(() => ({ result: null, failed: true }))
           : Promise.resolve({ result: null, failed: false }),
+        showReturned ? firstValueFrom(this.secretaryApi.list(unit!, 'mine',
+          this.returnedOffset(), PAGE_SIZE, 'returned')).then(result => ({ result, failed: false }))
+          .catch(() => ({ result: null, failed: true }))
+          : Promise.resolve({ result: null, failed: false }),
       ]);
       if (version !== this.pageVersion) return;
       this.pendingApprovals.set(pending.result?.items ?? []);
       this.pendingTotal.set(pending.result?.total ?? 0);
       this.pendingLoadError.set(pending.failed);
+      this.returnedItems.set(returned.result?.items.filter(item => item.approvalStatus === 'RETURNED'
+        && item.unitCode === unit) ?? []);
+      this.returnedTotal.set(returned.result?.total ?? 0);
+      this.returnedLoadError.set(returned.failed);
       this.page.set(page);
       const requestedId = this.box() === 'inbox'
         ? this.route.snapshot.queryParamMap.get('open') : null;
@@ -537,8 +553,12 @@ export class RealMailboxComponent implements OnInit {
         ?? page.items[0]?.technicalId ?? null;
       // A manager's pending secretary item is an actual Inbox action, and
       // appears before ordinary correspondence in Needs Action / All.
-      if (!requestedId && pending.result?.items.length) {
-        this.selectPending(pending.result.items[0]);
+      const requestedPending = this.box() === 'inbox'
+        ? this.route.snapshot.queryParamMap.get('pending') : null;
+      const pendingSelection = pending.result?.items.find(item => item.technicalId === requestedPending)
+        ?? (!requestedId ? pending.result?.items[0] : null);
+      if (pendingSelection) {
+        this.selectPending(pendingSelection);
       } else {
         this.selectedId.set(id);
         if (id) void this.loadDetails(id, id === requestedId &&
@@ -660,6 +680,7 @@ export class RealMailboxComponent implements OnInit {
       this.pendingOffset.set(0);
       await this.loadPage(0);
       this.pendingNotice.set(action === 'RETURN' ? 'returned' : 'approved');
+      void this.unreadStore.refresh();
     } catch (error) {
       // Alfresco transaction may have committed despite a lost response.
       // Never silently retry either action.
@@ -670,6 +691,24 @@ export class RealMailboxComponent implements OnInit {
     } finally {
       this.pendingBusy.set(false);
     }
+  }
+
+  openReturned(item: SecretaryDraft): void {
+    if (!this.secretaryMode() || this.secretaryUnitCode() !== item.unitCode
+        || item.approvalStatus !== 'RETURNED') return;
+    void this.router.navigate(['/secretary/new'], { queryParams: { draft: item.technicalId } });
+  }
+
+  returnedPrevious(): void {
+    if (this.returnedOffset() < PAGE_SIZE || this.loading()) return;
+    this.returnedOffset.update(value => value - PAGE_SIZE);
+    void this.loadPage(0);
+  }
+
+  returnedNext(): void {
+    if (this.returnedOffset() + PAGE_SIZE >= this.returnedTotal() || this.loading()) return;
+    this.returnedOffset.update(value => value + PAGE_SIZE);
+    void this.loadPage(0);
   }
 
   pendingPrevious(): void {

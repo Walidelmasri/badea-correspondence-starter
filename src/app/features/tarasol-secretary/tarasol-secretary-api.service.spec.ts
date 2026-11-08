@@ -41,6 +41,15 @@ describe('TarasolSecretaryApiService', () => {
     request.flush({ items: [], total: 0, offset: 0, limit: 25 });
   });
 
+  it('requests server-filtered returned actions for the current secretary unit', () => {
+    api.list('117', 'mine', 0, 10, 'returned').subscribe();
+    const request = http.expectOne(item => item.url === '/alfresco/service/badea/tarasol/secretary/workflow');
+    expect(request.request.params.get('unitCode')).toBe('117');
+    expect(request.request.params.get('view')).toBe('mine');
+    expect(request.request.params.get('box')).toBe('returned');
+    request.flush({ items: [], total: 0, offset: 0, limit: 10 });
+  });
+
   it('loads only a personal draft in the assigned secretary unit', () => {
     api.personalDraft('117', id).subscribe(result => {
       expect(result.documentDate).toBe('2026-11-04');

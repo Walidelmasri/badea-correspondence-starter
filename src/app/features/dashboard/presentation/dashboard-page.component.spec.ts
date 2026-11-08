@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
+import { TarasolSecretaryApiService } from '../../tarasol-secretary/tarasol-secretary-api.service';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { CorrespondenceApiService } from '../../../shared/data-access/correspondence-api.service';
 import { DashboardPageComponent } from './dashboard-page.component';
@@ -24,6 +25,7 @@ describe('Dashboard primary action card', () => {
     TestBed.configureTestingModule({ providers: [
       provideRouter([]),
       { provide: CorrespondenceApiService, useValue: api },
+      { provide: TarasolSecretaryApiService, useValue: { list: vi.fn(() => of({ items: [], total: 0 })) } },
       { provide: AuthSessionStore, useValue: {
         secretaryMailbox: () => true, secretaryInboxUnitCode: () => '117', effectiveRole: () => 'SECRETARY',
       } },

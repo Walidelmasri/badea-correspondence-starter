@@ -72,7 +72,7 @@ describe('Manager approvals inside the existing Inbox', () => {
       { provide: TranslationService, useValue: { language: () => 'en' } },
       { provide: Router, useValue: { navigate: vi.fn() } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
-      { provide: UnreadInboxStore, useValue: {} },
+      { provide: UnreadInboxStore, useValue: { refresh: vi.fn() } },
     ] });
     mailbox = TestBed.runInInjectionContext(() => new RealMailboxComponent());
     Object.defineProperty(mailbox, 'box', { value: () => 'inbox' });
@@ -125,6 +125,32 @@ describe('Manager approvals inside the existing Inbox', () => {
     session.secretaryInboxUnitCode = () => '117';
     await mailbox.loadPage(0);
     expect(secretary.list).toHaveBeenCalledWith('117', 'pending', 0, 10);
+  });
+
+  it('selects the requested manager approval from a bell deep link', async () => {
+    const second = { ...pending, technicalId: 'another-pending', subject: 'Open this request' };
+    secretary.list.mockReturnValue(of({ items: [pending, second], total: 2, offset: 0, limit: 10 }));
+    const route = TestBed.inject(ActivatedRoute);
+    route.snapshot.queryParamMap.get = (key: string) => key === 'pending' ? second.technicalId : null;
+    await mailbox.loadPage(0);
+    expect(mailbox.selectedPending()?.technicalId).toBe(second.technicalId);
+  });
+
+  it('opens a returned personal draft from the secretary Needs Action section', async () => {
+    const returned = { ...pending, approvalStatus: 'RETURNED' as const,
+      ownerEmployeeId: '99999', returnReason: 'Fix attachments' };
+    session.secretaryMailbox = () => true;
+    session.secretaryInboxUnitCode = () => '117';
+    secretary.list.mockImplementation((_unit: string, view: string) => of({
+      items: view === 'mine' ? [returned] : [pending], total: 1, offset: 0, limit: 10,
+    }));
+    await mailbox.loadPage(0);
+    expect(secretary.list).toHaveBeenCalledWith('117', 'mine', 0, 10, 'returned');
+    expect(mailbox.returnedItems().map(item => item.technicalId)).toEqual([id]);
+    mailbox.openReturned(returned);
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/secretary/new'], {
+      queryParams: { draft: id },
+    });
   });
 
   it('never queries the approval queue without a selected manager appointment', async () => {

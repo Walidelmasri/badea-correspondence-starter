@@ -89,6 +89,39 @@ class TarasolSecretaryWorkflowWebScriptTest {
     }
 
     @Test
+    void returnedActionsUseOwnerAuthorizedReturnedOnlyView() throws Exception {
+        when(employees.getCurrentEmployee()).thenReturn(secretary);
+        when(request.getParameter("unitCode")).thenReturn("117");
+        when(request.getParameter("view")).thenReturn("mine");
+        when(request.getParameter("box")).thenReturn("returned");
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        var draft = new AlfrescoCorrespondenceRepository.SecretaryDraft(
+            "case-1", "117", "Subject", "Body", "99999", "RETURNED", "Replace PDF",
+            "DOC-117", "2026-11-04T07:00:00Z", "2026-11-04T09:00:00Z");
+        when(workflow.page(eq(secretary), eq(new DepartmentCode("117")), eq(false),
+            eq(0), eq(20), eq("returned")))
+            .thenReturn(new AlfrescoCorrespondenceRepository.SecretaryPage(java.util.List.of(draft), 1));
+        new TarasolSecretaryWorkflowWebScript(employees, workflow, false).execute(request, response);
+        verify(response).setStatus(Status.STATUS_OK);
+        var result = new JSONObject(output.toString());
+        assertEquals(1, result.getInt("total"));
+        assertEquals("RETURNED", result.getJSONArray("items").getJSONObject(0).getString("approvalStatus"));
+        assertEquals("Replace PDF", result.getJSONArray("items").getJSONObject(0).getString("returnReason"));
+    }
+
+    @Test
+    void managerCannotRequestReturnedPersonalDraftsThroughPendingView() throws Exception {
+        when(employees.getCurrentEmployee()).thenReturn(secretary);
+        when(request.getParameter("unitCode")).thenReturn("117");
+        when(request.getParameter("view")).thenReturn("pending");
+        when(request.getParameter("box")).thenReturn("returned");
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        new TarasolSecretaryWorkflowWebScript(employees, workflow, false).execute(request, response);
+        verify(response).setStatus(Status.STATUS_BAD_REQUEST);
+        verifyNoInteractions(workflow);
+    }
+
+    @Test
     void personalSentExposesActualApprovalAndRoutingState() throws Exception {
         when(employees.getCurrentEmployee()).thenReturn(secretary);
         when(request.getParameter("unitCode")).thenReturn("117");

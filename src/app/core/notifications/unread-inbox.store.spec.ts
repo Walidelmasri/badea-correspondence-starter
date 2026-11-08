@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuthSessionStore } from '../auth/auth-session.store';
 import { CorrespondenceApiService } from '../../shared/data-access/correspondence-api.service';
 import { UnreadInboxStore } from './unread-inbox.store';
+import { TarasolSecretaryApiService } from '../../features/tarasol-secretary/tarasol-secretary-api.service';
 
 const employee = {
   id: 'ndjack', firstName: 'Mohamed', displayName: 'Mohamed N\'Diack', enabled: true,
@@ -30,6 +31,9 @@ describe('UnreadInboxStore workspace isolation', () => {
       .mockReturnValueOnce(hr.asObservable()) };
     TestBed.configureTestingModule({ providers: [
       { provide: CorrespondenceApiService, useValue: api },
+      { provide: TarasolSecretaryApiService, useValue: {
+        list: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 5 })),
+      } },
     ] });
     const session = TestBed.inject(AuthSessionStore);
     session.setTicket('test');
@@ -63,6 +67,9 @@ describe('UnreadInboxStore workspace isolation', () => {
     })) };
     TestBed.configureTestingModule({ providers: [
       { provide: CorrespondenceApiService, useValue: api },
+      { provide: TarasolSecretaryApiService, useValue: {
+        list: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 5 })),
+      } },
     ] });
     const session = TestBed.inject(AuthSessionStore);
     session.setTicket('test');
@@ -88,6 +95,9 @@ describe('UnreadInboxStore workspace isolation', () => {
       .mockReturnValueOnce(switched.asObservable()) };
     TestBed.configureTestingModule({ providers: [
       { provide: CorrespondenceApiService, useValue: api },
+      { provide: TarasolSecretaryApiService, useValue: {
+        list: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 5 })),
+      } },
     ] });
     const session = TestBed.inject(AuthSessionStore);
     session.setTicket('test');
@@ -121,6 +131,9 @@ describe('UnreadInboxStore workspace isolation', () => {
     })) };
     TestBed.configureTestingModule({ providers: [
       { provide: CorrespondenceApiService, useValue: api },
+      { provide: TarasolSecretaryApiService, useValue: {
+        list: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 5 })),
+      } },
     ] });
     const session = TestBed.inject(AuthSessionStore);
     session.setTicket('test');
@@ -136,5 +149,146 @@ describe('UnreadInboxStore workspace isolation', () => {
     expect(notifications.open()).toBe(false);
     expect(notifications.items()).toEqual([]);
     expect(notifications.total()).toBe(0);
+  });
+});
+
+
+describe('UnreadInboxStore personal workflow actions', () => {
+  const returned = {
+    technicalId: 'own-returned', unitCode: '117', subject: 'PDF correction',
+    ownerEmployeeId: '18284', approvalStatus: 'RETURNED' as const,
+    returnReason: 'Please replace attachment',
+  };
+  const pending = {
+    technicalId: 'waiting-approval', unitCode: '118', subject: 'Manager decision',
+    ownerEmployeeId: '99999', approvalStatus: 'PENDING' as const, returnReason: null,
+  };
+  it('shows only personally owned returned secretary actions with the reason and preserves unread mail', async () => {
+    const secretaryApi = { list: vi.fn(() => of({ items: [returned, {
+      ...returned, technicalId: 'someone-elses', ownerEmployeeId: 'different',
+    }], total: 1, offset: 0, limit: 5 })) };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: {
+        listSecretaryInbox: vi.fn(() => of({ items: [{ technicalId: 'unread' }], total: 1 })),
+      } },
+      { provide: TarasolSecretaryApiService, useValue: secretaryApi },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser({ ...employee, employeeProfile: {
+      ...employee.employeeProfile, correspondenceRole: 'SECRETARY' as const,
+      managerWorkspaces: [], secretaryUnits: [{ code: '117', nameEnglish: 'DT', nameArabic: null }],
+    } });
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    await vi.waitFor(() => expect(notifications.actionItems().length).toBe(1));
+    expect(secretaryApi.list).toHaveBeenCalledWith('117', 'mine', 0, 5, 'returned');
+    expect(notifications.actionItems()[0]).toMatchObject({
+      kind: 'returned', technicalId: 'own-returned', returnReason: 'Please replace attachment',
+    });
+    expect(notifications.total()).toBe(1);
+    expect(notifications.badgeTotal()).toBe(2);
+  });
+
+  it('alerts an authorized manager about the exact pending queue without showing another unit', async () => {
+    const secretaryApi = { list: vi.fn(() => of({ items: [pending], total: 1, offset: 0, limit: 5 })) };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: {
+        listMailbox: vi.fn(() => of({ items: [], total: 0 })),
+      } },
+      { provide: TarasolSecretaryApiService, useValue: secretaryApi },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser(employee);
+    session.selectWorkspace('118');
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    await vi.waitFor(() => expect(notifications.badgeTotal()).toBe(1));
+    expect(secretaryApi.list).toHaveBeenCalledWith('118', 'pending', 0, 5);
+    expect(notifications.actionItems()).toEqual([{
+      kind: 'manager_pending', technicalId: 'waiting-approval', unitCode: '118',
+      subject: 'Manager decision', returnReason: null,
+    }]);
+    session.selectWorkspace('101');
+    TestBed.tick();
+    await vi.waitFor(() => expect(notifications.actionItems()).toEqual([]));
+  });
+
+  it('shows unread mail even while a manager-approval queue is still loading', async () => {
+    const delayedPending = new Subject<any>();
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: {
+        listMailbox: vi.fn(() => of({ items: [{ technicalId: 'unread-now' }], total: 1 })),
+      } },
+      { provide: TarasolSecretaryApiService, useValue: {
+        list: vi.fn(() => delayedPending.asObservable()),
+      } },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser(employee);
+    session.selectWorkspace('118');
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    await vi.waitFor(() => expect(notifications.items().map(item => item.technicalId))
+      .toEqual(['unread-now']));
+    expect(notifications.total()).toBe(1);
+    expect(notifications.actionTotal()).toBe(0);
+    delayedPending.next({ items: [], total: 0, offset: 0, limit: 5 });
+    delayedPending.complete();
+  });
+
+  it('never queries manager actions when there is no active manager appointment', async () => {
+    const secretaryApi = { list: vi.fn() };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: {
+        listMailbox: vi.fn(() => of({ items: [], total: 0 })),
+      } },
+      { provide: TarasolSecretaryApiService, useValue: secretaryApi },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser({ ...employee, employeeProfile: {
+      ...employee.employeeProfile, correspondenceRole: 'DIRECTOR' as const, managerWorkspaces: [],
+    } });
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    await vi.waitFor(() => expect(notifications.total()).toBe(0));
+    expect(secretaryApi.list).not.toHaveBeenCalled();
+  });
+
+  it('drops in-flight returned actions after switching secretary units', async () => {
+    const before = new Subject<any>();
+    const after = new Subject<any>();
+    const secretaryApi = { list: vi.fn()
+      .mockReturnValueOnce(before.asObservable())
+      .mockReturnValueOnce(after.asObservable()) };
+    TestBed.configureTestingModule({ providers: [
+      { provide: CorrespondenceApiService, useValue: {
+        listSecretaryInbox: vi.fn(() => of({ items: [], total: 0 })),
+      } },
+      { provide: TarasolSecretaryApiService, useValue: secretaryApi },
+    ] });
+    const session = TestBed.inject(AuthSessionStore);
+    session.setTicket('test');
+    session.setCurrentUser({ ...employee, employeeProfile: {
+      ...employee.employeeProfile, correspondenceRole: 'SECRETARY' as const, managerWorkspaces: [],
+      secretaryUnits: [
+        { code: '117', nameEnglish: 'DT', nameArabic: null },
+        { code: '118', nameEnglish: 'HR', nameArabic: null },
+      ],
+    } });
+    const notifications = TestBed.inject(UnreadInboxStore);
+    TestBed.tick();
+    session.selectSecretaryUnit('118');
+    TestBed.tick();
+    before.next({ items: [returned], total: 1 });
+    before.complete();
+    await Promise.resolve();
+    expect(notifications.actionItems()).toEqual([]);
+    after.next({ items: [], total: 0 });
+    after.complete();
+    await vi.waitFor(() => expect(notifications.badgeTotal()).toBe(0));
   });
 });

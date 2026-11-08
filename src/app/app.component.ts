@@ -149,10 +149,10 @@ export class AppComponent {
 
   notificationText(): {title: string; empty: string; unread: string; all: string; failed: string} {
     return this.translation.language() === 'ar' ? {
-      title: 'الإشعارات', empty: 'لا توجد مراسلات غير مقروءة.', unread: 'غير مقروء',
+      title: 'الإشعارات', empty: 'لا توجد إشعارات تتطلب انتباهك.', unread: 'غير مقروء',
       all: 'عرض كل غير المقروء', failed: 'تعذر تحميل الإشعارات',
     } : {
-      title: 'Notifications', empty: 'No unread correspondence.', unread: 'Unread',
+      title: 'Notifications', empty: 'No notifications require your attention.', unread: 'Unread',
       all: 'View unread inbox', failed: 'Could not load notifications',
     };
   }

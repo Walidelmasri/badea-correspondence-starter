@@ -85,7 +85,7 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                 int limit = pageParameter(request.getParameter("limit"), 20, 50);
                 String personalBox = request.getParameter("box");
                 if (personalBox != null && (!"mine".equals(view)
-                        || !java.util.Set.of("drafts", "sent").contains(personalBox))) {
+                        || !java.util.Set.of("drafts", "sent", "returned").contains(personalBox))) {
                     throw new IllegalArgumentException("Invalid personal mailbox filter");
                 }
                 var page = personalBox == null

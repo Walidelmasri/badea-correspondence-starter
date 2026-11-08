@@ -92,7 +92,7 @@ export class TarasolSecretaryApiService {
   }
 
   list(unitCode: string, view: 'mine' | 'pending', offset = 0, limit = 20,
-    personalBox?: 'drafts'): Observable<DraftList> {
+    personalBox?: 'drafts' | 'returned'): Observable<DraftList> {
     const params = new HttpParams().set('unitCode', unitCode).set('view', view)
       .set('offset', offset).set('limit', limit);
     return this.http.get<DraftList>(this.url, {

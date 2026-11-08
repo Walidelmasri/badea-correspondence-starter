@@ -37,20 +37,22 @@ export function buildSecretaryDashboardSnapshot(
   needsAction: CorrespondenceMailboxPage,
   handled: CorrespondenceMailboxPage,
   archived: CorrespondenceMailboxPage,
+  returnedCount = 0,
 ): DashboardSnapshot {
   const pages = [all, needsAction, handled, archived];
-  if (pages.some(page => !Number.isSafeInteger(page.total) || page.total < 0)) {
+  if (pages.some(page => !Number.isSafeInteger(page.total) || page.total < 0)
+      || !Number.isSafeInteger(returnedCount) || returnedCount < 0) {
     throw new Error('Invalid secretary dashboard total');
   }
   const parts = [
-    { key: 'needs_action' as const, total: needsAction.total },
+    { key: 'needs_action' as const, total: needsAction.total + returnedCount },
     { key: 'handled' as const, total: handled.total },
     { key: 'archived' as const, total: archived.total },
   ];
   const denominator = parts.reduce((sum, part) => sum + part.total, 0);
   return {
     received: all.total,
-    needsAction: needsAction.total,
+    needsAction: needsAction.total + returnedCount,
     handled: handled.total,
     archived: archived.total,
     sent: null,

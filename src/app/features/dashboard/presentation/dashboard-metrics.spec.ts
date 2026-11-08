@@ -54,6 +54,12 @@ describe('dashboard metrics', () => {
     expect(snapshot.needsAction).toBe(4);
     expect(snapshot.sent).toBeNull();
     expect(snapshot.drafts).toBeNull();
+    const returned = buildSecretaryDashboardSnapshot(
+      inboxPage(17), inboxPage(4), inboxPage(11), inboxPage(2), 2,
+    );
+    expect(returned.needsAction).toBe(6);
+    expect(returned.received).toBe(17);
+    expect(returned.segments[0].total).toBe(6);
     expect(snapshot.segments.reduce((total, segment) => total + segment.percentage, 0))
       .toBeCloseTo(100);
     expect(() => buildSecretaryDashboardSnapshot(
