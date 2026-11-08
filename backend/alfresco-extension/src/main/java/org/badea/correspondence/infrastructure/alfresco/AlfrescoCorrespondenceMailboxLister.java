@@ -16,6 +16,8 @@ import org.alfresco.service.cmr.security.AccessStatus;
 import org.alfresco.service.cmr.security.PermissionService;
 import org.alfresco.service.namespace.QName;
 import org.badea.correspondence.application.CorrespondenceParticipation;
+import org.badea.correspondence.application.DepartmentAssignmentStatus;
+import org.badea.correspondence.application.DepartmentRecipientType;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
@@ -47,6 +49,12 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private static final QName PROP_OFFICE_SNAPSHOT_REVISION = q("officeSnapshotRevision");
     private static final QName PROP_OFFICE_UPDATED = q("officeActedAt");
     private static final QName PROP_OFFICE_SNAPSHOT_OWNER = q("officeActorEmployeeId");
+    private static final QName TYPE_SECRETARY_ROUND_REQUEST = q("secretaryRoundTwoRequest");
+    private static final QName PROP_REQUEST_OWNER = q("roundTwoRequestOwner");
+    private static final QName PROP_REQUEST_UNIT = q("roundTwoRequestUnit");
+    private static final QName PROP_REQUEST_STATUS = q("roundTwoRequestStatus");
+    private static final QName PROP_REQUEST_CYCLE = q("roundTwoRequestCycle");
+    private static final QName PROP_PENDING_REQUEST_ID = q("roundTwoPendingRequestId");
 
     private final NodeService nodes;
     private final PermissionService permissions;
@@ -80,6 +88,24 @@ public final class AlfrescoCorrespondenceMailboxLister {
     public MailboxPage list(String box, CorrespondenceActorRole role,
             DepartmentCode department, String employeeId, String view,
             int offset, int limit) {
+        return listInternal(box, role, department, employeeId, view, offset, limit, false);
+    }
+
+    /** Separate user-action projection: Director work is visible but not actionable by a secretary.
+     * Caller must enforce both the secretary gateway group and active Oracle assignment.
+     */
+    public MailboxPage listSecretaryInbox(DepartmentCode department, String employeeId,
+            String view, int offset, int limit) {
+        Objects.requireNonNull(department, "Secretary unit required");
+        if (employeeId == null || employeeId.isBlank())
+            throw new IllegalArgumentException("Secretary identity required");
+        return listInternal("inbox", CorrespondenceActorRole.DIRECTOR,
+                department, employeeId, view, offset, limit, true);
+    }
+
+    private MailboxPage listInternal(String box, CorrespondenceActorRole role,
+            DepartmentCode department, String employeeId, String view,
+            int offset, int limit, boolean secretaryProjection) {
         Objects.requireNonNull(role, "actorRole must not be null");
         if (!"inbox".equals(box) && !"sent".equals(box) && !"drafts".equals(box))
             throw new IllegalArgumentException("Unsupported mailbox box");
@@ -103,7 +129,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
                 continue;
             }
             if (!ContentModel.TYPE_FOLDER.equals(nodes.getType(folder))) continue;
-            deniedChildren |= collect(folder, box, role, department, employeeId, view, matches);
+            deniedChildren |= collect(folder, box, role, department, employeeId, view,
+                    secretaryProjection, matches);
         }
         // Do not silently return a partial/empty President mailbox on ACL denial.
         // Never bypass Alfresco permissions or disclose inaccessible content.
@@ -162,7 +189,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
 
     private boolean collect(NodeRef folder, String box, CorrespondenceActorRole role,
             DepartmentCode department, String employeeId, String view,
-            List<MailboxSummary> matches) {
+            boolean secretaryProjection, List<MailboxSummary> matches) {
         boolean deniedChild = false;
         for (ChildAssociationRef association : nodes.getChildAssocs(folder)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
@@ -182,6 +209,9 @@ public final class AlfrescoCorrespondenceMailboxLister {
             boolean directorNeedsAction = directorReceived
                     && activeAssignments.stream().anyMatch(a -> a.isActionableFor(department));
             boolean active = isAssigned(node, state, role, department) || directorNeedsAction;
+            boolean actionable = secretaryProjection
+                    ? secretaryReturnedRequestNeedsAction(node, state, department, employeeId)
+                    : active;
             // Executive drafts are creator-private and belong only in their
             // owner's Drafts box. Director draft listing remains unchanged.
             if (state == CorrespondenceState.DRAFT) {
@@ -216,8 +246,9 @@ public final class AlfrescoCorrespondenceMailboxLister {
             if (!included) continue;
             if ("inbox".equals(box)) {
                 boolean matchesView = switch (view) {
-                    case "needs_action" -> active;
-                    case "handled" -> !active && state != CorrespondenceState.ARCHIVED;
+                    case "needs_action" -> actionable;
+                    case "handled" -> !actionable && (!secretaryProjection || !active)
+                            && state != CorrespondenceState.ARCHIVED;
                     case "archived" -> state == CorrespondenceState.ARCHIVED;
                     default -> true;
                 };
@@ -234,9 +265,42 @@ public final class AlfrescoCorrespondenceMailboxLister {
                     required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
                     optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
                     required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
-                    timestamp(node, ContentModel.PROP_MODIFIED), active, unread, incoming));
+                    timestamp(node, ContentModel.PROP_MODIFIED), actionable, unread, incoming));
         }
         return deniedChild;
+    }
+
+    /** Only a returned, current-cycle request owned by this secretary is a personal
+     * follow-up action. Outstanding Director assignments remain visible in All/Unread.
+     */
+    private boolean secretaryReturnedRequestNeedsAction(NodeRef correspondence,
+            CorrespondenceState state, DepartmentCode unit, String employeeId) {
+        if (state != CorrespondenceState.WITH_DIRECTOR
+                || !"DIRECTOR".equals(optional(correspondence, PROP_ASSIGNED_ROLE))
+                || unit == null || employeeId == null
+                || nodes.getProperty(correspondence, PROP_PENDING_REQUEST_ID) != null)
+            return false;
+        var current = departmentAssignments.readCurrent(correspondence);
+        if (current.isEmpty() || current.stream().anyMatch(item ->
+                item.recipientType() == DepartmentRecipientType.TO
+                && item.status() != DepartmentAssignmentStatus.COMPLETED)
+                || current.stream().noneMatch(item ->
+                    item.recipientType() == DepartmentRecipientType.TO
+                    && item.status() == DepartmentAssignmentStatus.COMPLETED
+                    && unit.equals(item.departmentCode()))) return false;
+        long cycle = new AlfrescoCorrespondenceCycleReader(nodes).current(correspondence);
+        for (ChildAssociationRef association : nodes.getChildAssocs(correspondence)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
+            NodeRef child = association.getChildRef();
+            if (!TYPE_SECRETARY_ROUND_REQUEST.equals(nodes.getType(child))) continue;
+            if (!employeeId.equals(optional(child, PROP_REQUEST_OWNER))
+                    || !unit.value().equals(optional(child, PROP_REQUEST_UNIT))
+                    || !"RETURNED".equals(optional(child, PROP_REQUEST_STATUS))) continue;
+            if (AlfrescoCorrespondenceCycleReader.number(
+                    nodes.getProperty(child, PROP_REQUEST_CYCLE), "roundTwoRequestCycle") == cycle)
+                return true;
+        }
+        return false;
     }
 
     private boolean isDraft(NodeRef node, CorrespondenceActorRole role,

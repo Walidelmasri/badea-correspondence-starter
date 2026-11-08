@@ -31,6 +31,7 @@ const pdf = { nodeId: 'stage-1', filename: 'round-4.pdf',
 describe('Secretary Round N continuation in the existing Inbox', () => {
   let mailbox: RealMailboxComponent;
   let rounds: {
+    secretaryEligibility: ReturnType<typeof vi.fn>;
     secretaryRequest: ReturnType<typeof vi.fn>;
     secretaryDocuments: ReturnType<typeof vi.fn>;
     submitSecretaryRequest: ReturnType<typeof vi.fn>;
@@ -53,6 +54,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
 
   beforeEach(() => {
     rounds = {
+      secretaryEligibility: vi.fn(() => of({ canPrepare: false, canReadRequest: true,
+        requestStatus: 'RETURNED', nextCycle: 4, reasonCode: 'OWN_REQUEST' })),
       secretaryRequest: vi.fn(() => of(returned)),
       secretaryDocuments: vi.fn(() => of({ items: [pdf] })),
       submitSecretaryRequest: vi.fn(() => of(preparing)),
@@ -97,6 +100,15 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(true);
   }
 
+  async function loadPending(): Promise<void> {
+    rounds.secretaryEligibility.mockReturnValue(of({ canPrepare: false, canReadRequest: true,
+      requestStatus: 'PENDING', nextCycle: 4, reasonCode: 'OWN_REQUEST' }));
+    rounds.secretaryRequest.mockReturnValue(of(pending));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING'));
+    expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(true);
+  }
+
   it('shows only the secretary-owned returned request, its manager reason and staged Round 4 PDFs', async () => {
     await loadReturned();
     expect(mailbox.canSecretaryRound()).toBe(true);
@@ -124,6 +136,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     await loadReturned();
     mailbox.secretaryRoundReason.set('Corrected follow-up');
     rounds.secretaryRequest.mockReturnValue(of({ ...returned, reason: 'Corrected follow-up', status: 'PENDING' }));
+    rounds.secretaryEligibility.mockReturnValue(of({ canPrepare: false, canReadRequest: true,
+      requestStatus: 'PENDING', nextCycle: 4, reasonCode: 'OWN_REQUEST' }));
     await mailbox.resubmitSecretaryRound();
     expect(rounds.reviseSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
       requestId, 2, 'Corrected follow-up');
@@ -155,6 +169,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
   });
 
   it('prepares and explicitly submits only when PDF editing is complete', async () => {
+    rounds.secretaryEligibility.mockReturnValue(of({ canPrepare: false, canReadRequest: true,
+      requestStatus: 'PREPARING', nextCycle: 4, reasonCode: 'OWN_REQUEST' }));
     rounds.secretaryRequest.mockReturnValue(of(preparing));
     rounds.reviseSecretaryRequest.mockReturnValue(of({ ...preparing, reason: 'Fixed draft' }));
     await mailbox.loadPage(0);
@@ -162,6 +178,8 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     expect(mailbox.secretaryRoundDocumentsLoaded()).toBe(true);
     mailbox.secretaryRoundReason.set('Fixed draft');
     rounds.secretaryRequest.mockReturnValue(of({ ...pending, reason: 'Fixed draft' }));
+    rounds.secretaryEligibility.mockReturnValue(of({ canPrepare: false, canReadRequest: true,
+      requestStatus: 'PENDING', nextCycle: 4, reasonCode: 'OWN_REQUEST' }));
     await mailbox.submitPreparedSecretaryRound();
     expect(rounds.reviseSecretaryRequest).toHaveBeenCalledWith('117', technicalId,
       requestId, 0, 'Fixed draft');
@@ -171,10 +189,18 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     expect(correspondence.continueDirectorCycle).not.toHaveBeenCalled();
   });
 
-  it('does not write or submit a pending request while manager approval is active', async () => {
+  it('rejects a pending request when the server eligibility snapshot still says returned', async () => {
     rounds.secretaryRequest.mockReturnValue(of(pending));
     await mailbox.loadPage(0);
-    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING'));
+    await vi.waitFor(() => expect(mailbox.secretaryRoundError()).toBe(true));
+    expect(mailbox.secretaryRoundRequest()).toBeNull();
+    expect(rounds.secretaryDocuments).not.toHaveBeenCalled();
+    await mailbox.resubmitSecretaryRound();
+    expect(rounds.resubmitSecretaryRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not write or submit a pending request while manager approval is active', async () => {
+    await loadPending();
     await mailbox.uploadSecretaryRoundFiles({ target: {
       files: [new File(['%PDF-1.5'], 'late.pdf', { type: 'application/pdf' })],
       value: 'late.pdf',
@@ -187,9 +213,7 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
   });
 
   it('does not revise or resubmit a pending request without a manager return', async () => {
-    rounds.secretaryRequest.mockReturnValue(of(pending));
-    await mailbox.loadPage(0);
-    await vi.waitFor(() => expect(mailbox.secretaryRoundRequest()?.status).toBe('PENDING'));
+    await loadPending();
     mailbox.secretaryRoundReason.set('Unauthorized pending edit');
     await mailbox.saveSecretaryRoundRevision();
     await mailbox.resubmitSecretaryRound();
@@ -224,16 +248,38 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     expect(rounds.resubmitSecretaryRequest).toHaveBeenCalledOnce();
   });
 
-  it('treats 404 as no personal request, but never mistakes a 403 for an empty request', async () => {
+  it('checks server eligibility before loading a personal request and denies writes on 403', async () => {
+    rounds.secretaryEligibility.mockReturnValue(of({ canPrepare: true, canReadRequest: false,
+      requestStatus: null, nextCycle: 4, reasonCode: 'READY' }));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(rounds.secretaryEligibility).toHaveBeenCalled());
+    expect(rounds.secretaryRequest).not.toHaveBeenCalled();
+    expect(mailbox.canSecretaryRound()).toBe(true);
+    rounds.secretaryEligibility.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+    mailbox.refreshSecretaryRound();
+    await vi.waitFor(() => expect(mailbox.secretaryRoundEligibilityError()).toBe(true));
+    expect(mailbox.canSecretaryRound()).toBe(false);
+    await mailbox.createSecretaryRound();
+    expect(rounds.submitSecretaryRequest).not.toHaveBeenCalled();
+  });
+
+  it('hides the follow-up panel when department work is incomplete', async () => {
+    rounds.secretaryEligibility.mockReturnValue(of({ canPrepare: false, canReadRequest: false,
+      requestStatus: null, nextCycle: 4, reasonCode: 'DEPARTMENT_NOT_READY' }));
+    await mailbox.loadPage(0);
+    await vi.waitFor(() => expect(rounds.secretaryEligibility).toHaveBeenCalled());
+    expect(mailbox.canSecretaryRound()).toBe(false);
+    expect(rounds.secretaryRequest).not.toHaveBeenCalled();
+    mailbox.secretaryRoundReason.set('Cannot start this yet');
+    await mailbox.createSecretaryRound();
+    expect(rounds.submitSecretaryRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not silently offer create if a previously eligible request disappeared', async () => {
     rounds.secretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     await mailbox.loadPage(0);
-    await vi.waitFor(() => expect(rounds.secretaryRequest).toHaveBeenCalled());
-    await vi.waitFor(() => expect(mailbox.secretaryRoundLoading()).toBe(false));
-    expect(mailbox.secretaryRoundRequest()).toBeNull();
-    expect(mailbox.secretaryRoundError()).toBe(false);
-    rounds.secretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
-    mailbox.refreshSecretaryRound();
     await vi.waitFor(() => expect(mailbox.secretaryRoundError()).toBe(true));
+    expect(mailbox.secretaryRoundRequest()).toBeNull();
     await mailbox.createSecretaryRound();
     expect(rounds.submitSecretaryRequest).not.toHaveBeenCalled();
   });
@@ -255,11 +301,15 @@ describe('Secretary Round N continuation in the existing Inbox', () => {
     expect(rounds.submitSecretaryRequest).not.toHaveBeenCalled();
   });
 
-  it('creates a new request only after the no-current-request response', async () => {
-    rounds.secretaryRequest.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+  it('creates a new request only after explicit backend eligibility', async () => {
+    rounds.secretaryEligibility
+      .mockReturnValueOnce(of({ canPrepare: true, canReadRequest: false,
+        requestStatus: null, nextCycle: 4, reasonCode: 'READY' }))
+      .mockReturnValueOnce(of({ canPrepare: false, canReadRequest: true,
+        requestStatus: 'PREPARING', nextCycle: 4, reasonCode: 'OWN_REQUEST' }));
     await mailbox.loadPage(0);
-    await vi.waitFor(() => expect(rounds.secretaryRequest).toHaveBeenCalled());
-    await vi.waitFor(() => expect(mailbox.secretaryRoundLoading()).toBe(false));
+    await vi.waitFor(() => expect(mailbox.canSecretaryRound()).toBe(true));
+    expect(rounds.secretaryRequest).not.toHaveBeenCalled();
     mailbox.secretaryRoundReason.set('Review evidence in next round');
     rounds.secretaryRequest.mockReturnValue(of({ ...preparing, reason: 'Review evidence in next round' }));
     await mailbox.createSecretaryRound();

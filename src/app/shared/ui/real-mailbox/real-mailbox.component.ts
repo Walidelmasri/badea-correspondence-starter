@@ -37,7 +37,7 @@ import { CorrespondenceDocumentPreviewComponent } from '../correspondence-docume
 import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
-import { PendingRoundContinuation, SecretaryContinuationRequest, StagedContinuationPdf, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
+import { PendingRoundContinuation, SecretaryContinuationEligibility, SecretaryContinuationRequest, StagedContinuationPdf, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
 
 const PAGE_SIZE = MAILBOX_PAGE_SIZE;
 
@@ -120,6 +120,8 @@ export class RealMailboxComponent implements OnInit {
   private roundReviewVersion = 0;
   // The same existing Inbox detail view hosts a secretary's personal follow-up.
   // Only the backend can authorize a request or confirm its workflow cycle.
+  readonly secretaryRoundEligibility = signal<SecretaryContinuationEligibility | null>(null);
+  readonly secretaryRoundEligibilityError = signal(false);
   readonly secretaryRoundRequest = signal<SecretaryContinuationRequest | null>(null);
   readonly secretaryRoundLoading = signal(false);
   readonly secretaryRoundError = signal(false);
@@ -132,9 +134,16 @@ export class RealMailboxComponent implements OnInit {
     | 'deleted' | 'invalid' | 'failed' | 'stale' | 'uncertain' | null>(null);
   readonly secretaryRoundPreview = signal<StagedContinuationPdf | null>(null);
   private secretaryRoundVersion = 0;
-  readonly canSecretaryRound = computed(() => this.box() === 'inbox' && this.secretaryMode()
-    && !!this.secretaryUnitCode() && this.details()?.state === 'WITH_DIRECTOR'
+  private readonly secretaryRoundCaseSelected = computed(() => this.box() === 'inbox'
+    && this.secretaryMode() && !!this.secretaryUnitCode()
+    && this.details()?.state === 'WITH_DIRECTOR'
     && this.details()?.technicalId === this.selectedId());
+  readonly canSecretaryRound = computed(() => {
+    const decision = this.secretaryRoundEligibility();
+    return this.secretaryRoundCaseSelected() && !!decision
+      && decision.nextCycle === (this.details()?.currentWorkflowCycle ?? 1) + 1
+      && (decision.canPrepare || decision.canReadRequest);
+  });
   readonly secretaryRoundLabels = computed(() => this.translation.language() === 'ar' ? {
     title: 'متابعة المراسلة عبر المدير', round: 'الجولة التالية',
     explanation: 'شرح المتابعة', start: 'تحضير طلب المتابعة', preparing: 'قيد التحضير', submit: 'إرسال للاعتماد',
@@ -145,6 +154,8 @@ export class RealMailboxComponent implements OnInit {
     save: 'حفظ التعديلات', resubmit: 'إعادة الإرسال للمدير',
     refresh: 'تحديث حالة الطلب', loading: 'جارٍ تحميل الطلب',
     loadError: 'تعذر التحقق من الطلب. حدّث قبل إجراء أي تعديل.',
+    eligibilityError: 'تعذر التحقق من صلاحية المتابعة. لا يمكن بدء طلب جديد قبل التحقق.',
+    unavailable: 'تغيّرت صلاحية المتابعة. حدّث الحالة أولاً.',
     invalid: 'اختر ملفات PDF صالحة (حتى 5 ملفات في المرة، 25 ميغابايت لكل ملف).',
     failed: 'تعذر حفظ الإجراء. تحقق من الحالة قبل المحاولة.',
     stale: 'تغيرت حالة الطلب أو الجولة. حدّث قبل المتابعة.',
@@ -163,6 +174,8 @@ export class RealMailboxComponent implements OnInit {
     save: 'Save Changes', resubmit: 'Resubmit to Manager',
     refresh: 'Refresh Request Status', loading: 'Loading request',
     loadError: 'Could not verify the request. Refresh before making changes.',
+    eligibilityError: 'Could not verify follow-up eligibility. No new request can be started.',
+    unavailable: 'Follow-up eligibility changed. Refresh the request first.',
     invalid: 'Choose valid PDFs (up to 5 per selection, 25 MB each).',
     failed: 'Action failed. Verify the request before retrying.',
     stale: 'The request or workflow cycle changed. Refresh before proceeding.',
@@ -821,6 +834,8 @@ export class RealMailboxComponent implements OnInit {
 
   private clearSecretaryRound(): void {
     ++this.secretaryRoundVersion;
+    this.secretaryRoundEligibility.set(null);
+    this.secretaryRoundEligibilityError.set(false);
     this.secretaryRoundRequest.set(null);
     this.secretaryRoundDocuments.set([]);
     this.secretaryRoundDocumentsLoaded.set(false);
@@ -835,10 +850,41 @@ export class RealMailboxComponent implements OnInit {
   private validSecretaryRoundRequest(request: SecretaryContinuationRequest, id: string,
       unit: string): boolean {
     return request.technicalId === id && request.unitCode === unit
-      && request.expectedCycle === this.details()?.currentWorkflowCycle
+      && request.expectedCycle === (this.details()?.currentWorkflowCycle ?? 1)
       && ['PREPARING', 'PENDING', 'RETURNED'].includes(request.status)
       && !!request.requestId && Number.isSafeInteger(request.returnVersion)
       && request.returnVersion >= 0;
+  }
+
+  private async loadSecretaryEligibility(id: string, unit: string): Promise<void> {
+    const version = ++this.secretaryRoundVersion;
+    this.secretaryRoundEligibility.set(null);
+    this.secretaryRoundEligibilityError.set(false);
+    this.secretaryRoundRequest.set(null);
+    this.secretaryRoundDocuments.set([]);
+    this.secretaryRoundDocumentsLoaded.set(false);
+    this.secretaryRoundError.set(false);
+    try {
+      const eligibility = await firstValueFrom(this.roundApi.secretaryEligibility(unit, id));
+      if (version !== this.secretaryRoundVersion || !this.secretaryRoundCaseSelected()
+          || this.selectedId() !== id || this.secretaryUnitCode() !== unit) return;
+      const validStatus = eligibility.requestStatus === null
+        || ['PREPARING', 'PENDING', 'RETURNED', 'APPROVED'].includes(eligibility.requestStatus);
+      if (!Number.isSafeInteger(eligibility.nextCycle)
+          || eligibility.nextCycle !== (this.details()?.currentWorkflowCycle ?? 1) + 1
+          || !validStatus || typeof eligibility.canPrepare !== 'boolean'
+          || typeof eligibility.canReadRequest !== 'boolean'
+          || (eligibility.canPrepare && (eligibility.canReadRequest || eligibility.requestStatus !== null))
+          || (eligibility.canReadRequest && !['PREPARING', 'PENDING', 'RETURNED'].includes(
+            eligibility.requestStatus ?? ''))) {
+        this.secretaryRoundEligibilityError.set(true);
+        return;
+      }
+      this.secretaryRoundEligibility.set(eligibility);
+      if (eligibility.canReadRequest) await this.loadSecretaryRound(id, unit);
+    } catch {
+      if (version === this.secretaryRoundVersion) this.secretaryRoundEligibilityError.set(true);
+    }
   }
 
   private async loadSecretaryRound(id: string, unit: string): Promise<void> {
@@ -855,14 +901,16 @@ export class RealMailboxComponent implements OnInit {
         request = await firstValueFrom(this.roundApi.secretaryRequest(unit, id));
       } catch (error: unknown) {
         if (error instanceof HttpErrorResponse && error.status === 404) {
-          // A missing personal request is normal. 403 and 409 are not.
+          // A request missing after eligibility confirmed it is a stale race, not a new draft.
+          this.secretaryRoundError.set(true);
           return;
         }
         throw error;
       }
       if (version !== this.secretaryRoundVersion || !this.canSecretaryRound()
           || this.selectedId() !== id || this.secretaryUnitCode() !== unit) return;
-      if (!this.validSecretaryRoundRequest(request, id, unit)) {
+      if (!this.validSecretaryRoundRequest(request, id, unit)
+          || request.status !== this.secretaryRoundEligibility()?.requestStatus) {
         this.secretaryRoundError.set(true);
         return;
       }
@@ -889,10 +937,10 @@ export class RealMailboxComponent implements OnInit {
   refreshSecretaryRound(): void {
     const id = this.selectedId();
     const unit = this.secretaryUnitCode();
-    if (!this.canSecretaryRound() || !id || !unit || this.secretaryRoundBusy()) return;
+    if (!this.secretaryRoundCaseSelected() || !id || !unit || this.secretaryRoundBusy()) return;
     this.secretaryRoundUncertain.set(false);
     this.secretaryRoundNotice.set(null);
-    void this.loadSecretaryRound(id, unit);
+    void this.loadSecretaryEligibility(id, unit);
   }
 
   updateSecretaryRoundReason(event: Event): void {
@@ -927,8 +975,8 @@ export class RealMailboxComponent implements OnInit {
     const id = this.selectedId();
     const unit = this.secretaryUnitCode();
     const reason = this.secretaryRoundReason().trim();
-    if (!id || !unit || !this.canSecretaryRound() || this.secretaryRoundLoading()
-        || this.secretaryRoundRequest() || this.secretaryRoundError()
+    if (!id || !unit || !this.canSecretaryRound() || !this.secretaryRoundEligibility()?.canPrepare
+        || this.secretaryRoundLoading() || this.secretaryRoundRequest() || this.secretaryRoundError()
         || this.secretaryRoundBusy() || this.secretaryRoundUncertain()
         || !reason || reason.length > 2000) return;
     const version = this.secretaryRoundVersion;
@@ -942,8 +990,9 @@ export class RealMailboxComponent implements OnInit {
         this.secretaryRoundNotice.set('stale');
         return;
       }
-      await this.loadSecretaryRound(id, unit);
-      if (this.selectedId() === id && !this.secretaryRoundError()) this.secretaryRoundNotice.set('prepared');
+      await this.loadSecretaryEligibility(id, unit);
+      if (this.selectedId() === id && this.secretaryRoundRequest()?.status === 'PREPARING'
+          && !this.secretaryRoundError()) this.secretaryRoundNotice.set('prepared');
     } catch (error: unknown) {
       if (this.secretaryRoundStillSelected(id, unit, version)) this.secretaryRoundFailure(error);
     }
@@ -1007,7 +1056,7 @@ export class RealMailboxComponent implements OnInit {
         this.secretaryRoundNotice.set('stale');
         return;
       }
-      await this.loadSecretaryRound(context.id, context.unit);
+      await this.loadSecretaryEligibility(context.id, context.unit);
       if (this.selectedId() === context.id && !this.secretaryRoundError())
         this.secretaryRoundNotice.set('submitted');
     } catch (error: unknown) {
@@ -1045,7 +1094,7 @@ export class RealMailboxComponent implements OnInit {
         this.secretaryRoundNotice.set('stale');
         return;
       }
-      await this.loadSecretaryRound(context.id, context.unit);
+      await this.loadSecretaryEligibility(context.id, context.unit);
       if (this.selectedId() === context.id && !this.secretaryRoundError())
         this.secretaryRoundNotice.set('resubmitted');
     } catch (error: unknown) {
@@ -1145,7 +1194,7 @@ export class RealMailboxComponent implements OnInit {
       this.detailsLoading.set(false);
       if (this.box() === 'inbox' && this.secretaryMode()
           && result.state === 'WITH_DIRECTOR' && unit) {
-        void this.loadSecretaryRound(id, unit);
+        void this.loadSecretaryEligibility(id, unit);
       }
 
       if (openedByUser) void this.acknowledgeRead(id);

@@ -8,7 +8,6 @@ import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.security.AuthenticatedUserProvider;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
-import org.badea.correspondence.workflow.CorrespondenceActorRole;
 
 /**
  * Read-only departmental Inbox for appointed secretaries.
@@ -74,8 +73,7 @@ public final class TarasolSecretarySharedInboxService {
         // The existing lister enforces department assignment/participation.
         // runAsSystem is needed for institutional read projection because
         // underlying creator ACLs do not necessarily grant shared folder read.
-        return AuthenticationUtil.runAsSystem(() -> mailbox.list("inbox",
-            CorrespondenceActorRole.DIRECTOR, unit, actor.employeeId().value(),
-            view, offset, limit));
+        return AuthenticationUtil.runAsSystem(() -> mailbox.listSecretaryInbox(
+            unit, actor.employeeId().value(), view, offset, limit));
     }
 }

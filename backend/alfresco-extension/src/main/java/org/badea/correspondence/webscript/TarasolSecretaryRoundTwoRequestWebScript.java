@@ -24,7 +24,7 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
             TarasolSecretaryRoundTwoRequestService requests, String mode) {
         this.employees = Objects.requireNonNull(employees);
         this.requests = Objects.requireNonNull(requests);
-        if (!java.util.Set.of("CURRENT", "SUBMIT", "SUBMIT_PREPARED", "REVISE", "RESUBMIT").contains(mode))
+        if (!java.util.Set.of("CURRENT", "SUBMIT", "SUBMIT_PREPARED", "REVISE", "RESUBMIT", "ELIGIBILITY").contains(mode))
             throw new IllegalArgumentException("Unknown secretary request mode");
         this.mode = mode;
     }
@@ -38,6 +38,17 @@ public final class TarasolSecretaryRoundTwoRequestWebScript extends AbstractWebS
                 throw new IllegalArgumentException("Secretary unit required");
             DepartmentCode unit = new DepartmentCode(code);
             var employee = employees.getCurrentEmployee();
+            if ("ELIGIBILITY".equals(mode)) {
+                var eligibility = requests.eligibility(employee, unit, id);
+                respond(response, Status.STATUS_OK, new JSONObject()
+                    .put("canPrepare", eligibility.canPrepare())
+                    .put("canReadRequest", eligibility.canReadRequest())
+                    .put("requestStatus", eligibility.requestStatus() == null
+                        ? JSONObject.NULL : eligibility.requestStatus())
+                    .put("nextCycle", eligibility.nextCycle())
+                    .put("reasonCode", eligibility.reasonCode()));
+                return;
+            }
             var outcome = switch (mode) {
                 case "CURRENT" -> requests.current(employee, unit, id);
                 case "SUBMIT" -> requests.submit(employee, unit, id, reason(request));

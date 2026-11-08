@@ -61,6 +61,22 @@ class TarasolSecretaryRoundTwoRevisionWebScriptTest {
             Instant.parse("2026-11-04T15:00:00Z"), "Correct the PDF", 2L);
     }
 
+    @Test void eligibilityIsReadOnlyAndReturnsA200ForIneligibleCorrespondence() throws Exception {
+        var result = new AlfrescoSecretaryRoundTwoRequestRepository.Eligibility(
+            false, false, null, 3L, "DEPARTMENT_NOT_READY");
+        when(service.eligibility(actor, unit, CASE)).thenReturn(result);
+        new TarasolSecretaryRoundTwoRequestWebScript(employees, service, "ELIGIBILITY")
+            .execute(request, response);
+        verify(response).setStatus(Status.STATUS_OK);
+        var body = new JSONObject(output.toString());
+        assertFalse(body.getBoolean("canPrepare"));
+        assertFalse(body.getBoolean("canReadRequest"));
+        assertTrue(body.isNull("requestStatus"));
+        assertEquals(3, body.getLong("nextCycle"));
+        verify(service).eligibility(actor, unit, CASE);
+        verifyNoMoreInteractions(service);
+    }
+
     @Test void reviseAcceptsOnlyMatchingRequestVersionAndReturnsPreservedManagerReason() throws Exception {
         body("{\"requestId\":\"" + REQUEST + "\",\"returnVersion\":2,\"reason\":\"New reason\"}");
         when(service.revise(actor, unit, CASE, REQUEST, 2L, "New reason"))

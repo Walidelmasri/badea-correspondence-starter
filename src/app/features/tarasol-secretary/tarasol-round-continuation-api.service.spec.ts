@@ -47,6 +47,19 @@ describe('TarasolRoundContinuationApiService', () => {
     req.flush({ nodeId: 'pdf-node', filename: 'follow-up.pdf', mimeType: 'application/pdf', sizeBytes: 8, workflowCycle: 4 });
   });
 
+  it('checks continuation eligibility without creating or loading a personal request', () => {
+    api.secretaryEligibility('117', technicalId).subscribe(result => {
+      expect(result.canPrepare).toBe(false);
+      expect(result.reasonCode).toBe('DEPARTMENT_NOT_READY');
+    });
+    const req = http.expectOne(item => item.url.endsWith(
+      `/secretary/round-two/${technicalId}/eligibility`));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('unitCode')).toBe('117');
+    req.flush({ canPrepare: false, canReadRequest: false, requestStatus: null,
+      nextCycle: 4, reasonCode: 'DEPARTMENT_NOT_READY' });
+  });
+
   it('loads and creates a secretary follow-up request for the selected unit', () => {
     api.secretaryRequest('117', technicalId).subscribe(result => expect(result.requestId).toBe(requestId));
     const current = http.expectOne(item => item.url.endsWith(`/secretary/round-two/${technicalId}`));

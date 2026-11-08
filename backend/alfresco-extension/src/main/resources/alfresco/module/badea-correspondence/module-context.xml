@@ -1120,6 +1120,13 @@
         <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
         <constructor-arg value="CURRENT" />
     </bean>
+    <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-eligibility.get"
+          class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
+          parent="webscript" lazy-init="true">
+        <constructor-arg ref="badeaCorrespondenceCurrentEmployeeService" />
+        <constructor-arg ref="badeaSecretaryRoundTwoRequestService" />
+        <constructor-arg value="ELIGIBILITY" />
+    </bean>
     <bean id="webscript.org.badea.correspondence.tarasol-secretary-round-two-request.put"
           class="org.badea.correspondence.webscript.TarasolSecretaryRoundTwoRequestWebScript"
           parent="webscript" lazy-init="true">

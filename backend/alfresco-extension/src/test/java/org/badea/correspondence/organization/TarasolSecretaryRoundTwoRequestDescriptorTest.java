@@ -27,6 +27,18 @@ class TarasolSecretaryRoundTwoRequestDescriptorTest {
                     doc.getElementsByTagName("url").item(0).getTextContent().trim());
             }
         }
+        try (InputStream stream = getClass().getResourceAsStream(
+                "/alfresco/extension/templates/webscripts/org/badea/correspondence/"
+                + "tarasol-secretary-round-two-eligibility.get.desc.xml")) {
+            assertNotNull(stream);
+            var doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(stream);
+            assertEquals("required", doc.getElementsByTagName("transaction").item(0)
+                .getTextContent().trim());
+            assertEquals("user", doc.getElementsByTagName("authentication").item(0)
+                .getTextContent().trim());
+            assertEquals("/badea/tarasol/secretary/round-two/{technicalId}/eligibility",
+                doc.getElementsByTagName("url").item(0).getTextContent().trim());
+        }
         for (String action : new String[]{"submit", "resubmit"}) {
             try (InputStream stream = getClass().getResourceAsStream(
                     "/alfresco/extension/templates/webscripts/org/badea/correspondence/"
@@ -46,6 +58,7 @@ class TarasolSecretaryRoundTwoRequestDescriptorTest {
         Map<String, String> expected = Map.of(
             "webscript.org.badea.correspondence.tarasol-secretary-round-two-request.post", "SUBMIT",
             "webscript.org.badea.correspondence.tarasol-secretary-round-two-request.get", "CURRENT",
+            "webscript.org.badea.correspondence.tarasol-secretary-round-two-eligibility.get", "ELIGIBILITY",
             "webscript.org.badea.correspondence.tarasol-secretary-round-two-request.put", "REVISE",
             "webscript.org.badea.correspondence.tarasol-secretary-round-two-submit.post", "SUBMIT_PREPARED",
             "webscript.org.badea.correspondence.tarasol-secretary-round-two-resubmit.post", "RESUBMIT");

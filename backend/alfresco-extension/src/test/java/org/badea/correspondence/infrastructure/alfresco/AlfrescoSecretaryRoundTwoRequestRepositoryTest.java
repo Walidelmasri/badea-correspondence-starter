@@ -71,6 +71,27 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
             .thenReturn(eventCreated);
     }
 
+    @Test void eligibilityDoesNotWriteOrGrantDirectorPendingAction() {
+        var eligible = repo.eligibility(ID, new DepartmentCode("117"), "99999");
+        assertTrue(eligible.canPrepare());
+        assertFalse(eligible.canReadRequest());
+        assertNull(eligible.requestStatus());
+        assertEquals(3L, eligible.nextCycle());
+        verify(nodes, never()).setProperty(any(), any(), any());
+        verify(nodes, never()).createNode(any(), any(), any(), any(), anyMap());
+        when(nodes.getProperty(assignment, AlfrescoDepartmentAssignmentReader.q("assignmentStatus")))
+            .thenReturn("PENDING");
+        when(nodes.getProperty(assignment, AlfrescoDepartmentAssignmentReader.q("assignmentCompletedByEmployeeId")))
+            .thenReturn(null);
+        when(nodes.getProperty(assignment, AlfrescoDepartmentAssignmentReader.q("assignmentCompletedAt")))
+            .thenReturn(null);
+        var notReady = repo.eligibility(ID, new DepartmentCode("117"), "99999");
+        assertFalse(notReady.canPrepare());
+        assertFalse(notReady.canReadRequest());
+        assertEquals("DEPARTMENT_NOT_READY", notReady.reasonCode());
+        assertEquals(3L, notReady.nextCycle());
+    }
+
     @Test void createsCycleBoundRequestWithoutAdvancingCorrespondence() {
         var created = mock(ChildAssociationRef.class);
         when(created.getChildRef()).thenReturn(mock(NodeRef.class));
@@ -197,6 +218,28 @@ class AlfrescoSecretaryRoundTwoRequestRepositoryTest {
             .thenReturn("PREPARING");
         when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("roundTwoRequestReturnVersion")))
             .thenReturn(0L);
+    }
+
+    @Test void eligibilityTracksOwnedPreparationPendingAndReturnWithoutCreatingNodes() {
+        preparingAtCycle(4L);
+        var unit = new DepartmentCode("117");
+        var preparing = repo.eligibility(ID, unit, "99999");
+        assertFalse(preparing.canPrepare());
+        assertTrue(preparing.canReadRequest());
+        assertEquals("PREPARING", preparing.requestStatus());
+        assertEquals(5L, preparing.nextCycle());
+        pendingAtCycle(4L);
+        var pending = repo.eligibility(ID, unit, "99999");
+        assertFalse(pending.canPrepare());
+        assertTrue(pending.canReadRequest());
+        assertEquals("PENDING", pending.requestStatus());
+        assertFalse(repo.eligibility(ID, unit, "different").canReadRequest());
+        returnedAtCycle(4L);
+        var returned = repo.eligibility(ID, unit, "99999");
+        assertFalse(returned.canPrepare());
+        assertTrue(returned.canReadRequest());
+        assertEquals("RETURNED", returned.requestStatus());
+        verify(nodes, never()).createNode(any(), any(), any(), any(), anyMap());
     }
 
     @Test void preparingExplanationCanBeRevisedAndDoesNotPublishToManager() {

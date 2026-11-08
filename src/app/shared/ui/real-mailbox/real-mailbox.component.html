@@ -537,12 +537,20 @@
               }
             </section>
           }
+          @if (secretaryMode() && full.state === 'WITH_DIRECTOR'
+              && secretaryRoundEligibilityError()) {
+            <p role="alert">{{ secretaryRoundLabels().eligibilityError }}</p>
+            <button type="button" class="mailbox-history-trigger"
+              (click)="refreshSecretaryRound()">{{ secretaryRoundLabels().refresh }}</button>
+          }
           @if (canSecretaryRound()) {
             <section class="mailbox-detail__section mailbox-assignment-form"
               aria-labelledby="secretary-round-title">
               <h3 id="secretary-round-title">{{ secretaryRoundLabels().title }} ·
                 {{ secretaryRoundLabels().round }} {{ full.currentWorkflowCycle == null ? '—' : full.currentWorkflowCycle + 1 }}</h3>
-              <p>{{ secretaryRoundLabels().hint }}</p>
+              @if (!secretaryRoundRequest() || secretaryRoundRequest()?.status === 'PREPARING') {
+                <p>{{ secretaryRoundLabels().hint }}</p>
+              }
               @if (secretaryRoundNotice(); as notice) {
                 <p class="mailbox-transition-notice"
                   [attr.role]="notice === 'failed' || notice === 'uncertain' || notice === 'stale' || notice === 'invalid' ? 'alert' : 'status'">
@@ -618,7 +626,7 @@
                     </div>
                   }
                 }
-              } @else {
+              } @else if (secretaryRoundEligibility()?.canPrepare) {
                 <label for="secretary-round-reason-new">{{ secretaryRoundLabels().explanation }}</label>
                 <textarea id="secretary-round-reason-new" rows="4" maxlength="2000"
                   [value]="secretaryRoundReason()" [disabled]="secretaryRoundBusy() || secretaryRoundUncertain()"
@@ -626,6 +634,8 @@
                 <button type="button" class="mailbox-action"
                   [disabled]="secretaryRoundBusy() || secretaryRoundUncertain() || !secretaryRoundReason().trim()"
                   (click)="createSecretaryRound()">{{ secretaryRoundLabels().start }}</button>
+              } @else {
+                <p role="alert">{{ secretaryRoundLabels().unavailable }}</p>
               }
               <button type="button" class="mailbox-history-trigger"
                 [disabled]="secretaryRoundBusy() || secretaryRoundLoading()"

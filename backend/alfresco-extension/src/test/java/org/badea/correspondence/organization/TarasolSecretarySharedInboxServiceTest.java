@@ -14,7 +14,6 @@ import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceMailboxLister;
 import org.badea.correspondence.security.AuthenticatedUserProvider;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
-import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.junit.jupiter.api.Test;
 
 class TarasolSecretarySharedInboxServiceTest {
@@ -42,12 +41,11 @@ class TarasolSecretarySharedInboxServiceTest {
         permitSecretaryGroup();
         when(access.hasActiveSecretaryAssignment(secretary.employeeId(), unit)).thenReturn(true);
         var expected = new AlfrescoCorrespondenceMailboxLister.MailboxPage(List.of(), 0, 10, 0);
-        when(mailbox.list("inbox", CorrespondenceActorRole.DIRECTOR, unit,
-            "99999", "needs_action", 0, 10)).thenReturn(expected);
+        when(mailbox.listSecretaryInbox(unit, "99999", "needs_action", 0, 10))
+            .thenReturn(expected);
 
         assertSame(expected, service.list(secretary, unit, "needs_action", 0, 10));
-        verify(mailbox).list("inbox", CorrespondenceActorRole.DIRECTOR, unit,
-            "99999", "needs_action", 0, 10);
+        verify(mailbox).listSecretaryInbox(unit, "99999", "needs_action", 0, 10);
         verifyNoMoreInteractions(mailbox);
     }
 
@@ -96,7 +94,7 @@ class TarasolSecretarySharedInboxServiceTest {
         when(access.hasActiveSecretaryAssignment(secretary.employeeId(), unit)).thenReturn(true);
         assertThrows(CorrespondenceAuthorizationException.class,
             () -> service.list(secretary, other, "all", 0, 10));
-        verify(mailbox, never()).list(anyString(), any(), any(), any(), anyString(), anyInt(), anyInt());
+        verifyNoInteractions(mailbox);
     }
 
     @Test

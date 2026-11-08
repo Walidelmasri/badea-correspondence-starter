@@ -46,6 +46,14 @@ export interface StagedContinuationPdf {
   readonly workflowCycle: number;
 }
 
+export interface SecretaryContinuationEligibility {
+  readonly canPrepare: boolean;
+  readonly canReadRequest: boolean;
+  readonly requestStatus: 'PREPARING' | 'PENDING' | 'RETURNED' | 'APPROVED' | null;
+  readonly nextCycle: number;
+  readonly reasonCode: 'READY' | 'OWN_REQUEST' | 'DEPARTMENT_NOT_READY' | 'REQUEST_CONFLICT';
+}
+
 export interface SecretaryContinuationRequest {
   readonly requestId: string;
   readonly technicalId: string;
@@ -87,6 +95,13 @@ export class TarasolRoundContinuationApiService {
     return this.http.get(
       `${DECISION_URL}/${encodeURIComponent(technicalId)}/documents/${encodeURIComponent(nodeId)}`,
       { params: new HttpParams().set('unitCode', unitCode).set('requestId', requestId), responseType: 'blob' });
+  }
+
+  /** Backend decides availability from current department assignments and request state. */
+  secretaryEligibility(unitCode: string, technicalId: string): Observable<SecretaryContinuationEligibility> {
+    return this.http.get<SecretaryContinuationEligibility>(
+      `/alfresco/service/badea/tarasol/secretary/round-two/${encodeURIComponent(technicalId)}/eligibility`,
+      { params: new HttpParams().set('unitCode', unitCode) });
   }
 
   /** Secretary requests and PDFs are never routed through a Director transition endpoint. */

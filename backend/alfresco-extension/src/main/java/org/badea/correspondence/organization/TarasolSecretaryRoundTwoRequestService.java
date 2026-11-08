@@ -28,6 +28,13 @@ public final class TarasolSecretaryRoundTwoRequestService {
         this.requests = Objects.requireNonNull(requests);
     }
 
+    public AlfrescoSecretaryRoundTwoRequestRepository.Eligibility eligibility(
+            EmployeeDirectoryEntry actor, DepartmentCode unit, String technicalId) {
+        authorize(actor, unit);
+        return inbox.readCase(actor, unit, technicalId, () ->
+            requests.eligibility(technicalId, unit, actor.employeeId().value()));
+    }
+
     public AlfrescoSecretaryRoundTwoRequestRepository.Request submit(EmployeeDirectoryEntry actor,
             DepartmentCode unit, String technicalId, String reason) {
         authorize(actor, unit);

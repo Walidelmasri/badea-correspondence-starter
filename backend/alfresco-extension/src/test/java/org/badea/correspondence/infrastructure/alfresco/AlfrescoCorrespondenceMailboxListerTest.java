@@ -69,6 +69,66 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
+    void secretaryCanReadDirectorInboxButNotClaimDirectorAction() {
+        prop("state", "WITH_DIRECTOR");
+        prop("assignedRole", "DIRECTOR");
+        prop("assignedDepartmentCode", "117");
+        var director = lister.list("inbox", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "manager", "needs_action", 0, 10);
+        assertEquals(1, director.total());
+        assertTrue(director.items().getFirst().needsAction());
+
+        var secretary = lister.listSecretaryInbox(DEPARTMENT, "99999", "needs_action", 0, 10);
+        assertEquals(0, secretary.total());
+        var all = lister.listSecretaryInbox(DEPARTMENT, "99999", "all", 0, 10);
+        assertEquals(1, all.total());
+        assertFalse(all.items().getFirst().needsAction());
+        assertEquals(0, lister.listSecretaryInbox(DEPARTMENT, "99999", "handled", 0, 10).total());
+    }
+
+    @Test
+    void onlyOwnerReturnedCurrentCycleContinuationIsSecretaryActionable() {
+        prop("state", "WITH_DIRECTOR");
+        prop("assignedRole", "DIRECTOR");
+        prop("assignedDepartmentCode", "117");
+        NodeRef assignment = node("55555555-5555-5555-5555-555555555555");
+        NodeRef request = node("66666666-6666-6666-6666-666666666666");
+        ChildAssociationRef assignmentAssoc = association(assignment);
+        ChildAssociationRef requestAssoc = association(request);
+        when(nodes.getChildAssocs(document)).thenReturn(List.of(assignmentAssoc, requestAssoc));
+        when(nodes.getType(assignment)).thenReturn(AlfrescoDepartmentAssignmentReader.TYPE);
+        when(nodes.getProperty(assignment, qname("assignmentId"))).thenReturn("a1");
+        when(nodes.getProperty(assignment, qname("assignmentDepartmentCode"))).thenReturn("117");
+        when(nodes.getProperty(assignment, qname("assignmentRecipientType"))).thenReturn("TO");
+        when(nodes.getProperty(assignment, qname("assignmentStatus"))).thenReturn("COMPLETED");
+        when(nodes.getProperty(assignment, qname("assignmentByEmployeeId"))).thenReturn("manager");
+        when(nodes.getProperty(assignment, qname("assignmentCompletedByEmployeeId"))).thenReturn("manager");
+        when(nodes.getProperty(assignment, qname("assignmentAt")))
+                .thenReturn(Date.from(Instant.parse("2026-11-04T08:00:00Z")));
+        when(nodes.getProperty(assignment, qname("assignmentCompletedAt")))
+                .thenReturn(Date.from(Instant.parse("2026-11-04T09:00:00Z")));
+        when(nodes.getType(request)).thenReturn(qname("secretaryRoundTwoRequest"));
+        when(nodes.getProperty(request, qname("roundTwoRequestOwner"))).thenReturn("99999");
+        when(nodes.getProperty(request, qname("roundTwoRequestUnit"))).thenReturn("117");
+        when(nodes.getProperty(request, qname("roundTwoRequestStatus"))).thenReturn("RETURNED");
+        when(nodes.getProperty(request, qname("roundTwoRequestCycle"))).thenReturn(1L);
+        assertEquals(1, lister.listSecretaryInbox(DEPARTMENT, "99999", "needs_action", 0, 10).total());
+        assertTrue(lister.listSecretaryInbox(DEPARTMENT, "99999", "all", 0, 10)
+                .items().getFirst().needsAction());
+        assertEquals(0, lister.listSecretaryInbox(DEPARTMENT, "other", "needs_action", 0, 10).total());
+        when(nodes.getProperty(request, qname("roundTwoRequestStatus"))).thenReturn("PENDING");
+        assertEquals(0, lister.listSecretaryInbox(DEPARTMENT, "99999", "needs_action", 0, 10).total());
+        when(nodes.getProperty(request, qname("roundTwoRequestStatus"))).thenReturn("RETURNED");
+        when(nodes.getProperty(request, qname("roundTwoRequestCycle"))).thenReturn(2L);
+        assertEquals(0, lister.listSecretaryInbox(DEPARTMENT, "99999", "needs_action", 0, 10).total());
+        when(nodes.getProperty(request, qname("roundTwoRequestCycle"))).thenReturn(1L);
+        when(nodes.getProperty(assignment, qname("assignmentStatus"))).thenReturn("PENDING");
+        when(nodes.getProperty(assignment, qname("assignmentCompletedByEmployeeId"))).thenReturn(null);
+        when(nodes.getProperty(assignment, qname("assignmentCompletedAt"))).thenReturn(null);
+        assertEquals(0, lister.listSecretaryInbox(DEPARTMENT, "99999", "needs_action", 0, 10).total());
+    }
+
+    @Test
     void exactCaseReadMatchesDirectorUnitInboxAndNeverExposesDrafts() {
         String id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
         prop("state", "WITH_DIRECTOR");

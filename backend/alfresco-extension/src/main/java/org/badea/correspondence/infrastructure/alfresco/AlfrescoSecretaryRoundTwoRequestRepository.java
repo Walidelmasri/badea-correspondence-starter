@@ -124,6 +124,46 @@ public final class AlfrescoSecretaryRoundTwoRequestRepository {
                 cycle, "PREPARING", now);
     }
 
+    /** Read-only eligibility derived from the same persisted assignments and cycle guard as submit().
+     * A caller MUST separately enforce secretary group, active assignment and shared-case access.
+     */
+    public Eligibility eligibility(String technicalId, DepartmentCode unit, String ownerEmployeeId) {
+        NodeRef parent = locator.locate(technicalId);
+        long cycle = new AlfrescoCorrespondenceCycleReader(nodes).current(parent);
+        Request owned = current(technicalId, unit, ownerEmployeeId);
+        try {
+            requireCompletedTo(parent, unit);
+        } catch (OfficeCycleConflictException notReady) {
+            return new Eligibility(false, false, owned == null ? null : owned.status(),
+                    cycle + 1, "DEPARTMENT_NOT_READY");
+        }
+        Object pointer = nodes.getProperty(parent, PENDING_ID);
+        for (ChildAssociationRef assoc : nodes.getChildAssocs(parent)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())) continue;
+            NodeRef child = assoc.getChildRef();
+            if (!TYPE.equals(nodes.getType(child))) continue;
+            if (AlfrescoCorrespondenceCycleReader.number(nodes.getProperty(child, CYCLE),
+                    "roundTwoRequestCycle") != cycle) continue;
+            Request saved = read(technicalId, child);
+            if ("APPROVED".equals(saved.status())) continue;
+            if (owned != null && saved.requestId().equals(owned.requestId())) {
+                boolean canEdit = ("PREPARING".equals(saved.status())
+                        || "RETURNED".equals(saved.status())) && pointer == null;
+                boolean canRead = canEdit || ("PENDING".equals(saved.status())
+                        && saved.requestId().equals(pointer));
+                return new Eligibility(false, canRead, saved.status(), cycle + 1,
+                        canRead ? "OWN_REQUEST" : "REQUEST_CONFLICT");
+            }
+            return new Eligibility(false, false, null, cycle + 1, "REQUEST_CONFLICT");
+        }
+        if (pointer != null) return new Eligibility(false, false, null,
+                cycle + 1, "REQUEST_CONFLICT");
+        return new Eligibility(true, false, null, cycle + 1, "READY");
+    }
+
+    public record Eligibility(boolean canPrepare, boolean canReadRequest,
+            String requestStatus, long nextCycle, String reasonCode) { }
+
     public Request current(String technicalId, DepartmentCode unit, String ownerEmployeeId) {
         NodeRef caseNode = locator.locate(technicalId);
         long cycle = new AlfrescoCorrespondenceCycleReader(nodes).current(caseNode);

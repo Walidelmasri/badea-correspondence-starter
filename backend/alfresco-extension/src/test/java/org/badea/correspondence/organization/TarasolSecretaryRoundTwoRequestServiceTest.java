@@ -38,6 +38,18 @@ class TarasolSecretaryRoundTwoRequestServiceTest {
             .thenAnswer(call -> ((Supplier<?>) call.getArgument(3)).get());
     }
 
+    @Test void eligibilityRequiresGroupAssignmentAndVisibleCase() {
+        var decision = new AlfrescoSecretaryRoundTwoRequestRepository.Eligibility(
+            false, false, null, 3L, "DEPARTMENT_NOT_READY");
+        when(repo.eligibility(ID, unit, "99999")).thenReturn(decision);
+        assertSame(decision, service.eligibility(actor, unit, ID));
+        verify(inbox).readCase(eq(actor), eq(unit), eq(ID), any());
+        when(access.hasActiveSecretaryAssignment(actor.employeeId(), unit)).thenReturn(false);
+        assertThrows(CorrespondenceAuthorizationException.class,
+            () -> service.eligibility(actor, unit, ID));
+        verify(repo, times(1)).eligibility(ID, unit, "99999");
+    }
+
     @Test void secretaryRequestIsPersistedWithoutCallingDirectorContinuation() {
         var expected = new AlfrescoSecretaryRoundTwoRequestRepository.Request("request-1", ID,
             "117", "99999", "Follow up", 2L, "PREPARING", Instant.parse("2026-11-04T12:00:00Z"));
