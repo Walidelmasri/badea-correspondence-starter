@@ -270,6 +270,20 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
 
     private static final float ATTACHMENT_FIELD_WIDTH = 340f;
 
+    /**
+     * On subsequent rounds the printed attachment list describes only newly
+     * added source PDFs. Original documents (including legacy unclassified
+     * sources) remain in Alfresco and the complete correspondence packet, but
+     * must not be misrepresented as new attachments for this round.
+     */
+    static List<CorrespondenceDocument> printedRoundAttachments(CorrespondenceDetails source) {
+        long cycle = source.currentWorkflowCycle();
+        return source.documents().stream()
+                .filter(document -> document.workflowCycle() == null
+                        ? cycle == 1L : document.workflowCycle() == cycle)
+                .toList();
+    }
+
     private static void drawAttachments(PDPageContentStream canvas, float height,
             CorrespondenceDetails source) throws IOException {
         erase(canvas,height,248,629,303,20);
@@ -278,15 +292,17 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     }
 
     static String attachmentCoverLabel(CorrespondenceDetails source) {
-        if (source.documents().isEmpty()) return "";
-        String names = source.documents().stream().map(CorrespondenceDocument::filename)
+        var attachments = printedRoundAttachments(source);
+        if (attachments.isEmpty()) return source.currentWorkflowCycle() > 1 ? "لا توجد مرفقات جديدة" : "";
+        String names = attachments.stream().map(CorrespondenceDocument::filename)
                 .collect(java.util.stream.Collectors.joining("، "));
         return textWidth(names,9f) <= ATTACHMENT_FIELD_WIDTH ? names
-                : "عدد المرفقات: " + source.documents().size() + " (الأسماء في الملحق)";
+                : "عدد المرفقات: " + attachments.size() + " (الأسماء في الملحق)";
     }
 
     static boolean needsAttachmentAnnex(CorrespondenceDetails source) {
-        String names = source.documents().stream().map(CorrespondenceDocument::filename)
+        String names = printedRoundAttachments(source).stream()
+                .map(CorrespondenceDocument::filename)
                 .collect(java.util.stream.Collectors.joining("، "));
         return textWidth(names,9f) > ATTACHMENT_FIELD_WIDTH;
     }
@@ -329,9 +345,9 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         lines.add("ملحق ورقة الإجراء الرسمية");
         lines.add("الموضوع: " + source.subject());
         lines.add("الجهة: " + sourceValue(source));
-        if (!source.documents().isEmpty()) {
-            lines.add("المرفقات:");
-            for (CorrespondenceDocument attachment : source.documents()) {
+        if (!printedRoundAttachments(source).isEmpty()) {
+            lines.add("مرفقات الجولة " + source.currentWorkflowCycle() + ":");
+            for (CorrespondenceDocument attachment : printedRoundAttachments(source)) {
                 lines.add("• " + attachment.filename());
             }
         }

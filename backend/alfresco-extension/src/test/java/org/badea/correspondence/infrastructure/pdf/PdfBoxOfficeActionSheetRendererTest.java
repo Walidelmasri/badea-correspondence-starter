@@ -212,6 +212,52 @@ class PdfBoxOfficeActionSheetRendererTest {
         assertTrue(PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(longList).contains("2"));
     }
 
+    @Test void roundTwoCoverAndAnnexDoNotCallEarlierAttachmentsNew() throws Exception {
+        var roundOne = new org.badea.correspondence.application.CorrespondenceDocument(
+                "old", "a-long-original-attachment-from-round-one-and-earlier-correspondence.pdf",
+                "application/pdf", 123L, 1L);
+        var legacy = new org.badea.correspondence.application.CorrespondenceDocument(
+                "legacy", "unclassified-legacy.pdf", "application/pdf", 123L);
+        var roundTwo = new org.badea.correspondence.application.CorrespondenceDocument(
+                "new", "round-2-only.pdf", "application/pdf", 123L, 2L);
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261105/2", LocalDate.of(2026,11,5), "IT",
+                "117", "Author", null, List.of(roundOne, legacy, roundTwo), List.of(), null, 2L);
+        assertEquals(List.of(roundTwo), PdfBoxOfficeActionSheetRenderer.printedRoundAttachments(source));
+        assertEquals("round-2-only.pdf", PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(source));
+        assertFalse(PdfBoxOfficeActionSheetRenderer.needsAttachmentAnnex(source));
+        var recipients = new DistributionRecipients(List.of(new DepartmentCode("117")), List.of());
+        var plan = new OfficeDistributionPlan(2,2,recipients,List.of(),"","","","","");
+        var to = List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation", "إدارة التحول الرقمي"));
+        try (var pdf = Loader.loadPDF(new PdfBoxOfficeActionSheetRenderer().render(
+                source, plan, to, List.of(), printContext()))) {
+            assertEquals(1, pdf.getNumberOfPages(),
+                    "Historical attachment names must not force an annex for the new round");
+        }
+    }
+
+    @Test void roundThreeWithoutNewFilesPreservesPreviousFilesWithoutMislabeling() {
+        var roundOne = new org.badea.correspondence.application.CorrespondenceDocument(
+                "a", "old.pdf", "application/pdf", 123L, 1L);
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261105/3", LocalDate.of(2026,11,5), "IT",
+                "117", "Author", null, List.of(roundOne), List.of(), null, 3L);
+        assertTrue(PdfBoxOfficeActionSheetRenderer.printedRoundAttachments(source).isEmpty());
+        assertEquals("لا توجد مرفقات جديدة", PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(source));
+        assertFalse(PdfBoxOfficeActionSheetRenderer.needsAttachmentAnnex(source));
+    }
+
+    @Test void firstRoundStillIncludesLegacyUnclassifiedSourceFiles() {
+        var legacy = new org.badea.correspondence.application.CorrespondenceDocument(
+                "legacy", "initial.pdf", "application/pdf", 123L);
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261105/1", LocalDate.of(2026,11,5), "IT",
+                "117", "Author", null, List.of(legacy), List.of(), null, 1L);
+        assertEquals(List.of(legacy), PdfBoxOfficeActionSheetRenderer.printedRoundAttachments(source));
+        assertEquals("initial.pdf", PdfBoxOfficeActionSheetRenderer.attachmentCoverLabel(source));
+    }
+
     @Test void generationTimestampPreservesOfficialDepartmentRecipientRule() {
         var stamp = new OfficeActionSheetPrintContext(LocalDate.of(2026, 11, 3),
             java.util.Map.of(), null, java.time.LocalTime.of(14, 7, 45));

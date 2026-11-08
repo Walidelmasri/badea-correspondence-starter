@@ -278,3 +278,22 @@
 .mailbox-pending-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: .9rem; }
 .mailbox-return-action { background: var(--color-surface); color: var(--color-text-primary);
   border: 1px solid var(--color-border); }
+
+/* Round-N current PDFs are distinct from the finalized packet and historical files. */
+.mailbox-current-round-documents {
+  margin-block: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color, #d6e3dd);
+  border-radius: 0.65rem;
+}
+
+.mailbox-current-round-documents h4 {
+  margin: 0 0 0.6rem;
+  font-size: 0.92rem;
+}
+
+.mailbox-current-round-documents p {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}

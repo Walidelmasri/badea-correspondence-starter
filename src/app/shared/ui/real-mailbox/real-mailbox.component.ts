@@ -31,7 +31,7 @@ import {
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
 import { chooseFeaturedPacket } from './featured-packet';
 import { queueFollowUpFiles } from './follow-up-file-queue';
-import { groupSourceDocuments, sourceDocumentsForRound } from './source-document-rounds';
+import { historicalSourceDocumentGroups, sourceDocumentsForRound } from './source-document-rounds';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
@@ -289,7 +289,25 @@ export class RealMailboxComponent implements OnInit {
   readonly currentRoundAttachments = computed(() => sourceDocumentsForRound(
     this.details()?.documents ?? [], this.details()?.currentWorkflowCycle,
   ));
-  readonly sourceDocumentGroups = computed(() => groupSourceDocuments(this.details()?.documents ?? []));
+  readonly currentLibraryAttachments = computed(() => {
+    const details = this.details();
+    return details && details.currentWorkflowCycle != null && details.currentWorkflowCycle > 1
+      ? sourceDocumentsForRound(details.documents, details.currentWorkflowCycle) : [];
+  });
+  readonly sourceDocumentGroups = computed(() => historicalSourceDocumentGroups(
+    this.details()?.documents ?? [], this.details()?.currentWorkflowCycle,
+  ));
+  readonly historicalDocumentCount = computed(() => this.sourceDocumentGroups()
+    .reduce((count, group) => count + group.documents.length, 0));
+  readonly packetRoundLabels = computed(() => this.translation.language() === 'ar' ? {
+    latest: 'آخر ملف مراسلة مكتمل، بما فيه المستندات المعتمدة والتعليقات',
+    current: 'مرفقات الجولة الجديدة',
+    empty: 'لا توجد مرفقات PDF رسمية لهذه الجولة بعد. تبقى ملفات الجولات السابقة في المستندات التاريخية.',
+  } : {
+    latest: 'Latest finalized correspondence packet, including approved annotations',
+    current: 'New-round attachments',
+    empty: 'No official PDFs added to this round yet. Earlier rounds remain in historical documents.',
+  });
   actorDisplayName(actor: { actorNameArabic: string | null; actorNameEnglish: string }): string {
     return this.translation.language() === 'ar'
       ? (actor.actorNameArabic?.trim() || actor.actorNameEnglish)

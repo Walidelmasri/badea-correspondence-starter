@@ -406,6 +406,7 @@
               <div class="mailbox-featured-packet">
                 <div class="mailbox-featured-packet__summary">
                   <strong>{{ labels().documentKinds.CORRESPONDENCE_PACKET }}</strong>
+                  <small>{{ packetRoundLabels().latest }}</small>
                   <small dir="auto">{{ packet.filename }}</small>
                   <small>{{ formatSize(packet.sizeBytes) }}</small>
                 </div>
@@ -419,15 +420,45 @@
                 </div>
               </div>
             }
+            @if (full.currentWorkflowCycle && full.currentWorkflowCycle > 1) {
+              <div class="mailbox-current-round-documents">
+                <h4>{{ packetRoundLabels().current }} — {{ historyDrawerLabels().round }} {{ full.currentWorkflowCycle }}</h4>
+                @if (currentLibraryAttachments().length === 0) {
+                  <p>{{ packetRoundLabels().empty }}</p>
+                } @else {
+                  <ul class="mailbox-files">
+                    @for (document of currentLibraryAttachments(); track document.nodeId) {
+                      <li>
+                        <button type="button" class="mailbox-file-button"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          [attr.aria-label]="labels().openDocument + ': ' + document.filename"
+                          (click)="openDocument(document)">
+                          <span class="mailbox-document-detail">
+                            <strong dir="auto">{{ document.filename }}</strong>
+                            <small>{{ formatSize(document.sizeBytes) }}</small>
+                          </span>
+                          <span class="mailbox-file-open">{{ labels().openDocument }}</span>
+                        </button>
+                        @if (!secretaryMode()) {
+                          <button type="button" class="mailbox-share-button"
+                            [disabled]="document.mimeType !== 'application/pdf'"
+                            (click)="beginShare(document)">{{ shareText().share }}</button>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
             @if (full.documents.length === 0 && (full.generatedDocuments?.length ?? 0) === 0) {
               <p>{{ labels().noAttachments }}</p>
-            } @else if (full.documents.length > 0 || secondaryGeneratedDocuments().length > 0) {
+            } @else if (historicalDocumentCount() > 0 || secondaryGeneratedDocuments().length > 0) {
               <details class="mailbox-document-disclosure" [attr.open]="featuredPacket() ? null : ''">
                 <summary>
                   <span>{{ featuredPacket() ? labels().otherDocuments : labels().browseDocuments }}</span>
-                  <span class="mailbox-count">{{ full.documents.length + secondaryGeneratedDocuments().length }}</span>
+                  <span class="mailbox-count">{{ historicalDocumentCount() + secondaryGeneratedDocuments().length }}</span>
                 </summary>
-                @if (full.documents.length > 0) {
+                @if (historicalDocumentCount() > 0) {
                   @for (group of sourceDocumentGroups(); track group.cycle) {
                     <h4>{{ group.cycle === null ? historyDrawerLabels().unclassified :
                       historyDrawerLabels().round + ' ' + group.cycle }}</h4>

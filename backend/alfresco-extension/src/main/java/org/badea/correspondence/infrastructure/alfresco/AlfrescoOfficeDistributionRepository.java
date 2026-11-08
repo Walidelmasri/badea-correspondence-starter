@@ -34,6 +34,7 @@ import org.badea.correspondence.workflow.CorrespondenceState;
 /** All writes execute inside one REQUIRED Alfresco Web Script transaction. */
 public final class AlfrescoOfficeDistributionRepository implements OfficeDistributionRepository {
     private static final QName DISPATCH = AlfrescoDepartmentAssignmentReader.q("assignmentDispatchId");
+    private static final QName SOURCE_CYCLE = AlfrescoDepartmentAssignmentReader.q("sourceDocumentCycle");
     private final NodeService nodes;
     private final ContentService content;
     private final CorrespondenceNodeLocator locator;
@@ -181,7 +182,13 @@ public final class AlfrescoOfficeDistributionRepository implements OfficeDistrib
                 }
             }
         }
-        sources.sort(Comparator.comparing(child -> String.valueOf(nodes.getProperty(child, ContentModel.PROP_NAME))));
+        // A complete packet keeps source documents in chronological round order;
+        // filenames are only a stable tiebreaker, never a workflow chronology.
+        // Legacy, unclassified source PDFs retain their original Round 1 position.
+        sources.sort(Comparator.comparingLong((NodeRef child) ->
+                AlfrescoCorrespondenceCycleReader.number(nodes.getProperty(child, SOURCE_CYCLE),
+                        "sourceDocumentCycle"))
+                .thenComparing(child -> String.valueOf(nodes.getProperty(child, ContentModel.PROP_NAME))));
         var result = new ArrayList<byte[]>();
         for (NodeRef source : sources) {
             NodeRef selected = approved.getOrDefault(source.getId(), source);

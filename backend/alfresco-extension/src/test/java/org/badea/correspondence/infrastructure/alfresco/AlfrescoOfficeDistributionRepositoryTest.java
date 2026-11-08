@@ -62,4 +62,43 @@ class AlfrescoOfficeDistributionRepositoryTest {
         assertArrayEquals(inkPdf, result.getFirst());
         verify(content, never()).getReader(original, ContentModel.PROP_CONTENT);
     }
+    @Test
+    void packetPreservesEarlierFinalizedInkAndIncludesSeparateNewRoundPdf() {
+        NodeRef followUp = new NodeRef("workspace://SpacesStore/00000000-0000-0000-0000-000000000105");
+        ChildAssociationRef originalAssoc = assoc(original);
+        ChildAssociationRef annotationAssoc = assoc(annotated);
+        ChildAssociationRef followUpAssoc = assoc(followUp);
+        when(nodes.getChildAssocs(parent)).thenReturn(List.of(originalAssoc, followUpAssoc, annotationAssoc));
+        when(nodes.getType(original)).thenReturn(ContentModel.TYPE_CONTENT);
+        when(nodes.getType(followUp)).thenReturn(ContentModel.TYPE_CONTENT);
+        when(nodes.getType(annotated)).thenReturn(AlfrescoPresidentGeneratedDocumentStore.TYPE);
+        when(nodes.getProperty(original, ContentModel.PROP_NAME)).thenReturn("z-round-1.pdf");
+        when(nodes.getProperty(followUp, ContentModel.PROP_NAME)).thenReturn("a-round-2.pdf");
+        when(nodes.getProperty(original, AlfrescoDepartmentAssignmentReader.q("sourceDocumentCycle")))
+                .thenReturn(1L);
+        when(nodes.getProperty(followUp, AlfrescoDepartmentAssignmentReader.q("sourceDocumentCycle")))
+                .thenReturn(2L);
+        when(nodes.getProperty(annotated, AlfrescoPresidentGeneratedDocumentStore.KIND))
+                .thenReturn("ANNOTATED_PDF");
+        when(nodes.getProperty(annotated, AlfrescoPresidentGeneratedDocumentStore.REVISION))
+                .thenReturn(2L);
+        when(nodes.getProperty(annotated, AlfrescoPresidentGeneratedDocumentStore.SOURCE))
+                .thenReturn(original.getId());
+        var annotatedReader = mock(ContentReader.class);
+        var followUpReader = mock(ContentReader.class);
+        when(content.getReader(annotated, ContentModel.PROP_CONTENT)).thenReturn(annotatedReader);
+        when(content.getReader(followUp, ContentModel.PROP_CONTENT)).thenReturn(followUpReader);
+        when(annotatedReader.exists()).thenReturn(true);
+        when(followUpReader.exists()).thenReturn(true);
+        var annotatedBytes = "%PDF-ink-preserved".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        var newBytes = "%PDF-new-round-2".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        when(annotatedReader.getContentInputStream()).thenReturn(new ByteArrayInputStream(annotatedBytes));
+        when(followUpReader.getContentInputStream()).thenReturn(new ByteArrayInputStream(newBytes));
+        var included = repository.distributionDocuments(parent, 3L);
+        assertEquals(2, included.size());
+        assertArrayEquals(annotatedBytes, included.get(0));
+        assertArrayEquals(newBytes, included.get(1));
+        verify(content, never()).getReader(original, ContentModel.PROP_CONTENT);
+    }
+
 }

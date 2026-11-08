@@ -35,3 +35,20 @@ export function sourceDocumentsForRound(
   if (!currentWorkflowCycle || !Number.isSafeInteger(currentWorkflowCycle)) return [];
   return documents.filter(document => document.workflowCycle === currentWorkflowCycle);
 }
+
+/** Keep the active round's PDFs next to the finalized packet, without duplicating
+ * them in the collapsible older/unclassified document list. Legacy PDFs stay
+ * visible there because their round cannot be inferred from their filenames.
+ */
+export function historicalSourceDocumentGroups(
+  documents: readonly CorrespondenceDocumentUpload[],
+  currentWorkflowCycle: number | undefined,
+): readonly SourceDocumentRoundGroup[] {
+  if (currentWorkflowCycle == null || !Number.isSafeInteger(currentWorkflowCycle)
+      || currentWorkflowCycle < 2) {
+    return groupSourceDocuments(documents);
+  }
+  return groupSourceDocuments(documents.filter(
+    document => document.workflowCycle !== currentWorkflowCycle,
+  ));
+}
