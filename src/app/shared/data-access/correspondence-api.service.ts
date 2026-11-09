@@ -227,6 +227,13 @@ export interface CorrespondenceShareEmailResult {
   readonly url: string;
 }
 
+export interface PresidentSignatureStatus {
+  readonly configured: boolean;
+  readonly revision: number;
+  readonly updatedAt: string | null;
+  readonly previewDataUrl: string | null;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -235,10 +242,8 @@ export class CorrespondenceApiService {
     inject(HttpClient);
 
 
-  getPresidentSignatureStatus(): Observable<{
-    readonly configured: boolean; readonly revision: number; readonly updatedAt: string | null;
-  }> {
-    return this.http.get<{configured: boolean; revision: number; updatedAt: string | null}>(
+  getPresidentSignatureStatus(): Observable<PresidentSignatureStatus> {
+    return this.http.get<PresidentSignatureStatus>(
       '/alfresco/service/badea/president-signature',
     );
   }
@@ -247,9 +252,16 @@ export class CorrespondenceApiService {
     readonly expectedRevision: number;
     readonly authorizeReuse: boolean;
     readonly drawing: { readonly schemaVersion: 1; readonly strokes: readonly (readonly (readonly number[])[])[] };
-  }): Observable<{configured: boolean; revision: number; updatedAt: string | null}> {
-    return this.http.put<{configured: boolean; revision: number; updatedAt: string | null}>(
+  }): Observable<PresidentSignatureStatus> {
+    return this.http.put<PresidentSignatureStatus>(
       '/alfresco/service/badea/president-signature', payload,
+    );
+  }
+
+  deactivatePresidentSignature(expectedRevision: number): Observable<PresidentSignatureStatus> {
+    return this.http.put<PresidentSignatureStatus>(
+      '/alfresco/service/badea/president-signature',
+      {action: 'deactivate', expectedRevision},
     );
   }
 

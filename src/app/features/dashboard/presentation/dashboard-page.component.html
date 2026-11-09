@@ -10,10 +10,15 @@
         @if (roleLabel()) { <span class="dashboard__role">{{ roleLabel() }}</span> }
       </div>
     </div>
-    <button type="button" class="dashboard__refresh" [disabled]="loading()" (click)="refresh()">
-      <span aria-hidden="true">↻</span>
-      {{ loading() ? labels().refreshing : labels().refresh }}
-    </button>
+    <div class="dashboard__actions">
+      <button type="button" class="dashboard__refresh" [disabled]="loading()" (click)="refresh()">
+        <span aria-hidden="true">↻</span>
+        {{ loading() ? labels().refreshing : labels().refresh }}
+      </button>
+      @if (role() === 'PRESIDENT' && !secretaryMode()) {
+        <app-president-signature-settings [modal]="true" />
+      }
+    </div>
   </div>
 
   @if (loading()) {

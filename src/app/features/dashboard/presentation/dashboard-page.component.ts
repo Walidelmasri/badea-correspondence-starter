@@ -17,11 +17,12 @@ import {
   CorrespondenceMailboxSummary,
 } from '../../../shared/data-access/correspondence-api.service';
 import { buildDashboardSnapshot, buildSecretaryDashboardSnapshot, DashboardSnapshot } from './dashboard-metrics';
+import { PresidentSignatureSettingsComponent } from '../../president-review/presentation/president-signature-settings/president-signature-settings.component';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, PresidentSignatureSettingsComponent],
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -557,6 +557,7 @@
                 <property name="bc:signatureRevision"><type>d:long</type></property>
                 <property name="bc:signatureOwnerEmployeeId"><type>d:text</type></property>
                 <property name="bc:signatureSavedAt"><type>d:datetime</type></property>
+                <property name="bc:signatureConfigured"><type>d:boolean</type></property>
             </properties>
         </type>
     </types>

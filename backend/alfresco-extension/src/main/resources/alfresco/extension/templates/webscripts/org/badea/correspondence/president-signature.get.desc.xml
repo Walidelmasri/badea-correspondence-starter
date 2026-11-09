@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <webscript>
     <shortname>President signature status</shortname>
-    <description>President-only reusable signature registration status; never exposes the drawing.</description>
+    <description>President-only signature status and raster preview; never exposes source strokes.</description>
     <url>/badea/president-signature</url>
     <format default="json">argument</format>
     <authentication>user</authentication>

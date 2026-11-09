@@ -26,6 +26,7 @@ public final class AlfrescoPresidentSignatureStore implements PresidentSignature
     private static final QName REVISION = q("signatureRevision");
     private static final QName OWNER = q("signatureOwnerEmployeeId");
     private static final QName SAVED = q("signatureSavedAt");
+    private static final QName ACTIVE = q("signatureConfigured");
     private static final QName REVIEW_OWNER = q("presidentReviewUpdatedByEmployeeId");
     private static final String NAME = ".badea-presidential-signature-private";
     private final NodeService nodes;
@@ -82,11 +83,53 @@ public final class AlfrescoPresidentSignatureStore implements PresidentSignature
             writer.setMimetype("application/json");
             writer.setEncoding("UTF-8");
             writer.putContent(drawing.toJson());
+            nodes.setProperty(node, ACTIVE, true);
             nodes.setProperty(node, REVISION, current + 1);
             nodes.setProperty(node, OWNER, employeeId);
             nodes.setProperty(node, SAVED, Date.from(clock.instant()));
             return statusOf(node);
         });
+    }
+
+    @Override public Status deactivate(String employeeId, long expectedRevision) {
+        if (employeeId == null || employeeId.isBlank() || expectedRevision < 0) {
+            throw new IllegalArgumentException("Invalid signature deactivation");
+        }
+        return AuthenticationUtil.runAsSystem(() -> {
+            NodeRef node = locate();
+            if (node == null || revision(node) != expectedRevision
+                    || !statusOf(node).configured()
+                    || !employeeId.equals(nodes.getProperty(node, OWNER))) {
+                throw new IllegalStateException("Signature changed or is not owned by the current President");
+            }
+            ContentWriter writer = content.getWriter(node, ContentModel.PROP_CONTENT, true);
+            if (writer == null) throw new CorrespondenceRepositoryException("Signature writer unavailable");
+            writer.setMimetype("application/json");
+            writer.setEncoding("UTF-8");
+            writer.putContent("{}");
+            nodes.setProperty(node, ACTIVE, false);
+            nodes.setProperty(node, REVISION, expectedRevision + 1);
+            nodes.setProperty(node, SAVED, Date.from(clock.instant()));
+            return statusOf(node);
+        });
+    }
+
+    @Override public Optional<PresidentSignatureDrawing> previewForOwner(String employeeId) {
+        if (employeeId == null || employeeId.isBlank()) return Optional.empty();
+        return AuthenticationUtil.runAsSystem(() -> {
+            NodeRef node = locate();
+            if (node == null || !statusOf(node).configured()
+                    || !employeeId.equals(nodes.getProperty(node, OWNER))) {
+                return Optional.empty();
+            }
+            return readDrawing(node);
+        });
+    }
+
+    private Optional<PresidentSignatureDrawing> readDrawing(NodeRef node) {
+        ContentReader reader = content.getReader(node, ContentModel.PROP_CONTENT);
+        if (reader == null || !reader.exists()) return Optional.empty();
+        return Optional.of(PresidentSignatureDrawing.fromJson(reader.getContentString()));
     }
 
     @Override public Optional<PresidentSignatureDrawing> loadForReview(String correspondenceId) {
@@ -95,12 +138,11 @@ public final class AlfrescoPresidentSignatureStore implements PresidentSignature
             NodeRef currentCorrespondence = correspondence.locate(correspondenceId);
             Object reviewer = nodes.getProperty(currentCorrespondence, REVIEW_OWNER);
             NodeRef node = locate();
-            if (node == null || reviewer == null || !reviewer.toString().equals(nodes.getProperty(node, OWNER))) {
+            if (node == null || !statusOf(node).configured() || reviewer == null
+                    || !reviewer.toString().equals(nodes.getProperty(node, OWNER))) {
                 return Optional.empty();
             }
-            ContentReader reader = content.getReader(node, ContentModel.PROP_CONTENT);
-            if (reader == null || !reader.exists()) return Optional.empty();
-            return Optional.of(PresidentSignatureDrawing.fromJson(reader.getContentString()));
+            return readDrawing(node);
         });
     }
 
@@ -110,7 +152,8 @@ public final class AlfrescoPresidentSignatureStore implements PresidentSignature
 
     private Status statusOf(NodeRef node) {
         Object at = nodes.getProperty(node, SAVED);
-        return new Status(true, revision(node), at instanceof Date date ? date.toInstant() : null);
+        return new Status(!Boolean.FALSE.equals(nodes.getProperty(node, ACTIVE)),
+                revision(node), at instanceof Date date ? date.toInstant() : null);
     }
 
     private long revision(NodeRef node) {
