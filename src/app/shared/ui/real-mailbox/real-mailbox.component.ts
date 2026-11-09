@@ -1768,6 +1768,9 @@ export class RealMailboxComponent implements OnInit {
       case 'ADMINISTRATIVE_CLOSE': return this.labels().historyActions.archived;
       case 'CONTINUE_CORRESPONDENCE': return this.labels().historyActions.continued;
       case 'DIRECTOR_CONTINUE_CORRESPONDENCE': return this.labels().historyActions.directorContinued;
+      case 'SUBMIT_FOR_MANAGER_APPROVAL': return this.labels().historyActions.submittedForManagerApproval;
+      case 'REVISE_SECRETARY_DRAFT': return this.labels().historyActions.revisedSecretaryDraft;
+      case 'RETURN_TO_SECRETARY': return this.labels().historyActions.returnedToSecretary;
       default: return actionType;
     }
   }

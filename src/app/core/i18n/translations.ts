@@ -79,6 +79,9 @@ const AR_TRANSLATIONS = {
       archived: 'أُغلقت المراسلة إدارياً',
       continued: 'بدأت دورة متابعة جديدة',
       directorContinued: 'طلبت الإدارة دورة متابعة جديدة',
+      submittedForManagerApproval: 'إرسال المراسلة لموافقة المدير',
+      revisedSecretaryDraft: 'تعديل المراسلة المعادة',
+      returnedToSecretary: 'إعادة المراسلة إلى السكرتارية للتعديل',
     },
 
     openDocument: 'عرض PDF',
@@ -616,6 +619,9 @@ const EN_TRANSLATIONS = {
       archived: 'Administratively archived',
       continued: 'Another workflow round started',
       directorContinued: 'Director started another correspondence round',
+      submittedForManagerApproval: 'Submitted for manager approval',
+      revisedSecretaryDraft: 'Revised returned correspondence',
+      returnedToSecretary: 'Returned to secretary for revision',
     },
 
     openDocument: 'View PDF',
