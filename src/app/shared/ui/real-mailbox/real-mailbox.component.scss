@@ -60,6 +60,12 @@
 .mailbox-transition-notice { margin: 1.1rem; padding: .8rem 1rem; border: 1px solid var(--color-border);
   border-radius: var(--radius-sm); background: var(--color-surface); }
 .mailbox-action:disabled { cursor: wait; opacity: .55; }
+.mailbox-action--review { display: inline-flex; align-items: center; gap: .55rem; }
+.mailbox-action__spinner { width: .9rem; height: .9rem; border: 2px solid rgba(255,255,255,.35);
+  border-block-start-color: currentColor; border-radius: 50%; animation: mailbox-review-spin .75s linear infinite; }
+.mailbox-review-error { color: var(--color-danger, #ad2929); font-size: .85rem; margin: .5rem 0 0; }
+@keyframes mailbox-review-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mailbox-action__spinner { animation-duration: 2s; } }
 
 /* Historic mailbox filters: never imply that a read-only item can be acted on. */
 .mailbox-views { display: flex; flex-wrap: wrap; gap: .35rem; padding: .7rem; }

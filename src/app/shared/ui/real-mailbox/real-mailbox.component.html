@@ -802,9 +802,18 @@
             </button>
           }
           @if (canReview()) {
-            <button class="mailbox-action" type="button" (click)="openPresidentReview()">
-              {{ labels().openPresidentReview }}
+            <button class="mailbox-action mailbox-action--review" type="button"
+              [disabled]="presidentReviewOpening()"
+              [attr.aria-busy]="presidentReviewOpening()"
+              (click)="openPresidentReview()">
+              @if (presidentReviewOpening()) {
+                <span class="mailbox-action__spinner" aria-hidden="true"></span>
+              }
+              {{ presidentReviewOpening() ? labels().openingPresidentReview : labels().openPresidentReview }}
             </button>
+            @if (presidentReviewOpenFailed()) {
+              <p class="mailbox-review-error" role="alert">{{ labels().presidentReviewOpenFailed }}</p>
+            }
           }
         }
       </article>

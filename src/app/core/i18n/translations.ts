@@ -147,6 +147,8 @@ const AR_TRANSLATIONS = {
     loadingDetails: 'جارٍ تحميل تفاصيل المراسلة...',
     detailsFailed: 'تعذر تحميل تفاصيل هذه المراسلة.',
     openPresidentReview: 'فتح مراجعة الرئيس',
+    openingPresidentReview: 'جارٍ فتح مراجعة الرئيس...',
+    presidentReviewOpenFailed: 'تعذر فتح مراجعة الرئيس. أعد تحميل الصفحة وحاول مجدداً.',
     states: {
       draft: 'مسودة', office: 'مكتب الرئيس',
       president: 'عند الرئيس', director: 'عند المدير', archived: 'مؤرشفة',
@@ -687,6 +689,8 @@ const EN_TRANSLATIONS = {
     loadingDetails: 'Loading correspondence details...',
     detailsFailed: 'Could not load correspondence details.',
     openPresidentReview: 'Open President Review',
+    openingPresidentReview: 'Opening President Review...',
+    presidentReviewOpenFailed: 'Could not open President Review. Reload the page and try again.',
     states: {
       draft: 'Draft', office: 'With President’s Office',
       president: 'With President', director: 'With Director', archived: 'Archived',

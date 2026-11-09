@@ -260,6 +260,8 @@ export class RealMailboxComponent implements OnInit {
     ['all', 'unread', 'needs_action', 'handled', 'archived'];
   readonly page = signal<CorrespondenceMailboxPage | null>(null);
   readonly loading = signal(false);
+  readonly presidentReviewOpening = signal(false);
+  readonly presidentReviewOpenFailed = signal(false);
   readonly listError = signal(false);
   readonly selectedId = signal<string | null>(null);
   readonly details = signal<CorrespondenceDetails | null>(null);
@@ -1775,10 +1777,21 @@ export class RealMailboxComponent implements OnInit {
     }
   }
 
-  openPresidentReview(): void {
-    if (!this.canReview()) return;
+  async openPresidentReview(): Promise<void> {
+    if (!this.canReview() || this.presidentReviewOpening()) return;
     const id = this.selectedId();
-    if (id) void this.router.navigate(['/president-review', id]);
+    if (!id) return;
+
+    this.presidentReviewOpenFailed.set(false);
+    this.presidentReviewOpening.set(true);
+    try {
+      const opened = await this.router.navigate(['/president-review', id]);
+      if (!opened) this.presidentReviewOpenFailed.set(true);
+    } catch {
+      this.presidentReviewOpenFailed.set(true);
+    } finally {
+      this.presidentReviewOpening.set(false);
+    }
   }
 
   secretarySentLabel(item: CorrespondenceMailboxPage['items'][number]): string {
