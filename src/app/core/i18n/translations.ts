@@ -83,6 +83,7 @@ const AR_TRANSLATIONS = {
       revisedSecretaryDraft: 'تعديل المراسلة المعادة',
       returnedToSecretary: 'إعادة المراسلة إلى السكرتارية للتعديل',
     },
+    historyDistributionSummary: 'توزيع المراسلة على {count} إدارات (إلى/نسخة)',
 
     openDocument: 'عرض PDF',
     previewTitle: 'معاينة المستند',
@@ -625,6 +626,7 @@ const EN_TRANSLATIONS = {
       revisedSecretaryDraft: 'Revised returned correspondence',
       returnedToSecretary: 'Returned to secretary for revision',
     },
+    historyDistributionSummary: 'Distributed to {count} departments (To/Copy)',
 
     openDocument: 'View PDF',
     previewTitle: 'Document Preview',

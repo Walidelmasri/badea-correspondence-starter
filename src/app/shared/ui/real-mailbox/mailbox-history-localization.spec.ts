@@ -87,4 +87,29 @@ describe('Correspondence History localization', () => {
     expect(mailbox.actorDisplayName(actor)).toBe('Department Manager');
     expect(actor).toEqual({ actorNameArabic: 'مدير الإدارة', actorNameEnglish: 'Department Manager' });
   });
+
+  it('localizes only the exact system-generated distribution summary in both languages', () => {
+    const { mailbox, language } = createMailbox();
+    const action = { actionType: 'DISTRIBUTE_TO_DEPARTMENTS',
+      explanation: 'Distribution to 3 To/Copy departments' };
+    expect(mailbox.historyExplanation(action)).toBe('توزيع المراسلة على 3 إدارات (إلى/نسخة)');
+    language.set('en');
+    expect(mailbox.historyExplanation(action)).toBe('Distributed to 3 departments (To/Copy)');
+    expect(action.explanation).toBe('Distribution to 3 To/Copy departments');
+  });
+
+  it('preserves user-entered explanations and unknown historical formats verbatim', () => {
+    const { mailbox } = createMailbox();
+    expect(mailbox.historyExplanation({ actionType: 'RETURN_TO_SECRETARY',
+      explanation: 'Distribution to 3 To/Copy departments' }))
+      .toBe('Distribution to 3 To/Copy departments');
+    expect(mailbox.historyExplanation({ actionType: 'DISTRIBUTE_TO_DEPARTMENTS',
+      explanation: 'Distribution to external partners' }))
+      .toBe('Distribution to external partners');
+    expect(mailbox.historyExplanation({ actionType: 'DISTRIBUTE_TO_DEPARTMENTS',
+      explanation: null })).toBeNull();
+    expect(mailbox.historyExplanation({ actionType: 'REVISE_SECRETARY_DRAFT',
+      explanation: 'Please correct the attached PDF' }))
+      .toBe('Please correct the attached PDF');
+  });
 });

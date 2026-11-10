@@ -1759,6 +1759,16 @@ export class RealMailboxComponent implements OnInit {
     }
   }
 
+  // The backend persists this legacy, system-generated audit explanation in English.
+  // Translate it only for the exact distribution format. Never alter or guess at
+  // other explanations, including managers' and employees' free-text reasons.
+  historyExplanation(action: Pick<CorrespondenceHistoryEntry, 'actionType' | 'explanation'>): string | null {
+    const explanation = action.explanation;
+    if (action.actionType !== 'DISTRIBUTE_TO_DEPARTMENTS' || !explanation) return explanation;
+    const summary = /^Distribution to ([1-9]\d*) To\/Copy departments$/.exec(explanation);
+    return summary ? this.labels().historyDistributionSummary.replace('{count}', summary[1]) : explanation;
+  }
+
   actionLabel(actionType: string): string {
     switch (actionType) {
       case 'SEND_TO_OFFICE': return this.labels().historyActions.sentToOffice;

@@ -288,7 +288,7 @@
                     <strong>{{ actionLabel(action.actionType) }}</strong>
                     <span>{{ actorDisplayName(action) }}</span>
                     <time>{{ formatDate(action.actedAt) }}</time>
-                    @if (action.explanation) { <p dir="auto">{{ action.explanation }}</p> }
+                    @if (action.explanation) { <p dir="auto">{{ historyExplanation(action) }}</p> }
                   </li>
                 }
               </ol>
@@ -852,7 +852,7 @@
                 <strong>{{ actionLabel(action.actionType) }}</strong>
                 <span>{{ actorDisplayName(action) }}</span>
                 <time>{{ formatDate(action.actedAt) }}</time>
-                @if (action.explanation) { <p dir="auto">{{ action.explanation }}</p> }
+                @if (action.explanation) { <p dir="auto">{{ historyExplanation(action) }}</p> }
               </li>
             }
           </ol>
