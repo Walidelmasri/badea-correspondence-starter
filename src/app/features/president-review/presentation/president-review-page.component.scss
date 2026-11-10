@@ -298,6 +298,71 @@
   color: white;
 }
 
+/* Previously finalized PDFs are never mounted in the editable ink workspace. */
+.previous-documents {
+  margin-block-end: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  background: var(--color-primary-050);
+}
+
+.previous-documents__hint {
+  margin: -0.1rem 0 0.75rem;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.previous-documents__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.previous-documents__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.7rem;
+  background: var(--color-surface);
+}
+
+.previous-documents__description {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.previous-documents__description strong {
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
+.previous-documents__description span {
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
+
+.previous-documents__item button {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-primary-700);
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-primary-900);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.previous-documents__item button:hover {
+  background: var(--color-primary-100);
+}
+
 /* PDF */
 
 .pdf-stage {

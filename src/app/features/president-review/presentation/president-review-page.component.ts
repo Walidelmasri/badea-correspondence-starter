@@ -35,6 +35,7 @@ import {
 import {
   CorrespondenceApiService,
   CorrespondenceDetails,
+  CorrespondenceGeneratedDocument,
 } from '../../../shared/data-access/correspondence-api.service';
 
 import {
@@ -44,6 +45,8 @@ import {
 import {
   PdfWorkspaceComponent,
 } from '../../../shared/ui/pdf-workspace/pdf-workspace.component';
+import { CorrespondenceDocumentPreviewComponent } from '../../../shared/ui/correspondence-document-preview/correspondence-document-preview.component';
+import { previousFinalizedPdfDocuments } from './previous-finalized-documents';
 
 import {
   CorrespondenceSummaryComponent,
@@ -95,6 +98,7 @@ interface RequiredActionOption {
   standalone: true,
   imports: [
     PdfWorkspaceComponent,
+    CorrespondenceDocumentPreviewComponent,
     PresidentExplanationInkComponent,
     PresidentSignatureSettingsComponent,
     CorrespondenceSummaryComponent,
@@ -126,6 +130,10 @@ export class PresidentReviewPageComponent {
   readonly correspondenceDetails = signal<CorrespondenceDetails | null>(null);
   readonly correspondenceLoaded = signal(true);
   readonly correspondenceLoadError = signal(false);
+  readonly previousFinalizedDocuments = computed(() =>
+    previousFinalizedPdfDocuments(this.correspondenceDetails()),
+  );
+  readonly previousDocumentPreview = signal<CorrespondenceGeneratedDocument | null>(null);
   readonly handoffInProgress = signal(false);
   readonly handoffUncertain = signal(false);
   readonly handoffError = signal(false);
@@ -461,6 +469,17 @@ export class PresidentReviewPageComponent {
     }
   }
 
+  openPreviousDocument(document: CorrespondenceGeneratedDocument): void {
+    // Never allow a generated document outside the current authorized details snapshot.
+    if (this.previousFinalizedDocuments().some((item) => item.nodeId === document.nodeId)) {
+      this.previousDocumentPreview.set(document);
+    }
+  }
+
+  closePreviousDocument(): void {
+    this.previousDocumentPreview.set(null);
+  }
+
   selectAttachment(id: string): void {
     if (this.attachments().some((attachment) => attachment.id === id)) {
       this.activeAttachmentId.set(id);
@@ -731,6 +750,7 @@ export class PresidentReviewPageComponent {
     this.releasePdfUrls();
 
     this.correspondenceDetails.set(null);
+    this.previousDocumentPreview.set(null);
     this.liveAttachments.set([]);
     this.correspondenceLoaded.set(technicalId === null);
     this.correspondenceLoadError.set(false);

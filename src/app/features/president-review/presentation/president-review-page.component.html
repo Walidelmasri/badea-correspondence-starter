@@ -137,6 +137,43 @@
                 }"
             />
 
+            @if (previousFinalizedDocuments().length) {
+                <section class="previous-documents" aria-label="Previous finalized PDF documents">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-heading__eyebrow">
+                                {{ translation.language() === 'ar' ? 'الجولات السابقة' : 'Previous rounds' }}
+                            </span>
+                            <h2>
+                                {{ translation.language() === 'ar' ? 'المستندات النهائية السابقة' : 'Previously finalized PDFs' }}
+                            </h2>
+                        </div>
+                    </div>
+                    <p class="previous-documents__hint">
+                        {{ translation.language() === 'ar'
+                            ? 'للاطلاع فقط. تحتفظ هذه المستندات بالملاحظات المعتمدة ولا تُضاف إلى المراجعة الحالية.'
+                            : 'Read-only reference. Existing annotations are preserved; these PDFs are not added to the current review.' }}
+                    </p>
+                    <div class="previous-documents__list" role="list">
+                        @for (document of previousFinalizedDocuments(); track document.nodeId) {
+                            <div class="previous-documents__item" role="listitem">
+                                <div class="previous-documents__description">
+                                    <strong dir="auto">{{ document.filename }}</strong>
+                                    <span>
+                                        {{ document.artifactType === 'CORRESPONDENCE_PACKET'
+                                            ? (translation.language() === 'ar' ? 'الحزمة النهائية' : 'Finalized packet')
+                                            : (translation.language() === 'ar' ? 'مستند مشروح' : 'Annotated document') }}
+                                    </span>
+                                </div>
+                                <button type="button" (click)="openPreviousDocument(document)">
+                                    {{ translation.language() === 'ar' ? 'عرض PDF' : 'View PDF' }}
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+
             <section class="attachment-section">
                 <div class="section-heading">
                     <div>
@@ -541,3 +578,12 @@
         </aside>
     </div>
 </section>
+@if (previousDocumentPreview(); as document) {
+    @if (technicalId(); as correspondenceId) {
+        <app-correspondence-document-preview
+            [technicalId]="correspondenceId"
+            [document]="document"
+            (closed)="closePreviousDocument()"
+        />
+    }
+}
