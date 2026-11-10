@@ -113,6 +113,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                     // before the printed subject label. This replaces the cramped
                     // original "إلى السيد" line without covering the BADEA masthead.
                     erase(canvas,h,22,108,573,35);
+                    normalizeTemplateCaptions(canvas,h);
                     outline(canvas,"إلى السيد /",570,121,10,h,true);
                     outline(canvas,header,544,139,9,h,true);
                     outline(canvas,fitHeader(source.subject(),10,420),469,158,10,h,true);
@@ -185,6 +186,22 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         canvas.lineTo(499,pageHeight-620);
         canvas.stroke();
         canvas.setStrokingColor(0f,0f,0f);
+    }
+
+    /**
+     * Match three printed Word-template captions to the existing regular-weight
+     * Arabic metadata. The masks cover only the original lettering, not the
+     * dynamic subject/date, copy recipients, table, annotations or signature.
+     * The approved template file and all its layout coordinates stay intact.
+     */
+    private static void normalizeTemplateCaptions(PDPageContentStream canvas, float h)
+            throws IOException {
+        erase(canvas,h,494f,143f,75f,20f);
+        outline(canvas,"الموضوع:",565f,158f,10f,h,true);
+        erase(canvas,h,472f,176f,96f,18f);
+        outline(canvas,"تاريخ الوثيقة:",565f,188f,9.5f,h,true);
+        erase(canvas,h,455f,657f,103f,18.4f);
+        outline(canvas,"صورة مع التحية:",553f,672f,10f,h,true);
     }
 
     /** Vector mark copied only into newly issued PDFs; generated artifacts remain immutable. */

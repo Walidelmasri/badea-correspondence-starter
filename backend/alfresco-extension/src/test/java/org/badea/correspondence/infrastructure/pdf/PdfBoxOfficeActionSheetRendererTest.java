@@ -296,6 +296,61 @@ class PdfBoxOfficeActionSheetRendererTest {
         }
     }
 
+    @Test void threePrintedCaptionsAreLighterWithoutChangingCoverPageLayout() throws Exception {
+        var to = List.of(new DepartmentDirectoryEntry(new DepartmentCode("117"),
+                "Digital Transformation", "إدارة التحول الرقمي"));
+        var copy = List.of(new DepartmentDirectoryEntry(new DepartmentCode("118"),
+                "Human Resources", "إدارة الموارد البشرية"));
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+                "Subject", null, "117/20261110/1", LocalDate.of(2026,11,10),
+                "IT", "117", "Author", null, List.of());
+        var plan = new OfficeDistributionPlan(1,1,
+                new DistributionRecipients(List.of(new DepartmentCode("117")),
+                        List.of(new DepartmentCode("118"))),
+                List.of(), "", "", "", "", "");
+        try (var resource = PdfBoxOfficeActionSheetRenderer.class.getResourceAsStream(
+                    "/org/badea/correspondence/templates/action-sheet.pdf")) {
+            assertNotNull(resource);
+            try (var original = Loader.loadPDF(resource.readAllBytes());
+                 var updated = Loader.loadPDF(new PdfBoxOfficeActionSheetRenderer().render(
+                         source,plan,to,copy,printContext()))) {
+                assertEquals(1,updated.getNumberOfPages());
+                assertEquals(original.getPage(0).getMediaBox().getWidth(),
+                        updated.getPage(0).getMediaBox().getWidth(),0.01);
+                assertEquals(original.getPage(0).getMediaBox().getHeight(),
+                        updated.getPage(0).getMediaBox().getHeight(),0.01);
+                var before = new org.apache.pdfbox.rendering.PDFRenderer(original).renderImage(0);
+                var after = new org.apache.pdfbox.rendering.PDFRenderer(updated).renderImage(0);
+                assertCaptionLighter(before,after,494,143,569,163,"الموضوع");
+                assertCaptionLighter(before,after,473,176,568,194,"تاريخ الوثيقة");
+                assertCaptionLighter(before,after,455,657,558,675,"صورة مع التحية");
+            }
+        }
+    }
+
+    private static void assertCaptionLighter(java.awt.image.BufferedImage before,
+            java.awt.image.BufferedImage after, int x1, int y1, int x2, int y2, String label) {
+        int originalInk = darkPixels(before,x1,y1,x2,y2);
+        int updatedInk = darkPixels(after,x1,y1,x2,y2);
+        assertTrue(originalInk > 0 && updatedInk > 0 && updatedInk < originalInk,
+                "The " + label + " caption should remain visible with lighter typography");
+    }
+
+    private static int darkPixels(java.awt.image.BufferedImage image,
+            int x1, int y1, int x2, int y2) {
+        int count=0;
+        for (int y=y1; y<y2; y++) {
+            for (int x=x1; x<x2; x++) {
+                int pixel=image.getRGB(x,y);
+                int red=(pixel >> 16) & 255;
+                int green=(pixel >> 8) & 255;
+                int blue=pixel & 255;
+                if (red+green+blue < 600) count++;
+            }
+        }
+        return count;
+    }
+
     private static int differentPixels(java.awt.image.BufferedImage left,
             java.awt.image.BufferedImage right, int x1,int y1,int x2,int y2) {
         int diff=0;
