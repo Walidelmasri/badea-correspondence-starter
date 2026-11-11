@@ -127,6 +127,13 @@
         </section>
       }
     }
+    @if (notificationTargetMissing()) {
+      <p role="alert" class="mailbox-transition-notice">
+        {{ translation.language() === 'ar'
+          ? 'المراسلة المطلوبة غير متاحة في مساحة العمل الحالية. قد تكون نُقلت أو لم تعد لديك صلاحية عرضها.'
+          : 'The requested correspondence is not available in this mailbox. It may have moved or access may have changed.' }}
+      </p>
+    }
     @if (loading() && !page()) {
       <div class="mailbox-empty" role="status">{{ labels().loading }}</div>
     } @else if (listError()) {

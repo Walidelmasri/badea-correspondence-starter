@@ -35,7 +35,10 @@ import { queueFollowUpFiles } from './follow-up-file-queue';
 import { historicalSourceDocumentGroups, sourceDocumentsForRound } from './source-document-rounds';
 import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/correspondence-workspace.component';
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
-import { composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE } from './mailbox-navigation';
+import {
+  composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE,
+  findAuthorizedNotificationPage,
+} from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
 import { PendingRoundContinuation, SecretaryContinuationEligibility, SecretaryContinuationRequest, StagedContinuationPdf, TarasolRoundContinuationApiService } from '../../../features/tarasol-secretary/tarasol-round-continuation-api.service';
@@ -414,6 +417,8 @@ export class RealMailboxComponent implements OnInit {
 
   private detailVersion = 0;
   private pageVersion = 0;
+  readonly notificationTargetMissing = signal(false);
+
 
   readonly selected = computed(() => this.page()?.items.find(
     item => item.technicalId === this.selectedId()) ?? null);
@@ -453,9 +458,20 @@ export class RealMailboxComponent implements OnInit {
     // block authenticated mailbox access or document preview.
     void this.loadDepartments();
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const unitCode = params.get('unitCode');
+      if (unitCode && (params.has('pending') || params.has('round'))
+          && this.session.availableWorkspaces().some(unit => unit.code === unitCode)) {
+        this.session.selectWorkspace(unitCode);
+      } else if (unitCode && this.secretaryMode()
+          && this.session.availableSecretaryUnits().some(unit => unit.code === unitCode)) {
+        this.session.selectSecretaryUnit(unitCode);
+      } else if (unitCode && this.session.availableWorkspaces().some(unit => unit.code === unitCode)) {
+        this.session.selectWorkspace(unitCode);
+      }
       this.inboxView.set(this.box() === 'inbox'
         ? inboxViewFromQuery(params.get('view')) : 'all');
       if (params.get('pending')) this.pendingOffset.set(0);
+      if (params.get('round')) this.roundOffset.set(0);
       // Invalidate any in-flight page fetch when opening a notification.
       ++this.pageVersion;
       this.loading.set(false);
@@ -510,6 +526,7 @@ export class RealMailboxComponent implements OnInit {
     this.pendingDocumentsLoaded.set(false);
     ++this.pendingDocumentVersion;
     this.loading.set(true);
+    this.notificationTargetMissing.set(false);
     this.listError.set(false);
     this.details.set(null);
     this.detailsError.set(false);
@@ -542,31 +559,54 @@ export class RealMailboxComponent implements OnInit {
           : Promise.resolve({ result: null, failed: false }),
       ]);
       if (version !== this.pageVersion) return;
-      this.pendingApprovals.set(pending.result?.items ?? []);
-      this.pendingTotal.set(pending.result?.total ?? 0);
+      // The email carries only an opaque case ID. Search the authorized mailbox
+      // rather than guessing which row was intended or bypassing its ACL.
+      const requestedId = this.route.snapshot.queryParamMap.get('open');
+      const requestedPending = this.box() === 'inbox'
+        ? this.route.snapshot.queryParamMap.get('pending') : null;
+      const requestedRound = this.box() === 'inbox'
+        ? this.route.snapshot.queryParamMap.get('round') : null;
+      const displayedPage = requestedId
+        ? await findAuthorizedNotificationPage(page, requestedId, offset =>
+            firstValueFrom(this.secretaryMode()
+              ? this.box() === 'sent'
+                ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
+                : this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
+              : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView())),
+            () => version === this.pageVersion)
+        : page;
+      const pendingPage = requestedPending && pending.result && managerUnit
+        ? await findAuthorizedNotificationPage(pending.result, requestedPending,
+            offset => firstValueFrom(this.secretaryApi.list(managerUnit, 'pending', offset, PAGE_SIZE)),
+            () => version === this.pageVersion)
+        : pending.result;
+      if (version !== this.pageVersion) return;
+      if (requestedPending && pendingPage) this.pendingOffset.set(pendingPage.offset);
+      this.pendingApprovals.set(pendingPage?.items ?? []);
+      this.pendingTotal.set(pendingPage?.total ?? 0);
       this.pendingLoadError.set(pending.failed);
       this.returnedItems.set(returned.result?.items.filter(item => item.approvalStatus === 'RETURNED'
         && item.unitCode === unit) ?? []);
       this.returnedTotal.set(returned.result?.total ?? 0);
       this.returnedLoadError.set(returned.failed);
-      this.page.set(page);
-      const requestedId = this.box() === 'inbox'
-        ? this.route.snapshot.queryParamMap.get('open') : null;
-      const id = page.items.find(item => item.technicalId === requestedId)?.technicalId
-        ?? page.items.find(item => item.technicalId === this.selectedId())?.technicalId
-        ?? page.items[0]?.technicalId ?? null;
-      // A manager's pending secretary item is an actual Inbox action, and
-      // appears before ordinary correspondence in Needs Action / All.
-      const requestedPending = this.box() === 'inbox'
-        ? this.route.snapshot.queryParamMap.get('pending') : null;
-      const pendingSelection = pending.result?.items.find(item => item.technicalId === requestedPending)
-        ?? (!requestedId ? pending.result?.items[0] : null);
-      if (pendingSelection) {
+      this.page.set(displayedPage);
+      const requestedItem = displayedPage.items.find(item => item.technicalId === requestedId);
+      const pendingSelection = pendingPage?.items.find(item => item.technicalId === requestedPending)
+        ?? (!requestedId && !requestedPending && !requestedRound ? pendingPage?.items[0] : null);
+      if (requestedRound) {
+        // The independent Round N queue will select its own authorized request.
+        this.selectedId.set(null);
+      } else if (pendingSelection) {
         this.selectPending(pendingSelection);
+      } else if ((requestedId && !requestedItem) || requestedPending) {
+        this.notificationTargetMissing.set(true);
+        this.selectedId.set(null);
       } else {
+        const id = requestedItem?.technicalId
+          ?? displayedPage.items.find(item => item.technicalId === this.selectedId())?.technicalId
+          ?? displayedPage.items[0]?.technicalId ?? null;
         this.selectedId.set(id);
-        if (id) void this.loadDetails(id, id === requestedId &&
-          !!page.items.find(item => item.technicalId === id)?.unread);
+        if (id) void this.loadDetails(id, id === requestedId && !!requestedItem?.unread);
       }
     } catch {
       if (version === this.pageVersion) {
@@ -588,9 +628,25 @@ export class RealMailboxComponent implements OnInit {
     try {
       const page = await firstValueFrom(this.roundApi.pending(managerUnit,
         this.roundOffset(), PAGE_SIZE));
+      const requestedRound = this.route.snapshot.queryParamMap.get('round');
+      const displayed = requestedRound
+        ? await findAuthorizedNotificationPage(page, requestedRound,
+            offset => firstValueFrom(this.roundApi.pending(managerUnit, offset, PAGE_SIZE)),
+            () => version === this.pageVersion)
+        : page;
       if (version !== this.pageVersion) return;
-      this.roundRequests.set(page.items);
-      this.roundTotal.set(page.total);
+      this.roundRequests.set(displayed.items);
+      this.roundTotal.set(displayed.total);
+      if (requestedRound) {
+        const selection = displayed.items.find(item => item.technicalId === requestedRound);
+        if (selection) {
+          this.roundOffset.set(displayed.offset);
+          this.notificationTargetMissing.set(false);
+          this.selectRound(selection);
+        } else {
+          this.notificationTargetMissing.set(true);
+        }
+      }
     } catch {
       if (version === this.pageVersion) this.roundLoadError.set(true);
     }

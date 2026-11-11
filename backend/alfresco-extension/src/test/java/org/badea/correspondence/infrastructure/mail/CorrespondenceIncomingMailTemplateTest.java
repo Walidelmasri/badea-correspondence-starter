@@ -54,6 +54,45 @@ class CorrespondenceIncomingMailTemplateTest {
         assertFalse(email.html().contains("quickshare"));
     }
 
+    @Test void everyWorkflowEmailLinksToItsSpecificAuthorizedView() {
+        String base = "https://tarasol.internal.badea.org/inbox";
+        String id = "11ee78a9-1234-4c01-a100-000000000117";
+        assertEquals(base + "?view=needs_action&pending=" + id,
+            CorrespondenceIncomingMailTemplate.caseLink(base, "MANAGER_REQUEST", id));
+        assertEquals(base + "?view=needs_action&round=" + id,
+            CorrespondenceIncomingMailTemplate.caseLink(base, "ROUND_REQUEST", id));
+        assertEquals(base + "?view=needs_action&round=" + id + "&unitCode=117",
+            CorrespondenceIncomingMailTemplate.caseLink(base, "ROUND_REQUEST", id, "117"));
+        assertTrue(CorrespondenceIncomingMailTemplate.renderWorkflow("ROUND_REQUEST", "ref",
+            "topic", null, CorrespondenceIncomingMailTemplate.caseLink(base, "ROUND_REQUEST",
+                id, "117")).html().contains("&amp;unitCode=117"));
+        assertEquals("https://tarasol.internal.badea.org/secretary/new?draft=" + id,
+            CorrespondenceIncomingMailTemplate.caseLink(base, "SECRETARY_RETURN", id));
+        assertEquals("https://tarasol.internal.badea.org/sent?open=" + id,
+            CorrespondenceIncomingMailTemplate.caseLink(base, "SECRETARY_APPROVED", id));
+        String incoming = CorrespondenceIncomingMailTemplate.caseLink(base, "INCOMING", id);
+        assertEquals(base + "?view=all&open=" + id, incoming);
+        var email = CorrespondenceIncomingMailTemplate.render("ref", "subject", incoming);
+        assertTrue(email.html().contains("view=all&amp;open=" + id));
+        assertTrue(email.plainText().contains("open=" + id));
+        var workflow = CorrespondenceIncomingMailTemplate.renderWorkflow("ROUND_REQUEST", null,
+            "Subject", null, CorrespondenceIncomingMailTemplate.caseLink(base, "ROUND_REQUEST", id));
+        assertFalse(workflow.html().contains("pending="));
+        assertTrue(workflow.html().contains("round=" + id));
+    }
+
+    @Test void notificationLinkRejectsUnsafeOrUnrelatedDestinations() {
+        String base = "https://tarasol.internal.badea.org/inbox";
+        assertThrows(IllegalArgumentException.class, () ->
+            CorrespondenceIncomingMailTemplate.caseLink(base, "INCOMING", "../login?token=stolen"));
+        assertThrows(IllegalArgumentException.class, () ->
+            CorrespondenceIncomingMailTemplate.caseLink("https://evil.example/inbox", "INCOMING",
+                "11ee78a9-1234-4c01-a100-000000000117"));
+        assertThrows(IllegalArgumentException.class, () ->
+            CorrespondenceIncomingMailTemplate.caseLink(base, "UNKNOWN",
+                "11ee78a9-1234-4c01-a100-000000000117"));
+    }
+
     @Test void roundApprovalAndOfficeReturnUseExistingBilingualLayout() {
         var request = CorrespondenceIncomingMailTemplate.renderWorkflow("ROUND_REQUEST",
             null, "Cycle 3", null, null);

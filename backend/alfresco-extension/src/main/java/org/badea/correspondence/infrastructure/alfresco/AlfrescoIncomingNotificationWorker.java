@@ -154,16 +154,25 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                 LOG.log(Level.WARNING, "Could not resolve workflow notification recipients", unresolved);
                 continue;
             }
+            // NodeService reads must remain inside an Alfresco read transaction.
+            String technicalId = inTransaction(true, () -> text(event.correspondence(), "technicalId"));
+            String unitCode = event.department() == null
+                ? inTransaction(true, () -> text(event.correspondence(), "originDepartmentCode"))
+                : event.department().value();
             for (var recipient : matching) {
                 if (submitted >= MAX_SENDS_PER_SWEEP) break;
                 // Never create delivery markers or submit SMTP for blocked test recipients.
                 if (!deliveryPolicy.permits(recipient.email())) continue;
                 CorrespondenceIncomingMailTemplate.Rendered message;
                 try {
+                    // Every email points to its committed correspondence, never to a generic Inbox.
+                    // The destination remains protected by the normal Tarasol route/API guards.
+                    String destination = CorrespondenceIncomingMailTemplate.caseLink(
+                        inboxUrl, event.kind().name(), technicalId, unitCode);
                     message = event.kind() == Kind.INCOMING
-                        ? CorrespondenceIncomingMailTemplate.render(event.reference(), event.subject(), inboxUrl)
+                        ? CorrespondenceIncomingMailTemplate.render(event.reference(), event.subject(), destination)
                         : CorrespondenceIncomingMailTemplate.renderWorkflow(event.kind().name(),
-                            event.reference(), event.subject(), event.explanation(), inboxUrl);
+                            event.reference(), event.subject(), event.explanation(), destination);
                 } catch (IllegalArgumentException templateError) {
                     // Invalid site configuration must not consume a durable SMTP-attempt marker.
                     LOG.warning("Workflow email template could not be rendered; check internal Inbox URL");

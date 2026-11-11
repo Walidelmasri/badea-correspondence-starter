@@ -26,13 +26,13 @@ public final class CorrespondenceIncomingMailTemplate {
                 + "You have received correspondence for review or action.\n"
                 + "Reference: " + ref + "\nSubject: " + topic + "\n"
                 + (url == null ? "Open Tarasol, the BADEA correspondence application.\n"
-                        : "Open Inbox: " + url + "\n")
+                        : "Open Correspondence: " + url + "\n")
                 + "Sign in with your BADEA account. Do not forward this message.\n";
         String link = url == null
                 ? "<p style=\"color:#52675f\">افتح منصة المراسلات الداخلية / Open the internal correspondence application.</p>"
                 : "<p style=\"margin:22px 0\"><a href=\"" + escape(url)
                     + "\" style=\"background:#145749;color:white;display:inline-block;padding:12px 22px;"
-                    + "text-decoration:none;border-radius:5px\">فتح الوارد / Open Inbox</a></p>";
+                    + "text-decoration:none;border-radius:5px\">فتح المراسلة / Open Correspondence</a></p>";
         String html = "<!doctype html><html><head><meta charset=\"UTF-8\"></head>"
                 + "<body style=\"background:#f3f6f5;font-family:Arial,Tahoma,sans-serif;color:#19352f\">"
                 + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr><td align=\"center\">"
@@ -156,6 +156,38 @@ public final class CorrespondenceIncomingMailTemplate {
         return cleaned.length() > maximum ? cleaned.substring(0, maximum) + "…" : cleaned;
     }
 
+    /** Link to an existing authorized case or approval queue, never to an unprotected PDF. */
+    public static String caseLink(String configuredInbox, String eventKind, String technicalId) {
+        return caseLink(configuredInbox, eventKind, technicalId, null);
+    }
+
+    public static String caseLink(String configuredInbox, String eventKind,
+            String technicalId, String unitCode) {
+        String inbox = safeInternalHttps(configuredInbox);
+        if (inbox == null) return null;
+        if (technicalId == null || !technicalId.matches(
+                "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            throw new IllegalArgumentException("Notification correspondence ID is invalid");
+        }
+        String root = inbox.substring(0, inbox.length() - "/inbox".length());
+        String route = switch (eventKind) {
+            case "MANAGER_REQUEST" -> "/inbox?view=needs_action&pending=" + technicalId;
+            case "ROUND_REQUEST" -> "/inbox?view=needs_action&round=" + technicalId;
+            case "SECRETARY_RETURN" -> "/secretary/new?draft=" + technicalId;
+            case "SECRETARY_APPROVED", "ROUND_APPROVED" -> "/sent?open=" + technicalId;
+            case "INCOMING", "DEPARTMENT_MANAGER_RETURN", "DEPARTMENT_SECRETARIES", "ROUND_RETURN" ->
+                "/inbox?view=all&open=" + technicalId;
+            default -> throw new IllegalArgumentException("Unsupported notification link kind");
+        };
+        if (unitCode != null && !unitCode.isBlank()) {
+            if (!unitCode.matches("[0-9]{3,5}")) {
+                throw new IllegalArgumentException("Notification unit code is invalid");
+            }
+            route += "&unitCode=" + unitCode;
+        }
+        return root + route;
+    }
+
     private static String safeInternalHttps(String address) {
         if (address == null || address.isBlank()) return null;
         URI uri;
@@ -167,8 +199,21 @@ public final class CorrespondenceIncomingMailTemplate {
                 || uri.getRawUserInfo() != null || uri.getRawFragment() != null) {
             throw new IllegalArgumentException("Inbox URL must be BADEA HTTPS");
         }
-        if (uri.getRawQuery() != null || !uri.getPath().endsWith("/inbox")) {
-            throw new IllegalArgumentException("Inbox URL must point to the Inbox page");
+        // Only the notification routes produced by caseLink are accepted.
+        String path = uri.getPath();
+        String query = uri.getRawQuery();
+        boolean validBase = "/inbox".equals(path) && query == null;
+        String id = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+        boolean inboxCase = "/inbox".equals(path) && query != null && (
+            query.matches("view=all&open=" + id + "(&unitCode=[0-9]{3,5})?")
+            || query.matches("view=needs_action&pending=" + id + "(&unitCode=[0-9]{3,5})?")
+            || query.matches("view=needs_action&round=" + id + "(&unitCode=[0-9]{3,5})?"));
+        boolean sentCase = "/sent".equals(path) && query != null
+            && query.matches("open=" + id + "(&unitCode=[0-9]{3,5})?");
+        boolean returnedDraft = "/secretary/new".equals(path) && query != null
+            && query.matches("draft=" + id + "(&unitCode=[0-9]{3,5})?");
+        if (!(validBase || inboxCase || sentCase || returnedDraft)) {
+            throw new IllegalArgumentException("Notification URL must target an authorized Tarasol workspace");
         }
         return uri.toASCIIString();
     }

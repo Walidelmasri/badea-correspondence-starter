@@ -26,3 +26,22 @@ export function inboxViewFromQuery(value: string | null): 'all' | 'unread' | 'ne
       return 'needs_action';
   }
 }
+
+/** Find a deep-linked case using only the caller's existing authorized list API. */
+export async function findAuthorizedNotificationPage<T extends {
+  readonly items: readonly { readonly technicalId: string }[];
+  readonly total: number;
+  readonly offset: number;
+  readonly limit: number;
+}>(first: T, technicalId: string, fetchPage: (offset: number) => Promise<T>,
+  isCurrent: () => boolean): Promise<T> {
+  if (first.items.some(item => item.technicalId === technicalId)) return first;
+  const step = first.limit > 0 ? first.limit : MAILBOX_PAGE_SIZE;
+  for (let offset = first.offset + step; offset < first.total; offset += step) {
+    if (!isCurrent()) return first;
+    const next = await fetchPage(offset);
+    if (!isCurrent()) return first;
+    if (next.items.some(item => item.technicalId === technicalId)) return next;
+  }
+  return first;
+}

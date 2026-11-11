@@ -42,6 +42,8 @@ import {
   AuthSessionStore,
 } from './auth-session.store';
 
+import { AuthTabSessionHandoffService } from './auth-tab-session-handoff.service';
+
 /** A ticket request was rejected before any Tarasol authorization check. */
 export class AlfrescoCredentialsRejectedError extends Error {
   constructor() {
@@ -59,6 +61,9 @@ export class AuthService {
 
   private readonly session =
     inject(AuthSessionStore);
+
+  private readonly tabHandoff =
+    inject(AuthTabSessionHandoffService);
 
   private restoreRequest:
     Observable<boolean> | null = null;
@@ -133,17 +138,23 @@ export class AuthService {
       return of(true);
     }
 
-    if (!this.session.ticket()) {
-      return of(false);
-    }
-
     if (this.restoreRequest) {
       return this.restoreRequest;
     }
 
-    this.restoreRequest =
-      this.loadCurrentUser().pipe(
-        map(() => true),
+    // A link opened from Outlook creates another tab with empty sessionStorage.
+    // Ask an authenticated same-origin Tarasol tab for its ticket once, then
+    // validate it against Alfresco and the BADEA employee directory as usual.
+    const ticketSource = this.session.ticket()
+      ? of(this.session.ticket())
+      : this.tabHandoff.requestTicket();
+
+    this.restoreRequest = ticketSource.pipe(
+        switchMap(ticket => {
+          if (!ticket) return of(false);
+          if (!this.session.ticket()) this.session.setTicket(ticket);
+          return this.loadCurrentUser().pipe(map(() => true));
+        }),
 
         catchError(() => {
           this.session.clear();
