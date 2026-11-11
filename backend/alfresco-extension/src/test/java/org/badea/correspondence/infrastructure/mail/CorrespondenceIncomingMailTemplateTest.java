@@ -40,4 +40,31 @@ class CorrespondenceIncomingMailTemplateTest {
         org.junit.jupiter.api.Assertions.assertFalse(email.plainText().contains("@badea.org"));
     }
 
+
+    @Test void returnedWorkflowEmailIncludesReasonWithoutLeakingHtmlOrChangingBranding() {
+        var email = CorrespondenceIncomingMailTemplate.renderWorkflow("SECRETARY_RETURN",
+            "117/20261111/1", "<script>alert(1)</script>", "Needs <work> & review",
+            "https://tarasol.internal.badea.org/inbox");
+        assertTrue(email.html().contains("BADEA | تراسل · Tarasol"));
+        assertTrue(email.html().contains("أُعيدت مراسلتك للتعديل"));
+        assertTrue(email.html().contains("Needs &lt;work&gt; &amp; review"));
+        assertTrue(email.plainText().contains("Needs <work> & review"));
+        assertFalse(email.html().contains("<script>"));
+        assertTrue(email.html().contains("href=\"https://tarasol.internal.badea.org/inbox\""));
+        assertFalse(email.html().contains("quickshare"));
+    }
+
+    @Test void roundApprovalAndOfficeReturnUseExistingBilingualLayout() {
+        var request = CorrespondenceIncomingMailTemplate.renderWorkflow("ROUND_REQUEST",
+            null, "Cycle 3", null, null);
+        assertTrue(request.html().contains("بانتظار موافقتك"));
+        assertTrue(request.plainText().contains("Approval requested"));
+        assertFalse(request.html().contains("href=\""));
+        var office = CorrespondenceIncomingMailTemplate.renderWorkflow("DEPARTMENT_SECRETARIES",
+            "117/20261111/2", "Subject", "Office instruction", null);
+        assertTrue(office.html().contains("Office instruction"));
+        assertThrows(IllegalArgumentException.class, () ->
+            CorrespondenceIncomingMailTemplate.renderWorkflow("UNKNOWN", null, null, null, null));
+    }
+
 }

@@ -55,6 +55,18 @@ public final class TarasolEffectiveAccessReader {
         ORDER BY grant_row.UNIT_CODE
         """;
 
+    private static final String ACTIVE_UNIT_SECRETARIES_SQL = """
+        SELECT DISTINCT grant_row.SECRETARY_EMP_ID
+        FROM TARASOL_SECRETARY_ASSIGNMENTS grant_row
+        JOIN TARASOL_ORG_UNITS unit ON unit.UNIT_CODE = grant_row.UNIT_CODE
+        WHERE grant_row.UNIT_CODE = ?
+          AND unit.STATUS = 'A'
+          AND grant_row.REVOKED_AT IS NULL
+          AND grant_row.STARTS_AT <= SYSTIMESTAMP
+          AND (grant_row.ENDS_AT IS NULL OR grant_row.ENDS_AT > SYSTIMESTAMP)
+        ORDER BY grant_row.SECRETARY_EMP_ID
+        """;
+
     private static final String SECRETARY_SQL = """
         SELECT grant_row.SECRETARY_ASSIGNMENT_ID
         FROM TARASOL_SECRETARY_ASSIGNMENTS grant_row
@@ -164,6 +176,28 @@ public final class TarasolEffectiveAccessReader {
             return List.copyOf(result);
         } catch (SQLException failure) {
             throw new IllegalStateException("Tarasol secretary authorization unavailable", failure);
+        }
+    }
+
+    /** Recipient discovery only. Does not confer Alfresco gateway permissions. */
+    public List<EmployeeId> findCurrentSecretaryEmployeeIds(DepartmentCode unit) {
+        Objects.requireNonNull(unit, "unit");
+        List<EmployeeId> result = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(ACTIVE_UNIT_SECRETARIES_SQL)) {
+            statement.setQueryTimeout(8);
+            statement.setString(1, unit.value());
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    if (result.size() >= 100) {
+                        throw new IllegalStateException("Unusually large secretary assignment list");
+                    }
+                    result.add(new EmployeeId(rows.getString("SECRETARY_EMP_ID")));
+                }
+            }
+            return List.copyOf(result);
+        } catch (SQLException failure) {
+            throw new IllegalStateException("Tarasol secretary notification directory unavailable", failure);
         }
     }
 

@@ -881,6 +881,7 @@
     <constructor-arg ref="authorityService" />
     <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
     <constructor-arg ref="badeaCorrespondenceDepartmentDirectory" />
+    <constructor-arg ref="badeaTarasolEffectiveAccessReader" />
 </bean>
 <bean id="badeaCorrespondenceIncomingNotificationWorker"
       class="org.badea.correspondence.infrastructure.alfresco.AlfrescoIncomingNotificationWorker"
@@ -891,6 +892,8 @@
     <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_EMAIL_NOTIFICATIONS_ENABLED']}" />
     <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_EMAIL_START_AT']}" />
     <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_INBOX_HTTPS_URL']}" />
+    <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_EMAIL_DELIVERY_SCOPE']}" />
+    <constructor-arg value="#{systemEnvironment['BADEA_CORRESPONDENCE_EMAIL_ALLOWED_RECIPIENTS']}" />
 </bean>
 <bean id="badeaCorrespondenceShareService"
       class="org.badea.correspondence.application.CorrespondenceShareService"

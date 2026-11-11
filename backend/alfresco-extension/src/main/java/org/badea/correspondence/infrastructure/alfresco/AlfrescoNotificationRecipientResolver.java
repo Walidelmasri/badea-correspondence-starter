@@ -16,6 +16,8 @@ import org.badea.correspondence.directory.DirectoryUsername;
 import org.badea.correspondence.directory.EmployeeDirectory;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
+import org.badea.correspondence.organization.TarasolEffectiveAccessReader;
+import org.badea.correspondence.organization.TarasolSecretaryGroupPolicy;
 
 /**
  * Resolves possible notification recipients strictly from the existing
@@ -34,12 +36,20 @@ public final class AlfrescoNotificationRecipientResolver {
     private final AuthorityService authorities;
     private final EmployeeDirectory employees;
     private final DepartmentDirectory departments;
+    private final TarasolEffectiveAccessReader secretaryAssignments;
 
     public AlfrescoNotificationRecipientResolver(AuthorityService authorities,
             EmployeeDirectory employees, DepartmentDirectory departments) {
+        this(authorities, employees, departments, null);
+    }
+
+    public AlfrescoNotificationRecipientResolver(AuthorityService authorities,
+            EmployeeDirectory employees, DepartmentDirectory departments,
+            TarasolEffectiveAccessReader secretaryAssignments) {
         this.authorities = Objects.requireNonNull(authorities);
         this.employees = Objects.requireNonNull(employees);
         this.departments = Objects.requireNonNull(departments);
+        this.secretaryAssignments = secretaryAssignments;
     }
 
     public record Recipient(String employeeId, String username, String email,
@@ -58,6 +68,71 @@ public final class AlfrescoNotificationRecipientResolver {
                 username + "@badea.org", employee.nameEnglish(), employee.nameArabic()));
     }
 
+    /** An approval request is sent only to live managers, never the whole Office. */
+    public List<Recipient> resolveApprovalManagers(DepartmentCode unit,
+            CorrespondenceActorRole workspaceRole, String actorEmployeeId) {
+        Objects.requireNonNull(unit, "Approval unit required");
+        if (workspaceRole != CorrespondenceActorRole.DIRECTOR
+                && workspaceRole != CorrespondenceActorRole.PRESIDENT_OFFICE) {
+            throw new IllegalArgumentException("Invalid manager approval workspace");
+        }
+        String group = workspaceRole == CorrespondenceActorRole.PRESIDENT_OFFICE ? OFFICE : DIRECTORS;
+        return activeManagers(unit, group, actorEmployeeId);
+    }
+
+    /** Secretary return from Office is shared with this unit's actively assigned secretaries. */
+    public List<Recipient> resolveUnitSecretaries(DepartmentCode unit, String actorEmployeeId) {
+        Objects.requireNonNull(unit, "Recipient unit required");
+        if (secretaryAssignments == null) return List.of();
+        Set<String> gatewayUsers = normalizedGroupMembers(TarasolSecretaryGroupPolicy.AUTHORITY);
+        if (gatewayUsers.isEmpty()) return List.of();
+        Set<String> seen = new HashSet<>();
+        List<Recipient> recipients = new ArrayList<>();
+        for (EmployeeId id : secretaryAssignments.findCurrentSecretaryEmployeeIds(unit)) {
+            if (id.value().equals(actorEmployeeId) || !seen.add(id.value())) continue;
+            var found = employees.findActiveByEmployeeId(id);
+            if (found.isEmpty()) continue;
+            var person = found.get();
+            String username = person.username().value();
+            if (!gatewayUsers.contains(username) || !username.matches("[a-z0-9][a-z0-9._-]{0,63}")) continue;
+            recipients.add(new Recipient(id.value(), username, username + "@badea.org",
+                person.nameEnglish(), person.nameArabic()));
+        }
+        return recipients.stream().sorted(Comparator.comparing(Recipient::username)).toList();
+    }
+
+    private Set<String> normalizedGroupMembers(String group) {
+        Set<String> members = authorities.getContainedAuthorities(AuthorityType.USER, group, false);
+        if (members == null || members.isEmpty()) return Set.of();
+        if (members.size() > MAX_GROUP_MEMBERS)
+            throw new IllegalStateException("Correspondence notification group is unexpectedly large");
+        Set<String> eligible = new HashSet<>();
+        for (String member : members) {
+            if (member == null || !member.strip().matches("(?i)[a-z0-9][a-z0-9._-]{0,63}(@badea\\.org)?")) continue;
+            eligible.add(new DirectoryUsername(member).value());
+        }
+        return eligible;
+    }
+
+    private List<Recipient> activeManagers(DepartmentCode unit, String group, String actorEmployeeId) {
+        Set<String> eligibleUsernames = normalizedGroupMembers(group);
+        if (eligibleUsernames.isEmpty()) return List.of();
+        Set<String> uniqueIds = new HashSet<>();
+        List<Recipient> recipients = new ArrayList<>();
+        for (var managerId : departments.findActiveManagerEmployeeIds(unit)) {
+            if (!uniqueIds.add(managerId.value()) || managerId.value().equals(actorEmployeeId)) continue;
+            var found = employees.findActiveByEmployeeId(managerId);
+            if (found.isEmpty()) continue;
+            var person = found.get();
+            String username = person.username().value();
+            if (!eligibleUsernames.contains(username)
+                    || !username.matches("[a-z0-9][a-z0-9._-]{0,63}")) continue;
+            recipients.add(new Recipient(person.employeeId().value(), username,
+                    username + "@badea.org", person.nameEnglish(), person.nameArabic()));
+        }
+        return recipients.stream().sorted(Comparator.comparing(Recipient::username)).toList();
+    }
+
     public List<Recipient> resolve(CorrespondenceActorRole targetRole,
             DepartmentCode targetDepartment, String actorEmployeeId) {
         Objects.requireNonNull(targetRole, "Notification target role required");
@@ -74,35 +149,13 @@ public final class AlfrescoNotificationRecipientResolver {
             case SECRETARY, TARASOL_ADMIN, TARASOL_DELEGATE -> throw new IllegalArgumentException(
                 "Secretary notifications use specific employee IDs, not a workflow group");
         };
+        if (targetRole == CorrespondenceActorRole.DIRECTOR) {
+            return activeManagers(targetDepartment, DIRECTORS, actorEmployeeId);
+        }
         Set<String> members = authorities.getContainedAuthorities(AuthorityType.USER, group, false);
         if (members == null || members.isEmpty()) return List.of();
         if (members.size() > MAX_GROUP_MEMBERS) {
             throw new IllegalStateException("Correspondence notification group is unexpectedly large");
-        }
-        if (targetRole == CorrespondenceActorRole.DIRECTOR) {
-            // All active managers (including concurrent acting managers) receive the
-            // target-unit notification, but only if also in the Directors group.
-            Set<String> eligibleUsernames = new HashSet<>();
-            for (String member : members) {
-                if (member == null) continue;
-                String raw = member.strip();
-                if (!raw.matches("(?i)[a-z0-9][a-z0-9._-]{0,63}(@badea\\.org)?")) continue;
-                eligibleUsernames.add(new DirectoryUsername(raw).value());
-            }
-            Set<String> uniqueIds = new HashSet<>();
-            List<Recipient> recipients = new ArrayList<>();
-            for (var managerId : departments.findActiveManagerEmployeeIds(targetDepartment)) {
-                if (!uniqueIds.add(managerId.value()) || managerId.value().equals(actorEmployeeId)) continue;
-                var found = employees.findActiveByEmployeeId(managerId);
-                if (found.isEmpty()) continue;
-                var person = found.get();
-                String username = person.username().value();
-                if (!eligibleUsernames.contains(username)
-                        || !username.matches("[a-z0-9][a-z0-9._-]{0,63}")) continue;
-                recipients.add(new Recipient(person.employeeId().value(), username,
-                        username + "@badea.org", person.nameEnglish(), person.nameArabic()));
-            }
-            return recipients.stream().sorted(Comparator.comparing(Recipient::username)).toList();
         }
         Set<String> uniqueAccounts = new HashSet<>();
         Set<String> uniqueEmployeeIds = new HashSet<>();

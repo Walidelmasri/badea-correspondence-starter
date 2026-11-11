@@ -107,4 +107,18 @@ class TarasolEffectiveAccessReaderTest {
         when(ds.getConnection()).thenThrow(new SQLException("database offline"));
         assertThrows(IllegalStateException.class, () -> reader.hasActiveSecretaryAssignment(actor, unit));
     }
+
+    @Test void notificationSecretaryDirectoryUsesActiveUnitGrantsNotManagerAssignments() throws SQLException {
+        when(rows.next()).thenReturn(true, true, false);
+        when(rows.getString("SECRETARY_EMP_ID")).thenReturn("00123", "00456");
+        assertEquals(java.util.List.of("00123", "00456"),
+            reader.findCurrentSecretaryEmployeeIds(unit).stream().map(EmployeeId::value).toList());
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(connection).prepareStatement(sql.capture());
+        assertTrue(sql.getValue().contains("grant_row.REVOKED_AT IS NULL"));
+        assertTrue(sql.getValue().contains("grant_row.ENDS_AT"));
+        assertFalse(sql.getValue().contains("MANAGER_ASSIGNMENT_ID"));
+        verify(statement).setString(1, "118");
+    }
+
 }

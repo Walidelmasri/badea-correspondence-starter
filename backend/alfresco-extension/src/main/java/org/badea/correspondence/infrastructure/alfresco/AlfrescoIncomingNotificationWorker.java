@@ -27,6 +27,7 @@ import org.alfresco.service.transaction.TransactionService;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.infrastructure.mail.CorrespondenceIncomingMailTemplate;
 import org.badea.correspondence.infrastructure.mail.SmtpShareMailSender;
+import org.badea.correspondence.infrastructure.mail.WorkflowEmailDeliveryPolicy;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
@@ -50,6 +51,8 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
     private static final QName TYPE_ACTION = q("workflowAction");
     private static final QName TYPE_ASSIGNMENT = q("departmentAssignment");
     private static final QName TYPE_DELIVERY = q("mailDeliveryReceipt");
+    private static final QName TYPE_ROUND_REQUEST = q("secretaryRoundTwoRequest");
+    private static final QName TYPE_ROUND_EVENT = q("secretaryRoundTwoDecisionEvent");
     private static final QName PROP_KEY = q("mailDeliveryKey");
     private static final QName PROP_EMPLOYEE = q("mailRecipientEmployeeId");
     private static final QName PROP_STATUS = q("mailDeliveryStatus");
@@ -64,19 +67,37 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
     private final boolean enabled;
     private final Instant activatedAt;
     private final String inboxUrl;
+    private final WorkflowEmailDeliveryPolicy deliveryPolicy;
     private ScheduledExecutorService scheduler;
 
     public AlfrescoIncomingNotificationWorker(NodeService nodes, CorrespondenceFolderLocator folders,
             TransactionService transactions, String enabledFlag, String activation, String inboxUrl) {
+        this(nodes, folders, transactions, enabledFlag, activation, inboxUrl, null, null);
+    }
+
+    public AlfrescoIncomingNotificationWorker(NodeService nodes, CorrespondenceFolderLocator folders,
+            TransactionService transactions, String enabledFlag, String activation, String inboxUrl,
+            String deliveryScope, String allowedRecipients) {
         this.nodes = Objects.requireNonNull(nodes);
         this.folders = Objects.requireNonNull(folders);
         this.transactions = Objects.requireNonNull(transactions);
-        this.enabled = "true".equalsIgnoreCase(enabledFlag);
-        if (enabled && (activation == null || activation.isBlank())) {
+        boolean requested = "true".equalsIgnoreCase(enabledFlag);
+        if (requested && (activation == null || activation.isBlank())) {
             throw new IllegalArgumentException("Notification activation instant is required when enabled");
         }
-        this.activatedAt = enabled ? Instant.parse(activation) : Instant.MAX;
+        this.activatedAt = requested ? Instant.parse(activation) : Instant.MAX;
         this.inboxUrl = inboxUrl;
+        WorkflowEmailDeliveryPolicy policy = WorkflowEmailDeliveryPolicy.disabled();
+        if (requested) {
+            try {
+                policy = WorkflowEmailDeliveryPolicy.parse(deliveryScope, allowedRecipients);
+            } catch (IllegalArgumentException unsafe) {
+                // An omitted/wrong allowlist must not email the President or prevent Alfresco startup.
+                LOG.log(Level.SEVERE, "Automatic workflow email is OFF: recipient scope is not safely configured", unsafe);
+            }
+        }
+        this.deliveryPolicy = policy;
+        this.enabled = requested && policy.scope() != WorkflowEmailDeliveryPolicy.Scope.DISABLED;
     }
 
     @Override public void setApplicationContext(ApplicationContext context) throws BeansException {
@@ -91,7 +112,7 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
             return thread;
         });
         scheduler.scheduleWithFixedDelay(this::safeSweep, 60, 120, TimeUnit.SECONDS);
-        LOG.info("BADEA incoming email notifications enabled (post-commit scan)");
+        LOG.info("BADEA workflow email notifications enabled (post-commit scan; scope=" + deliveryPolicy.scope() + ")");
     }
 
     public synchronized void stop() {
@@ -119,24 +140,38 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
             if (submitted >= MAX_SENDS_PER_SWEEP) break;
             List<AlfrescoNotificationRecipientResolver.Recipient> matching;
             try {
-                matching = event.role() == CorrespondenceActorRole.SECRETARY
-                    ? recipients.resolveSpecificEmployee(event.targetEmployeeId(), event.actorEmployeeId())
-                    : recipients.resolve(event.role(), event.department(), event.actorEmployeeId());
-            }
-            catch (RuntimeException unresolved) {
-                LOG.log(Level.WARNING, "Could not resolve incoming notification recipients", unresolved);
+                matching = switch (event.kind()) {
+                    case SECRETARY_RETURN, SECRETARY_APPROVED, ROUND_RETURN, ROUND_APPROVED ->
+                        recipients.resolveSpecificEmployee(event.targetEmployeeId(), event.actorEmployeeId());
+                    case DEPARTMENT_SECRETARIES ->
+                        recipients.resolveUnitSecretaries(event.department(), event.actorEmployeeId());
+                    case MANAGER_REQUEST, ROUND_REQUEST ->
+                        recipients.resolveApprovalManagers(event.department(), event.role(), event.actorEmployeeId());
+                    case INCOMING, DEPARTMENT_MANAGER_RETURN ->
+                        recipients.resolve(event.role(), event.department(), event.actorEmployeeId());
+                };
+            } catch (RuntimeException unresolved) {
+                LOG.log(Level.WARNING, "Could not resolve workflow notification recipients", unresolved);
                 continue;
             }
             for (var recipient : matching) {
                 if (submitted >= MAX_SENDS_PER_SWEEP) break;
+                // Never create delivery markers or submit SMTP for blocked test recipients.
+                if (!deliveryPolicy.permits(recipient.email())) continue;
+                CorrespondenceIncomingMailTemplate.Rendered message;
+                try {
+                    message = event.kind() == Kind.INCOMING
+                        ? CorrespondenceIncomingMailTemplate.render(event.reference(), event.subject(), inboxUrl)
+                        : CorrespondenceIncomingMailTemplate.renderWorkflow(event.kind().name(),
+                            event.reference(), event.subject(), event.explanation(), inboxUrl);
+                } catch (IllegalArgumentException templateError) {
+                    // Invalid site configuration must not consume a durable SMTP-attempt marker.
+                    LOG.warning("Workflow email template could not be rendered; check internal Inbox URL");
+                    continue;
+                }
                 if (!inTransaction(false, () -> claim(event, recipient.employeeId()))) continue;
                 submitted++;
                 try {
-                    var message = event.role() == CorrespondenceActorRole.SECRETARY
-                        ? CorrespondenceIncomingMailTemplate.renderSecretaryStatus(
-                            "RETURN".equals(event.secretaryStatus()), event.subject())
-                        : CorrespondenceIncomingMailTemplate.render(event.reference(),
-                            event.subject(), inboxUrl);
                     smtp.send(recipient.email(), message.subject(), message.plainText(), message.html());
                     inTransaction(false, () -> { update(event, recipient.employeeId(), "SENT"); return null; });
                 } catch (RuntimeException failure) {
@@ -152,7 +187,7 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
         }
     }
 
-    private List<Event> findCommittedEvents() {
+    List<Event> findCommittedEvents() {
         NodeRef root = folders.locateCorrespondenceRoot();
         List<Event> found = new ArrayList<>();
         int scanned = 0;
@@ -167,47 +202,76 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                 }
                 String subject = text(correspondence, "subject");
                 String reference = text(correspondence, "documentNumber");
-                for (ChildAssociationRef childAssoc : nodes.getChildAssocs(correspondence)) {
+                List<ChildAssociationRef> children = nodes.getChildAssocs(correspondence);
+                Map<String, NodeRef> roundRequests = new HashMap<>();
+                for (ChildAssociationRef association : children) {
+                    NodeRef child = association.getChildRef();
+                    if (TYPE_ROUND_REQUEST.equals(nodes.getType(child))) {
+                        String id = text(child, "roundTwoRequestId");
+                        if (id != null) roundRequests.put(id, child);
+                    }
+                }
+                for (ChildAssociationRef childAssoc : children) {
                     NodeRef child = childAssoc.getChildRef();
                     QName type = nodes.getType(child);
                     if (TYPE_ACTION.equals(type)) {
                         Instant time = instant(child, "actedAt");
                         if (time == null || time.isBefore(activatedAt)) continue;
+                        String action = text(child, "actionType");
                         String target = text(child, "targetRole");
                         CorrespondenceActorRole role;
                         try { role = target == null ? null : CorrespondenceActorRole.valueOf(target); }
                         catch (IllegalArgumentException invalid) { continue; }
-                        if (role == null) continue;
+                        if (role == null || "REVISE_SECRETARY_DRAFT".equals(action)
+                                || "COMPLETE_DEPARTMENT_ASSIGNMENT".equals(action)) continue;
                         String rawDepartment = text(child, "targetDepartmentCode");
-                        String targetedEmployee = null;
-                        if (role == CorrespondenceActorRole.SECRETARY) {
-                            // Only a persisted manager return can trigger a private
-                            // secretary notification; never infer a recipient from a role.
-                            if (!"RETURN_TO_SECRETARY".equals(text(child, "actionType"))) continue;
-                            targetedEmployee = text(child, "targetEmployeeId");
-                            if (targetedEmployee == null || rawDepartment != null) continue;
-                        } else {
-                            if (role == CorrespondenceActorRole.DIRECTOR && rawDepartment == null) continue;
-                            if (role != CorrespondenceActorRole.DIRECTOR && rawDepartment != null) continue;
+                        String actor = text(child, "actorEmployeeId");
+                        String explanation = text(child, "explanation");
+                        if ("SUBMIT_FOR_MANAGER_APPROVAL".equals(action)) {
+                            if (role != CorrespondenceActorRole.DIRECTOR
+                                    && role != CorrespondenceActorRole.PRESIDENT_OFFICE) continue;
+                            if (rawDepartment == null && role == CorrespondenceActorRole.PRESIDENT_OFFICE) {
+                                // Office secretary submissions use their originating unit (101).
+                                rawDepartment = text(correspondence, "originDepartmentCode");
+                            }
+                            if (rawDepartment == null) continue;
+                            found.add(new Event(correspondence, "ACTION-" + child.getId(),
+                                Kind.MANAGER_REQUEST, role, new DepartmentCode(rawDepartment),
+                                actor, null, reference, subject, null));
+                            continue;
                         }
-                        found.add(new Event(correspondence, "ACTION-" + child.getId(), role,
-                                rawDepartment == null ? null : new DepartmentCode(rawDepartment),
-                                text(child, "actorEmployeeId"), targetedEmployee,
-                                role == CorrespondenceActorRole.SECRETARY ? "RETURN" : null,
-                                reference, subject));
-                        // A completed approval already has an immutable SEND action.
-                        // Generate one additional targeted email event without
-                        // creating any new workflow action or changing history.
+                        if (role == CorrespondenceActorRole.SECRETARY) {
+                            if (!"RETURN_TO_SECRETARY".equals(action) || rawDepartment != null) continue;
+                            String owner = text(child, "targetEmployeeId");
+                            if (owner == null) continue;
+                            found.add(new Event(correspondence, "ACTION-" + child.getId(),
+                                Kind.SECRETARY_RETURN, role, null, actor, owner,
+                                reference, subject, explanation));
+                            continue;
+                        }
+                        if (role == CorrespondenceActorRole.DIRECTOR && rawDepartment == null) continue;
+                        if (role != CorrespondenceActorRole.DIRECTOR && rawDepartment != null) continue;
+                        boolean officeReturn = "SEND_TO_DIRECTOR".equals(action)
+                            && role == CorrespondenceActorRole.DIRECTOR
+                            && "PRESIDENT_OFFICE".equals(text(child, "actorRole"));
+                        found.add(new Event(correspondence, "ACTION-" + child.getId(),
+                            officeReturn ? Kind.DEPARTMENT_MANAGER_RETURN : Kind.INCOMING, role,
+                            rawDepartment == null ? null : new DepartmentCode(rawDepartment),
+                            actor, null, reference, subject, explanation));
+                        if (officeReturn) {
+                            found.add(new Event(correspondence, "OFFICE-SECRETARIES-" + child.getId(),
+                                Kind.DEPARTMENT_SECRETARIES, role, new DepartmentCode(rawDepartment),
+                                actor, null, reference, subject, explanation));
+                        }
                         if ("DRAFT".equals(text(child, "fromState"))
                                 && "APPROVED".equals(text(correspondence, "secretaryApprovalStatus"))
-                                && ("SEND_TO_PRESIDENT".equals(text(child, "actionType"))
-                                    || "SEND_TO_OFFICE".equals(text(child, "actionType")))) {
-                            String secretaryOwner = text(correspondence, "secretaryOwnerEmployeeId");
-                            if (secretaryOwner != null) {
+                                && ("SEND_TO_PRESIDENT".equals(action) || "SEND_TO_OFFICE".equals(action))) {
+                            String owner = text(correspondence, "secretaryOwnerEmployeeId");
+                            if (owner != null) {
                                 found.add(new Event(correspondence,
-                                    "SECRETARY-APPROVED-" + child.getId(), CorrespondenceActorRole.SECRETARY,
-                                    null, text(child, "actorEmployeeId"), secretaryOwner,
-                                    "APPROVED", reference, subject));
+                                    "SECRETARY-APPROVED-" + child.getId(), Kind.SECRETARY_APPROVED,
+                                    CorrespondenceActorRole.SECRETARY, null, actor, owner,
+                                    reference, subject, null));
                             }
                         }
                     } else if (TYPE_ASSIGNMENT.equals(type)) {
@@ -216,9 +280,43 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                         String department = text(child, "assignmentDepartmentCode");
                         String typeName = text(child, "assignmentRecipientType");
                         if (department == null || !("TO".equals(typeName) || "COPY".equals(typeName))) continue;
+                        DepartmentCode unit = new DepartmentCode(department);
+                        String actor = text(child, "assignmentByEmployeeId");
                         found.add(new Event(correspondence, "ASSIGNMENT-" + child.getId(),
-                                CorrespondenceActorRole.DIRECTOR, new DepartmentCode(department),
-                                text(child, "assignmentByEmployeeId"), null, null, reference, subject));
+                            Kind.INCOMING, CorrespondenceActorRole.DIRECTOR, unit,
+                            actor, null, reference, subject, null));
+                        if ("TO".equals(typeName)) {
+                            found.add(new Event(correspondence, "ASSIGNMENT-SECRETARIES-" + child.getId(),
+                                Kind.DEPARTMENT_SECRETARIES, CorrespondenceActorRole.DIRECTOR, unit,
+                                actor, null, reference, subject, null));
+                        }
+                    } else if (TYPE_ROUND_EVENT.equals(type)) {
+                        Instant time = instant(child, "roundTwoDecisionAt");
+                        if (time == null || time.isBefore(activatedAt)) continue;
+                        String id = text(child, "roundTwoDecisionRequestId");
+                        NodeRef request = roundRequests.get(id);
+                        if (request == null) continue;
+                        String unitText = text(request, "roundTwoRequestUnit");
+                        String owner = text(request, "roundTwoRequestOwner");
+                        String action = text(child, "roundTwoDecisionAction");
+                        if (unitText == null || owner == null) continue;
+                        Kind kind = switch (action == null ? "" : action) {
+                            case "SUBMITTED", "RESUBMITTED" -> Kind.ROUND_REQUEST;
+                            case "RETURNED" -> Kind.ROUND_RETURN;
+                            case "APPROVED" -> Kind.ROUND_APPROVED;
+                            default -> null;
+                        };
+                        if (kind == null) continue; // PREPARING/REVISED never generates mail.
+                        String actor = text(child, "roundTwoDecisionActor");
+                        DepartmentCode unit = new DepartmentCode(unitText);
+                        found.add(new Event(correspondence, "ROUND-" + child.getId(),
+                            kind, kind == Kind.ROUND_REQUEST
+                                ? ("101".equals(unit.value()) ? CorrespondenceActorRole.PRESIDENT_OFFICE
+                                    : CorrespondenceActorRole.DIRECTOR)
+                                : CorrespondenceActorRole.SECRETARY,
+                            kind == Kind.ROUND_REQUEST ? unit : null,
+                            actor, kind == Kind.ROUND_REQUEST ? null : owner,
+                            reference, subject, text(child, "roundTwoDecisionReason")));
                     }
                 }
             }
@@ -284,7 +382,14 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
 
     private static QName q(String name) { return QName.createQName(NS, name); }
 
-    private record Event(NodeRef correspondence, String eventKey, CorrespondenceActorRole role,
-            DepartmentCode department, String actorEmployeeId, String targetEmployeeId,
-            String secretaryStatus, String reference, String subject) { }
+    enum Kind {
+        INCOMING, MANAGER_REQUEST, SECRETARY_RETURN, SECRETARY_APPROVED,
+        DEPARTMENT_SECRETARIES, DEPARTMENT_MANAGER_RETURN,
+        ROUND_REQUEST, ROUND_RETURN, ROUND_APPROVED
+    }
+
+    record Event(NodeRef correspondence, String eventKey, Kind kind,
+            CorrespondenceActorRole role, DepartmentCode department,
+            String actorEmployeeId, String targetEmployeeId,
+            String reference, String subject, String explanation) { }
 }

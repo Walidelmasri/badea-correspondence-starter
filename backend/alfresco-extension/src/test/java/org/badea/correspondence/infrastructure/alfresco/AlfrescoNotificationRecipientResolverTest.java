@@ -16,6 +16,7 @@ import org.badea.correspondence.directory.EmployeeDirectory;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
+import org.badea.correspondence.organization.TarasolEffectiveAccessReader;
 import org.junit.jupiter.api.Test;
 
 class AlfrescoNotificationRecipientResolverTest {
@@ -150,4 +151,38 @@ class AlfrescoNotificationRecipientResolverTest {
         assertTrue(resolver.resolve(CorrespondenceActorRole.DIRECTOR,
                 new DepartmentCode("117"), "200").isEmpty());
     }
+
+    @Test void officeSecretaryApprovalGoesOnlyToActiveOfficeManager() {
+        group("PRESIDENT_OFFICE", "beilahi", "office.staff");
+        when(departments.findActiveManagerEmployeeIds(new DepartmentCode("101")))
+            .thenReturn(List.of(new EmployeeId("41")));
+        when(directory.findActiveByEmployeeId(new EmployeeId("41")))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("41"),
+                new DirectoryUsername("beilahi"), "Beilahi", null, Optional.empty())));
+        var eligible = resolver.resolveApprovalManagers(new DepartmentCode("101"),
+            CorrespondenceActorRole.PRESIDENT_OFFICE, "99");
+        assertEquals(List.of("beilahi@badea.org"), eligible.stream().map(
+            AlfrescoNotificationRecipientResolver.Recipient::email).toList());
+        verify(directory, never()).findActiveByUsername(new DirectoryUsername("office.staff"));
+    }
+
+    @Test void officeReturnNotifiesOnlyActiveAssignedSecretariesAlsoInGatewayGroup() {
+        var active = mock(TarasolEffectiveAccessReader.class);
+        var scoped = new AlfrescoNotificationRecipientResolver(groups, directory, departments, active);
+        group("SECRETARIES", "walid.salem", "another.secretary");
+        when(active.findCurrentSecretaryEmployeeIds(new DepartmentCode("117")))
+            .thenReturn(List.of(new EmployeeId("100"), new EmployeeId("200")));
+        when(directory.findActiveByEmployeeId(new EmployeeId("100")))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("100"),
+                new DirectoryUsername("walid.salem"), "Walid", null, Optional.empty())));
+        when(directory.findActiveByEmployeeId(new EmployeeId("200")))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("200"),
+                new DirectoryUsername("unassigned.user"), "Other", null, Optional.empty())));
+        var eligible = scoped.resolveUnitSecretaries(new DepartmentCode("117"), "300");
+        assertEquals(List.of("walid.salem@badea.org"), eligible.stream().map(
+            AlfrescoNotificationRecipientResolver.Recipient::email).toList());
+        assertTrue(scoped.resolveUnitSecretaries(new DepartmentCode("117"), "100").isEmpty());
+        verify(active, times(2)).findCurrentSecretaryEmployeeIds(new DepartmentCode("117"));
+    }
+
 }

@@ -81,6 +81,75 @@ public final class CorrespondenceIncomingMailTemplate {
         return new Rendered(subject, plain, html);
     }
 
+    /** Existing BADEA bilingual layout, with action-specific text from committed events. */
+    public static Rendered renderWorkflow(String eventKind, String reference,
+            String correspondenceSubject, String explanation, String secureInboxUrl) {
+        String ref = shorten(reference, 100, "Pending reference");
+        String topic = shorten(correspondenceSubject, 180, "Correspondence");
+        String reason = explanation == null || explanation.isBlank()
+            ? null : shorten(explanation, 1800, "");
+        String url = safeInternalHttps(secureInboxUrl);
+        Notice notice = switch (eventKind) {
+            case "MANAGER_REQUEST", "ROUND_REQUEST" -> new Notice(
+                "Approval requested", "مراسلة بانتظار موافقتك",
+                "A secretary submission is awaiting your review and approval.",
+                "مراسلة مقدمة من السكرتارية بانتظار مراجعتك وموافقتك.");
+            case "SECRETARY_RETURN", "ROUND_RETURN" -> new Notice(
+                "Returned for revision", "أُعيدت مراسلتك للتعديل",
+                "The manager returned your correspondence for revision.",
+                "أعاد المدير مراسلتك للتعديل. يرجى مراجعة سبب الإرجاع.");
+            case "SECRETARY_APPROVED", "ROUND_APPROVED" -> new Notice(
+                "Correspondence approved", "تمت الموافقة على مراسلتك",
+                "The manager approved your correspondence.",
+                "وافق المدير على مراسلتك.");
+            case "DEPARTMENT_MANAGER_RETURN" -> new Notice(
+                "Correspondence returned to your department", "مراسلة معادة إلى إدارتك",
+                "President's Office returned correspondence to your department for action.",
+                "أعاد مكتب الرئيس المراسلة إلى إدارتك لاتخاذ الإجراء المطلوب.");
+            case "DEPARTMENT_SECRETARIES" -> new Notice(
+                "Departmental correspondence received", "مراسلة واردة إلى إدارتك",
+                "Correspondence was sent to your department. Review the instructions and follow up when eligible.",
+                "وردت مراسلة إلى إدارتك. يرجى مراجعة التوجيهات والمتابعة عند إتاحة الإجراء.");
+            default -> throw new IllegalArgumentException("Unsupported workflow notification event");
+        };
+        String subject = "Tarasol | " + notice.englishHeading();
+        String reasonPlain = reason == null ? "" : "\nسبب الإرجاع / التفاصيل: " + reason
+            + "\nReturn reason / explanation: " + reason;
+        String plain = "تراسل | " + notice.arabicHeading() + "\n" + notice.arabicBody()
+            + "\nالرقم المرجعي: " + ref + "\nالموضوع: " + topic + reasonPlain
+            + "\n\nTarasol | " + notice.englishHeading() + "\n" + notice.englishBody()
+            + "\nReference: " + ref + "\nSubject: " + topic
+            + (url == null ? "\nOpen Tarasol using your BADEA account." : "\nOpen Inbox: " + url)
+            + "\nDo not forward this internal notification.\n";
+        String reasonHtmlAr = reason == null ? "" : "<p><b>سبب الإرجاع / التفاصيل:</b> " + escape(reason) + "</p>";
+        String reasonHtmlEn = reason == null ? "" : "<p><b>Return reason / explanation:</b> " + escape(reason) + "</p>";
+        String link = url == null
+            ? "<p style=\"color:#52675f\">افتح منصة المراسلات الداخلية / Open Tarasol.</p>"
+            : "<p style=\"margin:22px 0\"><a href=\"" + escape(url)
+                + "\" style=\"background:#145749;color:white;display:inline-block;padding:12px 22px;"
+                + "text-decoration:none;border-radius:5px\">فتح المراسلة / Open Correspondence</a></p>";
+        String html = "<!doctype html><html><head><meta charset=\"UTF-8\"></head>"
+            + "<body style=\"background:#f3f6f5;font-family:Arial,Tahoma,sans-serif;color:#19352f\">"
+            + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr><td align=\"center\">"
+            + "<table role=\"presentation\" width=\"600\" style=\"max-width:100%;background:white;border:1px solid #dbe6e1\">"
+            + "<tr><td style=\"padding:23px 30px;background:#145749;color:white;font-size:20px;font-weight:bold\">"
+            + "BADEA | تراسل · Tarasol</td></tr><tr><td style=\"padding:28px 30px\">"
+            + "<div dir=\"rtl\" style=\"text-align:right;line-height:1.8\">"
+            + "<h2>" + escape(notice.arabicHeading()) + "</h2><p>" + escape(notice.arabicBody()) + "</p>"
+            + "<p><b>الرقم المرجعي:</b> " + escape(ref) + "</p><p><b>الموضوع:</b> " + escape(topic) + "</p>"
+            + reasonHtmlAr + "</div><hr style=\"border:0;border-top:1px solid #dbe6e1;margin:22px 0\">"
+            + "<div dir=\"ltr\"><h2>" + escape(notice.englishHeading()) + "</h2>"
+            + "<p>" + escape(notice.englishBody()) + "</p><p><b>Reference:</b> " + escape(ref)
+            + "</p><p><b>Subject:</b> " + escape(topic) + "</p>" + reasonHtmlEn + "</div>"
+            + link + "</td></tr><tr><td style=\"background:#f3f6f5;padding:18px 30px;color:#53645f;font-size:12px\">"
+            + "BADEA internal correspondence. Sign in to view the document. Do not forward."
+            + "</td></tr></table></td></tr></table></body></html>";
+        return new Rendered(subject, plain, html);
+    }
+
+    private record Notice(String englishHeading, String arabicHeading,
+            String englishBody, String arabicBody) { }
+
     private static String shorten(String value, int maximum, String fallback) {
         if (value == null || value.isBlank()) return fallback;
         String cleaned = value.strip().replaceAll("[\\p{Cntrl}]", " ");

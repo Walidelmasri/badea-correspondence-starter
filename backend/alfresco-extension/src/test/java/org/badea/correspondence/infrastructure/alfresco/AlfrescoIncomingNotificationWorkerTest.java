@@ -31,4 +31,17 @@ class AlfrescoIncomingNotificationWorkerTest {
                 new AlfrescoIncomingNotificationWorker(nodes, folders, tx,
                         "true", "not-a-date", null));
     }
+
+    @Test void invalidOrMissingDeliveryScopeLeavesNotificationsDisabledWithoutTouchingRepository() {
+        for (String scope : new String[] {"", "ALL", "DISABLED"}) {
+            var worker = new AlfrescoIncomingNotificationWorker(nodes, folders, tx, "true",
+                "2026-11-11T12:00:00Z", "https://tarasol.internal.badea.org/inbox",
+                scope, "walid.salem@badea.org,beilahi@badea.org");
+            assertDoesNotThrow(worker::start);
+            assertDoesNotThrow(worker::sweep);
+            worker.stop();
+        }
+        verifyNoInteractions(nodes, folders, tx);
+    }
+
 }
