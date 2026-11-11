@@ -64,15 +64,15 @@ final class CorrespondenceShareServiceTest {
         verifyNoInteractions(smtp, directory);
     }
 
-    @Test void refusesNewSharingOfArchivedCorrespondence() {
+    @Test void authorizedArchivedPdfCanBeSharedWithoutWorkflowStateRestriction() {
         when(details.getDetails(eq(TECH_ID), eq(CorrespondenceActorRole.DIRECTOR), isNull(), eq("100")))
                 .thenReturn(new CorrespondenceDetails(TECH_ID, CorrespondenceState.ARCHIVED,
                         "Test", "", "117/20261025/1", null, null, "117", "Sender", null,
                         List.of(new CorrespondenceDocument(NODE_ID, "Letter.pdf", "application/pdf", 400))));
-        assertThrows(org.badea.correspondence.security.CorrespondenceAuthorizationException.class,
-                () -> service.createLink(TECH_ID, NODE_ID,
-                        CorrespondenceActorRole.DIRECTOR, null, "100"));
-        verifyNoInteractions(links, smtp);
+        when(links.getOrCreate(NODE_ID)).thenReturn("archived_link_123");
+        assertEquals("archived_link_123", service.createLink(TECH_ID, NODE_ID,
+                CorrespondenceActorRole.DIRECTOR, null, "100").sharedId());
+        verifyNoInteractions(smtp);
     }
 
     @Test void rejectsUntrustedUsernameAndMissingEmployeeWithoutMailing() {

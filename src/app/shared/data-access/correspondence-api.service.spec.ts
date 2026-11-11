@@ -100,10 +100,11 @@ describe('CorrespondenceApiService', () => {
   });
 
   it('searches active employees and retrieves an existing share without creating one', () => {
-    service.searchShareRecipients('ali').subscribe(result => {
+    service.searchShareRecipients('ali', 'case-1').subscribe(result => {
       expect(result.employees[0].username).toBe('ali.amin');
     });
-    const find = http.expectOne('/alfresco/service/badea/correspondence-share/recipients?q=ali');
+    const find = http.expectOne(req => req.url === '/alfresco/service/badea/correspondence-share/recipients'
+      && req.params.get('q') === 'ali' && req.params.get('technicalId') === 'case-1');
     expect(find.request.method).toBe('GET');
     find.flush({ employees: [{ username: 'ali.amin', nameEnglish: 'Ali', nameArabic: null }] });
 
@@ -125,16 +126,25 @@ describe('CorrespondenceApiService', () => {
     req.flush({ available: false });
   });
 
-  it('sends one selected-document batch with one recipient and optional message', () => {
-    service.sendShareBatchEmail('technical-id', ['node-one', 'node-two'], 'staff.member', 'Review').subscribe(result => {
+  it('sends one document batch to multiple recipients with optional secretary scope', () => {
+    service.sendShareBatchEmail('technical-id', ['node-one', 'node-two'],
+      ['staff.member', 'other.person'], 'Review', {unitCode: '117', box: 'sent'}).subscribe(result => {
       expect(result.status).toBe('submitted');
       expect(result.links.length).toBe(2);
     });
-    const req = http.expectOne('/alfresco/service/badea/correspondence-share/technical-id/email-batch');
+    const req = http.expectOne(request =>
+      request.url === '/alfresco/service/badea/correspondence-share/technical-id/email-batch' &&
+      request.params.get('shareSecretaryUnit') === '117' &&
+      request.params.get('shareSecretaryBox') === 'sent');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ nodeIds: ['node-one', 'node-two'],
-      recipientUsername: 'staff.member', message: 'Review' });
-    req.flush({ status: 'submitted', recipient: 'staff.member@badea.org', recipientName: 'Staff Member',
+      recipientUsernames: ['staff.member', 'other.person'], message: 'Review' });
+    expect(req.request.params.get('shareSecretaryUnit')).toBe('117');
+    expect(req.request.params.get('shareSecretaryBox')).toBe('sent');
+    req.flush({ status: 'submitted', recipients: [
+        {recipient: 'staff.member@badea.org', recipientName: 'Staff Member', smtpAccepted: true},
+        {recipient: 'other.person@badea.org', recipientName: 'Other Person', smtpAccepted: true},
+      ],
       links: [{ nodeId: 'node-one', sharedId: 'abc123', filename: 'A.pdf', url: 'https://example.test/abc123' },
               { nodeId: 'node-two', sharedId: 'def456', filename: 'B.pdf', url: 'https://example.test/def456' }] });
   });

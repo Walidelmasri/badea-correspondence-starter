@@ -209,10 +209,17 @@ export interface ExistingCorrespondenceShareLink {
   readonly filename?: string;
 }
 export interface BatchShareEmailResult {
-  readonly status: 'submitted';
-  readonly recipient: string;
-  readonly recipientName: string;
+  readonly status: 'submitted' | 'partial_or_uncertain';
+  readonly recipients: readonly {
+    readonly recipient: string;
+    readonly recipientName: string;
+    readonly smtpAccepted: boolean;
+  }[];
   readonly links: readonly (CorrespondenceShareLink & { readonly nodeId: string })[];
+}
+export interface ShareSecretaryScope {
+  readonly unitCode: string;
+  readonly box: 'inbox' | 'sent';
 }
 export interface ShareEmployeeResult {
   readonly username: string;
@@ -265,30 +272,41 @@ export class CorrespondenceApiService {
     );
   }
 
-  searchShareRecipients(query: string): Observable<{ readonly employees: readonly ShareEmployeeResult[] }> {
+  searchShareRecipients(query: string, technicalId: string,
+      scope?: ShareSecretaryScope): Observable<{ readonly employees: readonly ShareEmployeeResult[] }> {
     return this.http.get<{ readonly employees: readonly ShareEmployeeResult[] }>(
-      `/alfresco/service/badea/correspondence-share/recipients?q=${encodeURIComponent(query)}`,
+      `/alfresco/service/badea/correspondence-share/recipients`,
+      { params: { ...this.shareRequestParams(scope), q: query, technicalId } },
     );
   }
 
-  existingShareLink(technicalId: string, nodeId: string): Observable<ExistingCorrespondenceShareLink> {
+  private shareRequestParams(scope?: ShareSecretaryScope): Record<string, string> {
+    return scope ? { shareSecretaryUnit: scope.unitCode, shareSecretaryBox: scope.box } : {};
+  }
+
+  existingShareLink(technicalId: string, nodeId: string,
+      scope?: ShareSecretaryScope): Observable<ExistingCorrespondenceShareLink> {
     return this.http.get<ExistingCorrespondenceShareLink>(
       `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/existing`,
+      { params: this.shareRequestParams(scope) },
     );
   }
 
-  createShareLink(technicalId: string, nodeId: string): Observable<CorrespondenceShareLink> {
+  createShareLink(technicalId: string, nodeId: string,
+      scope?: ShareSecretaryScope): Observable<CorrespondenceShareLink> {
     return this.http.post<CorrespondenceShareLink>(
       `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/link`,
-      {},
+      {}, { params: this.shareRequestParams(scope) },
     );
   }
 
-  sendShareBatchEmail(technicalId: string, nodeIds: readonly string[], recipientUsername: string,
-      message: string): Observable<BatchShareEmailResult> {
+  sendShareBatchEmail(technicalId: string, nodeIds: readonly string[],
+      recipientUsernames: readonly string[], message: string,
+      scope?: ShareSecretaryScope): Observable<BatchShareEmailResult> {
     return this.http.post<BatchShareEmailResult>(
       `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/email-batch`,
-      { nodeIds, recipientUsername, message },
+      { nodeIds, recipientUsernames, message },
+      { params: this.shareRequestParams(scope) },
     );
   }
 
@@ -300,10 +318,11 @@ export class CorrespondenceApiService {
     );
   }
 
-  revokeShareLink(technicalId: string, nodeId: string): Observable<{status: 'revoked'}> {
+  revokeShareLink(technicalId: string, nodeId: string,
+      scope?: ShareSecretaryScope): Observable<{status: 'revoked'}> {
     return this.http.post<{status: 'revoked'}>(
       `/alfresco/service/badea/correspondence-share/${encodeURIComponent(technicalId)}/${encodeURIComponent(nodeId)}/revoke`,
-      {},
+      {}, { params: this.shareRequestParams(scope) },
     );
   }
 

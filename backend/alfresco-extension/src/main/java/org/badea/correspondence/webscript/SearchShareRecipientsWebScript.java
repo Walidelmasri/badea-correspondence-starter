@@ -3,10 +3,8 @@ package org.badea.correspondence.webscript;
 import java.io.IOException;
 import java.util.Objects;
 import org.alfresco.repo.security.permissions.AccessDeniedException;
-import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.EmployeeDirectory;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
-import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -17,14 +15,12 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 
 /** Limited active-only recipient lookup, for authenticated correspondence participants. */
 public final class SearchShareRecipientsWebScript extends AbstractWebScript {
-    private final CurrentEmployeeService current;
-    private final CorrespondenceActorRoleResolver roles;
+    private final ShareCorrespondenceCaseAccess access;
     private final EmployeeDirectory directory;
 
-    public SearchShareRecipientsWebScript(CurrentEmployeeService current,
-            CorrespondenceActorRoleResolver roles, EmployeeDirectory directory) {
-        this.current = Objects.requireNonNull(current);
-        this.roles = Objects.requireNonNull(roles);
+    public SearchShareRecipientsWebScript(ShareCorrespondenceCaseAccess access,
+            EmployeeDirectory directory) {
+        this.access = Objects.requireNonNull(access);
         this.directory = Objects.requireNonNull(directory);
     }
 
@@ -32,8 +28,11 @@ public final class SearchShareRecipientsWebScript extends AbstractWebScript {
         resp.setHeader("Cache-Control", "private, no-store");
         resp.setContentType("application/json;charset=UTF-8");
         try {
-            current.getCurrentEmployee();
-            roles.resolveCurrentUserRole();
+            String technicalId = req.getParameter("technicalId");
+            if (technicalId == null || technicalId.isBlank())
+                throw new IllegalArgumentException("Technical ID required");
+            // Search is available only to users who may view this precise case.
+            access.require(req, technicalId);
             String query = req.getParameter("q");
             if (query == null || query.trim().length() < 2 || query.trim().length() > 60) {
                 resp.setStatus(Status.STATUS_BAD_REQUEST);
@@ -52,6 +51,9 @@ public final class SearchShareRecipientsWebScript extends AbstractWebScript {
         } catch (CorrespondenceAuthorizationException | AccessDeniedException exception) {
             resp.setStatus(Status.STATUS_FORBIDDEN);
             resp.getWriter().write(new JSONObject().put("code", "FORBIDDEN").toString());
+        } catch (IllegalArgumentException exception) {
+            resp.setStatus(Status.STATUS_BAD_REQUEST);
+            resp.getWriter().write(new JSONObject().put("code", "INVALID_REQUEST").toString());
         } catch (EmployeeDirectoryException exception) {
             resp.setStatus(Status.STATUS_SERVICE_UNAVAILABLE);
             resp.getWriter().write(new JSONObject().put("code", "EMPLOYEE_DIRECTORY_UNAVAILABLE").toString());

@@ -1,6 +1,5 @@
 package org.badea.correspondence.webscript;
 
-import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -10,12 +9,9 @@ import org.alfresco.repo.security.permissions.AccessDeniedException;
 import org.badea.correspondence.application.CorrespondenceDocumentNotFoundException;
 import org.badea.correspondence.application.CorrespondenceShareService;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
-import org.badea.correspondence.application.CurrentEmployeeService;
-import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.infrastructure.mail.SmtpShareMailSender.MailSubmissionException;
-import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -27,14 +23,12 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 
 /** One authorized batch and one SMTP message; shares must never be created from arbitrary node IDs. */
 public final class ShareCorrespondenceBatchEmailWebScript extends AbstractWebScript {
-    private final CurrentEmployeeService current;
-    private final CorrespondenceActorRoleResolver roles;
+    private final ShareCorrespondenceCaseAccess access;
     private final CorrespondenceShareService shares;
 
-    public ShareCorrespondenceBatchEmailWebScript(CurrentEmployeeService current,
-            CorrespondenceActorRoleResolver roles, CorrespondenceShareService shares) {
-        this.current = Objects.requireNonNull(current);
-        this.roles = Objects.requireNonNull(roles);
+    public ShareCorrespondenceBatchEmailWebScript(ShareCorrespondenceCaseAccess access,
+            CorrespondenceShareService shares) {
+        this.access = Objects.requireNonNull(access);
         this.shares = Objects.requireNonNull(shares);
     }
 
@@ -45,27 +39,20 @@ public final class ShareCorrespondenceBatchEmailWebScript extends AbstractWebScr
             String raw = req.getContent().getContent();
             if (raw == null || raw.length() > 6000) throw new IllegalArgumentException("Invalid body");
             JSONObject body = new JSONObject(raw);
-            if (body.length() != 3 || !body.has("nodeIds") || !body.has("recipientUsername")
+            if (body.length() != 3 || !body.has("nodeIds") || !body.has("recipientUsernames")
                     || !body.has("message")) throw new IllegalArgumentException("Invalid fields");
             JSONArray ids = body.getJSONArray("nodeIds");
-            if (ids.length() < 1 || ids.length() > 10) throw new IllegalArgumentException("Invalid count");
+            JSONArray people = body.getJSONArray("recipientUsernames");
+            if (ids.length() < 1 || ids.length() > 10 || people.length() < 1
+                    || people.length() > 10) throw new IllegalArgumentException("Invalid count");
             List<String> nodeIds = new ArrayList<>();
+            List<String> recipientUsernames = new ArrayList<>();
             for (int i = 0; i < ids.length(); i++) nodeIds.add(ids.getString(i));
-            var employee = current.getCurrentEmployee();
-            var role = roles.resolveCurrentUserRole();
-            DepartmentCode department = employee.department().map(d -> d.code()).orElse(null);
-
-            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
-
-                req.getParameter("workspaceUnit"), employee);
-
-            role = authorizedWorkspace.role();
-
-            department = authorizedWorkspace.unit();
-            var result = shares.sendBatch(technicalId, nodeIds, role, department,
-                    employee.employeeId().value(), employee.nameEnglish(),
-                    body.getString("recipientUsername"),
-                    body.isNull("message") ? null : body.getString("message"));
+            for (int i = 0; i < people.length(); i++) recipientUsernames.add(people.getString(i));
+            var approved = access.require(req, technicalId);
+            var result = shares.sendBatchMultiple(approved.caseDetails(), nodeIds,
+                    approved.employee().employeeId().value(), approved.employee().nameEnglish(),
+                    recipientUsernames, body.isNull("message") ? null : body.getString("message"));
             JSONArray links = new JSONArray();
             for (int i = 0; i < result.links().size(); i++) {
                 var link = result.links().get(i);
@@ -73,9 +60,15 @@ public final class ShareCorrespondenceBatchEmailWebScript extends AbstractWebScr
                         .put("sharedId", link.sharedId())
                         .put("url", link.url()).put("filename", link.filename()));
             }
-            send(resp, Status.STATUS_OK, new JSONObject().put("status", "submitted")
-                    .put("recipient", result.recipient()).put("recipientName", result.recipientName())
-                    .put("links", links));
+            JSONArray recipients = new JSONArray();
+            for (var recipient : result.recipients()) {
+                recipients.put(new JSONObject().put("recipient", recipient.recipient())
+                        .put("recipientName", recipient.recipientName())
+                        .put("smtpAccepted", recipient.smtpAccepted()));
+            }
+            send(resp, Status.STATUS_OK, new JSONObject()
+                    .put("status", result.uncertain() ? "partial_or_uncertain" : "submitted")
+                    .put("recipients", recipients).put("links", links));
         } catch (CorrespondenceAuthorizationException | AccessDeniedException exception) {
             error(resp, Status.STATUS_FORBIDDEN, "CORRESPONDENCE_FORBIDDEN");
         } catch (CorrespondenceDocumentNotFoundException | CurrentEmployeeNotFoundException exception) {

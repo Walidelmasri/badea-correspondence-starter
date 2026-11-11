@@ -449,10 +449,8 @@
                 <div class="mailbox-featured-packet__actions">
                   <button type="button" class="mailbox-action"
                     (click)="openDocument(packet)">{{ labels().openDocument }}</button>
-                  @if (!secretaryMode()) {
-                    <button type="button" class="mailbox-share-button"
-                      (click)="beginShare(packet)">{{ shareText().share }}</button>
-                  }
+                  <button type="button" class="mailbox-share-button"
+                    (click)="beginShare(packet)">{{ shareText().share }}</button>
                 </div>
               </div>
             }
@@ -475,11 +473,9 @@
                           </span>
                           <span class="mailbox-file-open">{{ labels().openDocument }}</span>
                         </button>
-                        @if (!secretaryMode()) {
-                          <button type="button" class="mailbox-share-button"
-                            [disabled]="document.mimeType !== 'application/pdf'"
-                            (click)="beginShare(document)">{{ shareText().share }}</button>
-                        }
+                        <button type="button" class="mailbox-share-button"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          (click)="beginShare(document)">{{ shareText().share }}</button>
                       </li>
                     }
                   </ul>
@@ -511,11 +507,9 @@
                             </span>
                             <span class="mailbox-file-open">{{ labels().openDocument }}</span>
                           </button>
-                          @if (!secretaryMode()) {
-                            <button type="button" class="mailbox-share-button"
-                              [disabled]="document.mimeType !== 'application/pdf'"
-                              (click)="beginShare(document)">{{ shareText().share }}</button>
-                          }
+                          <button type="button" class="mailbox-share-button"
+                            [disabled]="document.mimeType !== 'application/pdf'"
+                            (click)="beginShare(document)">{{ shareText().share }}</button>
                         </li>
                       }
                     </ul>
@@ -536,11 +530,9 @@
                           </span>
                           <span class="mailbox-file-open">{{ labels().openDocument }}</span>
                         </button>
-                        @if (!secretaryMode()) {
-                          <button type="button" class="mailbox-share-button"
-                            [disabled]="document.mimeType !== 'application/pdf'"
-                            (click)="beginShare(document)">{{ shareText().share }}</button>
-                        }
+                        <button type="button" class="mailbox-share-button"
+                          [disabled]="document.mimeType !== 'application/pdf'"
+                          (click)="beginShare(document)">{{ shareText().share }}</button>
                       </li>
                     }
                   </ul>
@@ -878,7 +870,7 @@
           [disabled]="shareBusy()" [attr.aria-label]="shareText().close">✕</button>
       </header>
       <div class="mailbox-share-dialog__body">
-        <fieldset class="mailbox-share-fieldset" [disabled]="shareBusy() || details()?.state === 'ARCHIVED'">
+        <fieldset class="mailbox-share-fieldset" [disabled]="shareBusy()">
           <legend>{{ shareText().files }}</legend>
           <div class="mailbox-share-document-list">
             @for (document of shareDocuments(); track document.nodeId) {
@@ -893,52 +885,55 @@
           </div>
           <small>{{ shareText().selectOne }}</small>
         </fieldset>
-        @if (details()?.state !== 'ARCHIVED') {
-          <div class="mailbox-share-recipient-field">
-            <label for="mailbox-share-employee">{{ shareText().recipient }}</label>
-            @if (shareSelectedEmployee(); as selectedEmployee) {
-              <div class="mailbox-share-recipient-chip">
-                <span><strong>{{ translation.language() === 'ar' && selectedEmployee.nameArabic ? selectedEmployee.nameArabic : selectedEmployee.nameEnglish }}</strong>
-                  <small>{{ selectedEmployee.username }}&#64;badea.org</small></span>
-                <button type="button" [disabled]="shareBusy()" (click)="removeShareRecipient()"
-                  [attr.aria-label]="shareText().remove">✕</button>
-              </div>
-            } @else {
-              <input id="mailbox-share-employee" type="search" autocomplete="off" maxlength="60"
-                [placeholder]="shareText().recipientPlaceholder"
-                [value]="shareRecipient()" [disabled]="shareBusy()"
-                (input)="updateShareRecipient($event)" />
-              @if (shareSearching()) { <p role="status">{{ shareText().searching }}</p> }
-              @if (shareMatches().length > 0) {
-                <ul class="mailbox-share-results" aria-label="Employee search results">
-                  @for (employee of shareMatches(); track employee.username) {
-                    <li><button type="button" (click)="selectShareRecipient(employee)">
-                      <strong>{{ translation.language() === 'ar' && employee.nameArabic ? employee.nameArabic : employee.nameEnglish }}</strong>
-                      <small>{{ employee.username }}&#64;badea.org</small>
-                    </button></li>
-                  }
-                </ul>
-              } @else if (shareRecipient().trim().length >= 2 && !shareSearching() && shareNotice() !== 'email-error') {
-                <p class="mailbox-share-hint">{{ shareText().noMatches }}</p>
+        <div class="mailbox-share-recipient-field">
+          <label for="mailbox-share-employee">{{ shareText().recipient }}</label>
+          @if (shareSelectedEmployees().length > 0) {
+            <div class="mailbox-share-recipient-chips">
+              @for (employee of shareSelectedEmployees(); track employee.username) {
+                <div class="mailbox-share-recipient-chip">
+                  <span><strong>{{ translation.language() === 'ar' && employee.nameArabic ? employee.nameArabic : employee.nameEnglish }}</strong>
+                    <small>{{ employee.username }}&#64;badea.org</small></span>
+                  <button type="button" [disabled]="shareBusy()"
+                    (click)="removeShareRecipient(employee.username)"
+                    [attr.aria-label]="shareText().remove">✕</button>
+                </div>
               }
-            }
-            <small class="mailbox-share-hint">{{ shareText().recipientHint }}</small>
-          </div>
-          <div class="mailbox-share-message">
-            <label for="mailbox-share-comment">{{ shareText().message }}</label>
-            <textarea id="mailbox-share-comment" rows="3" maxlength="2000"
-              [value]="shareComment()" [disabled]="shareBusy()"
-              (input)="updateShareComment($event)"></textarea>
-          </div>
-        } @else {
-          <p class="mailbox-share-hint">{{ shareText().archivedLink }}</p>
-        }
+            </div>
+          }
+          <input id="mailbox-share-employee" type="search" autocomplete="off" maxlength="60"
+            [placeholder]="shareText().recipientPlaceholder"
+            [value]="shareRecipient()" [disabled]="shareBusy() || shareSelectedEmployees().length >= 10"
+            (input)="updateShareRecipient($event)" />
+          @if (shareSearching()) { <p role="status">{{ shareText().searching }}</p> }
+          @if (shareMatches().length > 0 && shareSelectedEmployees().length < 10) {
+            <ul class="mailbox-share-results" aria-label="Employee search results">
+              @for (employee of shareMatches(); track employee.username) {
+                @if (!isShareRecipientSelected(employee.username)) {
+                  <li><button type="button" (click)="selectShareRecipient(employee)">
+                    <strong>{{ translation.language() === 'ar' && employee.nameArabic ? employee.nameArabic : employee.nameEnglish }}</strong>
+                    <small>{{ employee.username }}&#64;badea.org</small>
+                  </button></li>
+                }
+              }
+            </ul>
+          } @else if (shareRecipient().trim().length >= 2 && !shareSearching() && shareNotice() !== 'email-error') {
+            <p class="mailbox-share-hint">{{ shareText().noMatches }}</p>
+          }
+          <small class="mailbox-share-hint">{{ shareText().recipientHint }}</small>
+          <small class="mailbox-share-hint">{{ shareText().recipientsLimit }}</small>
+        </div>
+        <div class="mailbox-share-message">
+          <label for="mailbox-share-comment">{{ shareText().message }}</label>
+          <textarea id="mailbox-share-comment" rows="3" maxlength="2000"
+            [value]="shareComment()" [disabled]="shareBusy()"
+            (input)="updateShareComment($event)"></textarea>
+        </div>
         <p class="mailbox-share-warning">{{ shareText().public }}</p>
         @if (shareSelectedNodeIds().length === 1 && shareSelectedNodeIds()[0] === sharedDoc.nodeId) {
           <div class="mailbox-share-link-tools">
             <span>{{ shareText().linkOptions }}: <strong dir="auto">{{ sharedDoc.filename }}</strong></span>
             <button type="button" (click)="copyShareLink()"
-              [disabled]="shareBusy() || shareLinkChecking() || (details()?.state === 'ARCHIVED' && !sharedLink())">
+              [disabled]="shareBusy() || shareLinkChecking()">
               {{ shareText().copy }}
             </button>
             @if (sharedLink()) {
@@ -957,11 +952,9 @@
       </div>
       <footer class="mailbox-share-dialog__footer">
         <button type="button" (click)="closeShare()" [disabled]="shareBusy()">{{ shareText().close }}</button>
-        @if (details()?.state !== 'ARCHIVED') {
-          <button type="button" class="mailbox-action"
-            [disabled]="shareBusy() || !validShareRecipient() || shareSelectedNodeIds().length === 0 || shareNotice() === 'email-uncertain' || shareNotice() === 'email-submitted'"
-            (click)="sendShareEmail()">{{ shareBusy() ? shareText().creating : shareText().send }}</button>
-        }
+        <button type="button" class="mailbox-action"
+          [disabled]="shareBusy() || !validShareRecipient() || shareSelectedNodeIds().length === 0 || shareNotice() === 'email-uncertain' || shareNotice() === 'email-submitted'"
+          (click)="sendShareEmail()">{{ shareBusy() ? shareText().creating : shareText().send }}</button>
       </footer>
     </section>
   </div>

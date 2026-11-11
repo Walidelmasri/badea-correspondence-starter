@@ -1,6 +1,5 @@
 package org.badea.correspondence.webscript;
 
-import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -10,12 +9,9 @@ import org.alfresco.repo.security.permissions.AccessDeniedException;
 import org.badea.correspondence.application.CorrespondenceDocumentNotFoundException;
 import org.badea.correspondence.application.CorrespondenceShareService;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
-import org.badea.correspondence.application.CurrentEmployeeService;
-import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.infrastructure.mail.SmtpShareMailSender.MailSubmissionException;
-import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.json.JSONObject;
 import org.json.JSONException;
@@ -27,16 +23,13 @@ import org.springframework.extensions.webscripts.WebScriptResponse;
 /** Authenticated, correspondence-authorized QuickShare creation / SMTP email / revoke. */
 public final class ShareCorrespondenceDocumentWebScript extends AbstractWebScript {
     private static final Log LOG = LogFactory.getLog(ShareCorrespondenceDocumentWebScript.class);
-    private final CurrentEmployeeService employees;
-    private final CorrespondenceActorRoleResolver roles;
+    private final ShareCorrespondenceCaseAccess access;
     private final CorrespondenceShareService shares;
     private final String operation;
 
-    public ShareCorrespondenceDocumentWebScript(CurrentEmployeeService employees,
-            CorrespondenceActorRoleResolver roles, CorrespondenceShareService shares,
-            String operation) {
-        this.employees = Objects.requireNonNull(employees);
-        this.roles = Objects.requireNonNull(roles);
+    public ShareCorrespondenceDocumentWebScript(ShareCorrespondenceCaseAccess access,
+            CorrespondenceShareService shares, String operation) {
+        this.access = Objects.requireNonNull(access);
         this.shares = Objects.requireNonNull(shares);
         if (!java.util.Set.of("link", "existing", "email", "revoke").contains(operation))
             throw new IllegalArgumentException("Unknown share operation");
@@ -47,17 +40,9 @@ public final class ShareCorrespondenceDocumentWebScript extends AbstractWebScrip
         try {
             String id = req.getServiceMatch().getTemplateVars().get("technicalId");
             String nodeId = req.getServiceMatch().getTemplateVars().get("nodeId");
-            var employee = employees.getCurrentEmployee();
-            var role = roles.resolveCurrentUserRole();
-            DepartmentCode department = employee.department().map(d -> d.code()).orElse(null);
-
-            var authorizedWorkspace = CorrespondenceWorkspaceContext.resolve(roles,
-
-                req.getParameter("workspaceUnit"), employee);
-
-            role = authorizedWorkspace.role();
-
-            department = authorizedWorkspace.unit();
+            var approved = access.require(req, id);
+            var employee = approved.employee();
+            var caseDetails = approved.caseDetails();
             String employeeId = employee.employeeId().value();
             JSONObject body = new JSONObject();
             if ("email".equals(operation)) {
@@ -74,20 +59,20 @@ public final class ShareCorrespondenceDocumentWebScript extends AbstractWebScrip
             JSONObject result = new JSONObject();
             switch (operation) {
                 case "existing" -> {
-                    var link = shares.findExistingLink(id, nodeId, role, department, employeeId);
+                    var link = shares.findExistingLink(caseDetails, nodeId);
                     result.put("available", link.isPresent());
                     link.ifPresent(found -> result.put("sharedId", found.sharedId())
                             .put("url", found.url()).put("filename", found.filename()));
                 }
                 case "link" -> {
-                    var link = shares.createLink(id, nodeId, role, department, employeeId);
+                    var link = shares.createLink(caseDetails, nodeId, employeeId);
                     result.put("sharedId", link.sharedId()).put("url", link.url())
                             .put("filename", link.filename());
                     LOG.info("BADEA_SHARE_LINK_CREATED employee=" + employeeId
                             + " correspondence=" + id + " document=" + nodeId);
                 }
                 case "email" -> {
-                    var sent = shares.send(id, nodeId, role, department, employeeId,
+                    var sent = shares.send(caseDetails, nodeId, employeeId,
                             employee.nameEnglish(), body.getString("recipientUsername"),
                             body.isNull("message") ? null : body.getString("message"));
                     result.put("status", "submitted").put("recipient", sent.recipient())
@@ -99,7 +84,7 @@ public final class ShareCorrespondenceDocumentWebScript extends AbstractWebScrip
                             + " document=" + nodeId);
                 }
                 case "revoke" -> {
-                    shares.revoke(id, nodeId, role, department, employeeId);
+                    shares.revoke(caseDetails, nodeId, employeeId);
                     result.put("status", "revoked");
                     LOG.info("BADEA_SHARE_LINK_REVOKED employee=" + employeeId
                             + " correspondence=" + id + " document=" + nodeId);

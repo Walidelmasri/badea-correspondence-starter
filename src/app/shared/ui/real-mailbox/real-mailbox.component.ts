@@ -359,7 +359,7 @@ export class RealMailboxComponent implements OnInit {
   });
   readonly sharedLink = signal<string | null>(null);
   readonly shareRecipient = signal('');
-  readonly shareSelectedEmployee = signal<ShareEmployeeResult | null>(null);
+  readonly shareSelectedEmployees = signal<readonly ShareEmployeeResult[]>([]);
   readonly shareComment = signal('');
   readonly shareBusy = signal(false);
   readonly shareLinkChecking = signal(false);
@@ -371,15 +371,17 @@ export class RealMailboxComponent implements OnInit {
     | 'email-error' | 'revoked' | 'revoke-error' | 'copied' | null>(null);
   private shareVersion = 0;
   private sharePreviousFocus: HTMLElement | null = null;
-  readonly validShareRecipient = computed(() => !!this.shareSelectedEmployee()
-    && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(this.shareSelectedEmployee()!.username));
+  readonly validShareRecipient = computed(() => this.shareSelectedEmployees().length > 0
+    && this.shareSelectedEmployees().length <= 10
+    && this.shareSelectedEmployees().every(employee =>
+      /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(employee.username)));
 
   readonly shareText = computed(() => this.translation.language() === 'ar' ? {
     share: 'مشاركة', title: 'مشاركة المستندات', files: 'المستندات المراد مشاركتها',
     recipient: 'إرسال إلى', recipientHint: 'ابحث بالاسم العربي أو الإنجليزي أو اسم المستخدم.',
     recipientPlaceholder: 'ابحث عن موظف...', remove: 'إزالة المستلم',
     searching: 'جارٍ البحث...', noMatches: 'لا توجد نتائج مطابقة.',
-    archivedLink: 'لا يمكن إرسال مستندات مؤرشفة؛ يمكنك إدارة الرابط الموجود.',
+    recipientsLimit: 'يمكن اختيار ما يصل إلى 10 مستلمين.',
     message: 'رسالة إضافية (اختياري)',
     creating: 'جارٍ التحضير...', copy: 'نسخ الرابط', send: 'إرسال المستندات',
     revoke: 'إلغاء الرابط الحالي', public: 'الرابط متاح لمن يملكه ويستطيع الوصول إلى خادم BADEA.',
@@ -396,7 +398,7 @@ export class RealMailboxComponent implements OnInit {
     recipient: 'Send to', recipientHint: 'Search by English or Arabic name, or username.',
     recipientPlaceholder: 'Search employees by name...', remove: 'Remove recipient',
     searching: 'Searching...', noMatches: 'No matching employees.',
-    archivedLink: 'Archived correspondence cannot be newly shared; existing links can be managed.',
+    recipientsLimit: 'You can select up to 10 recipients.',
     message: 'Add a message (optional)',
     creating: 'Working...', copy: 'Copy Link', send: 'Send documents',
     revoke: 'Revoke current link', public: 'Anyone holding the link who can reach BADEA can open it.',
@@ -1378,14 +1380,14 @@ export class RealMailboxComponent implements OnInit {
   }
 
   beginShare(document: CorrespondenceDetails['documents'][number]): void {
-    if (this.secretaryMode() || document.mimeType !== 'application/pdf' || !this.details()) return;
+    if (document.mimeType !== 'application/pdf' || !this.details()) return;
     ++this.shareVersion;
     this.sharePreviousFocus = globalThis.document?.activeElement as HTMLElement | null;
     this.sharingDocument.set(document);
     this.shareSelectedNodeIds.set([document.nodeId]);
     this.sharedLink.set(null);
     this.shareRecipient.set('');
-    this.shareSelectedEmployee.set(null);
+    this.shareSelectedEmployees.set([]);
     this.shareComment.set('');
     this.shareNotice.set(null);
     this.shareBusy.set(false);
@@ -1401,7 +1403,8 @@ export class RealMailboxComponent implements OnInit {
     if (!document || !technicalId) return;
     const version = this.shareVersion;
     try {
-      const link = await firstValueFrom(this.api.existingShareLink(technicalId, document.nodeId));
+      const link = await firstValueFrom(this.api.existingShareLink(
+        technicalId, document.nodeId, this.shareSecretaryScope()));
       if (version === this.shareVersion && technicalId === this.selectedId()) {
         this.sharedLink.set(link.available ? link.url ?? null : null);
       }
@@ -1419,7 +1422,7 @@ export class RealMailboxComponent implements OnInit {
     if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
     this.shareSearchTimer = undefined;
     this.shareMatches.set([]);
-    this.shareSelectedEmployee.set(null);
+    this.shareSelectedEmployees.set([]);
     this.shareSelectedNodeIds.set([]);
     this.shareSearching.set(false);
     this.shareLinkChecking.set(false);
@@ -1431,7 +1434,7 @@ export class RealMailboxComponent implements OnInit {
   }
 
   toggleShareDocument(nodeId: string, checked: boolean): void {
-    if (this.shareBusy() || this.details()?.state === 'ARCHIVED') return;
+    if (this.shareBusy()) return;
     const selected = this.shareSelectedNodeIds();
     if (checked && selected.length < 10 && !selected.includes(nodeId)) {
       this.shareSelectedNodeIds.set([...selected, nodeId]);
@@ -1444,7 +1447,6 @@ export class RealMailboxComponent implements OnInit {
   updateShareRecipient(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.shareRecipient.set(value);
-    this.shareSelectedEmployee.set(null);
     this.shareMatches.set([]);
     this.shareNotice.set(null);
     const version = ++this.shareLookupVersion;
@@ -1461,7 +1463,10 @@ export class RealMailboxComponent implements OnInit {
 
   private async searchRecipients(query: string, version: number): Promise<void> {
     try {
-      const result = await firstValueFrom(this.api.searchShareRecipients(query));
+      const technicalId = this.selectedId();
+      if (!technicalId) return;
+      const result = await firstValueFrom(this.api.searchShareRecipients(
+        query, technicalId, this.shareSecretaryScope()));
       if (version === this.shareLookupVersion && this.sharingDocument()) {
         this.shareMatches.set(result.employees);
       }
@@ -1477,16 +1482,27 @@ export class RealMailboxComponent implements OnInit {
     if (this.shareSearchTimer) clearTimeout(this.shareSearchTimer);
     this.shareSearchTimer = undefined;
     this.shareRecipient.set('');
-    this.shareSelectedEmployee.set(employee);
+    this.shareSelectedEmployees.update(selected => selected.length >= 10
+      || selected.some(person => person.username === employee.username)
+      ? selected : [...selected, employee]);
     this.shareSearching.set(false);
     this.shareMatches.set([]);
     this.shareNotice.set(null);
   }
 
-  removeShareRecipient(): void {
-    this.shareSelectedEmployee.set(null);
-    this.shareRecipient.set('');
+  isShareRecipientSelected(username: string): boolean {
+    return this.shareSelectedEmployees().some(employee => employee.username === username);
+  }
+
+  removeShareRecipient(username: string): void {
+    this.shareSelectedEmployees.update(selected => selected.filter(
+      employee => employee.username !== username));
     this.shareNotice.set(null);
+  }
+
+  private shareSecretaryScope(): {unitCode: string; box: 'inbox' | 'sent'} | undefined {
+    const unitCode = this.secretaryUnitCode();
+    return this.secretaryMode() && unitCode ? { unitCode, box: this.box() } : undefined;
   }
 
   updateShareComment(event: Event): void {
@@ -1504,8 +1520,9 @@ export class RealMailboxComponent implements OnInit {
     this.shareNotice.set(null);
     try {
       let url = this.sharedLink();
-      if (!url && this.details()?.state !== 'ARCHIVED') {
-        const result = await firstValueFrom(this.api.createShareLink(id, document.nodeId));
+      if (!url) {
+        const result = await firstValueFrom(this.api.createShareLink(
+          id, document.nodeId, this.shareSecretaryScope()));
         url = result.url;
         if (version === this.shareVersion) this.sharedLink.set(url);
       }
@@ -1526,11 +1543,11 @@ export class RealMailboxComponent implements OnInit {
   async sendShareEmail(): Promise<void> {
     const document = this.sharingDocument();
     const id = this.selectedId();
-    const employee = this.shareSelectedEmployee();
+    const employees = this.shareSelectedEmployees();
     const message = this.shareComment().trim();
     const nodeIds = this.shareSelectedNodeIds();
-    if (!document || !id || !employee || !this.validShareRecipient() || this.shareBusy()
-        || this.details()?.state === 'ARCHIVED' || nodeIds.length === 0 || nodeIds.length > 10
+    if (!document || !id || !this.validShareRecipient() || this.shareBusy()
+        || nodeIds.length === 0 || nodeIds.length > 10
         || this.shareNotice() === 'email-uncertain' || this.shareNotice() === 'email-submitted'
         || message.length > 2000) return;
     const version = this.shareVersion;
@@ -1538,11 +1555,12 @@ export class RealMailboxComponent implements OnInit {
     this.shareNotice.set(null);
     try {
       const result = await firstValueFrom(this.api.sendShareBatchEmail(
-        id, nodeIds, employee.username, message));
+        id, nodeIds, employees.map(employee => employee.username),
+        message, this.shareSecretaryScope()));
       if (version === this.shareVersion) {
         const clicked = result.links.find(link => link.nodeId === document.nodeId);
         if (clicked) this.sharedLink.set(clicked.url);
-        this.shareNotice.set('email-submitted');
+        this.shareNotice.set(result.status === 'submitted' ? 'email-submitted' : 'email-uncertain');
       }
     } catch (error: unknown) {
       if (version === this.shareVersion) {
@@ -1564,7 +1582,8 @@ export class RealMailboxComponent implements OnInit {
     this.shareBusy.set(true);
     this.shareNotice.set(null);
     try {
-      await firstValueFrom(this.api.revokeShareLink(id, document.nodeId));
+      await firstValueFrom(this.api.revokeShareLink(
+        id, document.nodeId, this.shareSecretaryScope()));
       if (version === this.shareVersion) {
         this.sharedLink.set(null);
         this.shareNotice.set('revoked');

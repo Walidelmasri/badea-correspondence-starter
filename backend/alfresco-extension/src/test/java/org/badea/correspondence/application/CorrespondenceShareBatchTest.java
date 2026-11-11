@@ -77,6 +77,82 @@ final class CorrespondenceShareBatchTest {
         verifyNoInteractions(details, links, smtp);
     }
 
+
+    @Test void multipleRecipientsEachReceiveOnePrivateSmtpMessageForSamePdfLinks() {
+        allow(); recipient();
+        when(directory.findActiveByUsername(new DirectoryUsername("other.person")))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("201"),
+                new DirectoryUsername("other.person"), "Other Person", null, Optional.empty())));
+        when(links.getOrCreate(FIRST)).thenReturn("link_first_123");
+        when(links.getOrCreate(SECOND)).thenReturn("link_second_456");
+        var approved = details.getDetails(ID, CorrespondenceActorRole.DIRECTOR, null, "100");
+        var result = service.sendBatchMultiple(approved, List.of(FIRST, SECOND), "100",
+                "Sender", List.of("staff.member", "other.person"), "Please review");
+        assertFalse(result.uncertain());
+        assertEquals(2, result.recipients().size());
+        verify(smtp).send(eq("staff.member@badea.org"), anyString(), anyString(),
+                argThat(html -> html.contains("A.pdf") && html.contains("B.pdf")));
+        verify(smtp).send(eq("other.person@badea.org"), anyString(), anyString(),
+                argThat(html -> html.contains("A.pdf") && html.contains("B.pdf")));
+        verify(smtp, times(2)).send(anyString(), anyString(), anyString(), anyString());
+        verify(audit, times(4)).append(argThat(e -> e.event().equals("EMAIL_ACCEPTED_BY_SMTP")));
+        verify(links, times(1)).getOrCreate(FIRST);
+        verify(links, times(1)).getOrCreate(SECOND);
+    }
+
+    @Test void invalidRecipientRejectsEntireBatchBeforeCreatingPublicLinks() {
+        allow(); recipient();
+        var approved = details.getDetails(ID, CorrespondenceActorRole.DIRECTOR, null, "100");
+        assertThrows(IllegalArgumentException.class, () -> service.sendBatchMultiple(
+                approved, List.of(FIRST), "100", "Sender",
+                List.of("staff.member", "inactive"), ""));
+        verifyNoInteractions(links, smtp, audit);
+    }
+
+    @Test void duplicateRecipientsAndUnknownNodesFailBeforeSending() {
+        allow(); recipient();
+        var approved = details.getDetails(ID, CorrespondenceActorRole.DIRECTOR, null, "100");
+        assertThrows(IllegalArgumentException.class, () -> service.sendBatchMultiple(
+                approved, List.of(FIRST), "100", "Sender",
+                List.of("staff.member", "staff.member"), ""));
+        assertThrows(CorrespondenceDocumentNotFoundException.class, () ->
+                service.sendBatchMultiple(approved, List.of(FIRST,
+                        "e55a5b39-a143-4e07-9523-d17ad574ead2"), "100", "Sender",
+                        List.of("staff.member"), ""));
+        verifyNoInteractions(links, smtp, audit);
+    }
+
+    @Test void partialSmtpUncertaintyIsReportedWithoutRetryingSuccessfulRecipient() {
+        allow(); recipient();
+        when(directory.findActiveByUsername(new DirectoryUsername("other.person")))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("201"),
+                new DirectoryUsername("other.person"), "Other Person", null, Optional.empty())));
+        when(links.getOrCreate(FIRST)).thenReturn("link_first_123");
+        doThrow(new SmtpShareMailSender.MailSubmissionException("Uncertain"))
+            .when(smtp).send(eq("other.person@badea.org"), anyString(), anyString(), anyString());
+        var approved = details.getDetails(ID, CorrespondenceActorRole.DIRECTOR, null, "100");
+        var result = service.sendBatchMultiple(approved, List.of(FIRST), "100", "Sender",
+                List.of("staff.member", "other.person"), null);
+        assertTrue(result.uncertain());
+        assertTrue(result.recipients().get(0).smtpAccepted());
+        assertFalse(result.recipients().get(1).smtpAccepted());
+        verify(smtp, times(2)).send(anyString(), anyString(), anyString(), anyString());
+        verify(audit).append(argThat(e -> e.event().equals("EMAIL_FAILED_OR_UNCERTAIN")
+                && "other.person@badea.org".equals(e.recipient())));
+    }
+
+    @Test void archivedAuthorizedCaseCanShareWithMultipleRecipients() {
+        allow(); recipient();
+        var active = details.getDetails(ID, CorrespondenceActorRole.DIRECTOR, null, "100");
+        var archived = new CorrespondenceDetails(ID, CorrespondenceState.ARCHIVED,
+                "Test", "", "117/20261025/1", null, null, "117", "Sender", null,
+                active.documents());
+        when(links.getOrCreate(FIRST)).thenReturn("link_first_123");
+        assertFalse(service.sendBatchMultiple(archived, List.of(FIRST), "100", "Sender",
+                List.of("staff.member"), "").uncertain());
+        verify(smtp, times(1)).send(anyString(), anyString(), anyString(), anyString());
+    }
+
     @Test void missingLinkIsANormalEmptyResult() {
         allow();
         when(links.findExisting(FIRST)).thenReturn(Optional.empty());

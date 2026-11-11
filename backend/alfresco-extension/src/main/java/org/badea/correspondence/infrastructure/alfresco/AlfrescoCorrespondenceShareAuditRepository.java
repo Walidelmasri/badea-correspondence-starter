@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.alfresco.model.ContentModel;
+import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.NodeService;
@@ -29,23 +30,26 @@ public final class AlfrescoCorrespondenceShareAuditRepository
 
     @Override public void append(Entry entry) {
         Objects.requireNonNull(entry);
-        NodeRef parent = locator.locate(entry.technicalId());
-        String name = "share-event-" + UUID.randomUUID();
-        Map<QName, Serializable> properties = new HashMap<>();
-        properties.put(ContentModel.PROP_NAME, name);
-        properties.put(q("shareEventKind"), Objects.requireNonNull(entry.event()));
-        properties.put(q("shareEventDocumentNodeId"), Objects.requireNonNull(entry.nodeId()));
-        properties.put(q("shareEventActorEmployeeId"), Objects.requireNonNull(entry.actorEmployeeId()));
-        properties.put(q("shareEventAt"), new Date());
-        if (entry.recipient() != null) properties.put(q("shareEventRecipient"), entry.recipient());
-        if (entry.sharedId() != null) properties.put(q("shareEventSharedId"), entry.sharedId());
-        if (entry.comment() != null && !entry.comment().isBlank())
-            properties.put(q("shareEventComment"), entry.comment());
-        ChildAssociationRef child = nodes.createNode(parent, ContentModel.ASSOC_CONTAINS,
-                q(name), TYPE, properties);
-        if (child == null || child.getChildRef() == null) {
-            throw new CorrespondenceRepositoryException("Share audit event was not persisted.");
-        }
+        AuthenticationUtil.runAsSystem(() -> {
+            NodeRef parent = locator.locate(entry.technicalId());
+            String name = "share-event-" + UUID.randomUUID();
+            Map<QName, Serializable> properties = new HashMap<>();
+            properties.put(ContentModel.PROP_NAME, name);
+            properties.put(q("shareEventKind"), Objects.requireNonNull(entry.event()));
+            properties.put(q("shareEventDocumentNodeId"), Objects.requireNonNull(entry.nodeId()));
+            properties.put(q("shareEventActorEmployeeId"), Objects.requireNonNull(entry.actorEmployeeId()));
+            properties.put(q("shareEventAt"), new Date());
+            if (entry.recipient() != null) properties.put(q("shareEventRecipient"), entry.recipient());
+            if (entry.sharedId() != null) properties.put(q("shareEventSharedId"), entry.sharedId());
+            if (entry.comment() != null && !entry.comment().isBlank())
+                properties.put(q("shareEventComment"), entry.comment());
+            ChildAssociationRef child = nodes.createNode(parent, ContentModel.ASSOC_CONTAINS,
+                    q(name), TYPE, properties);
+            if (child == null || child.getChildRef() == null) {
+                throw new CorrespondenceRepositoryException("Share audit event was not persisted.");
+            }
+            return null;
+        });
     }
     private static QName q(String name) { return QName.createQName(NS, name); }
 }
