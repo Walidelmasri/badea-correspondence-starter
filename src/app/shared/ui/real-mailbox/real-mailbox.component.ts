@@ -37,7 +37,7 @@ import { CorrespondenceWorkspaceComponent } from '../correspondence-workspace/co
 import { CorrespondenceDocumentPreviewComponent } from '../correspondence-document-preview/correspondence-document-preview.component';
 import {
   composeRouteForRole, inboxViewFromQuery, MAILBOX_PAGE_SIZE,
-  findAuthorizedNotificationPage,
+  findAuthorizedNotificationPage, mailboxPageNumbers, mailboxPageOffset,
 } from './mailbox-navigation';
 import { OfficeCompletionEditorComponent } from '../office-completion/office-completion-editor.component';
 import { SecretaryDraft, SecretaryPdf, SecretaryPersonalDraft, TarasolSecretaryApiService } from '../../../features/tarasol-secretary/tarasol-secretary-api.service';
@@ -417,7 +417,58 @@ export class RealMailboxComponent implements OnInit {
 
   private detailVersion = 0;
   private pageVersion = 0;
+  private preferMailboxPage = false;
   readonly notificationTargetMissing = signal(false);
+  // A notification target is a one-shot instruction, never a persistent mailbox filter.
+  private routeActivated = false;
+  private emailTargetConsumed = false;
+  private suppressRouteCleanupReload = false;
+  private notificationSelectionVersion = 0;
+  private emailTarget: { open: string | null; pending: string | null; round: string | null } =
+    { open: null, pending: null, round: null };
+
+  private requestedEmailTarget(kind: 'open' | 'pending' | 'round'): string | null {
+    return this.emailTargetConsumed ? null : this.routeActivated
+      ? this.emailTarget[kind]
+      : this.route.snapshot.queryParamMap.get(kind);
+  }
+
+  private clearEmailLinkParameters(view?: CorrespondenceInboxView): void {
+    if (this.suppressRouteCleanupReload && view === undefined) return;
+    const params = this.route.snapshot.queryParamMap;
+    if (!params.get('open') && !params.get('pending') && !params.get('round')
+        && view === undefined) return;
+    // Query changes triggered here must not reload the page or resurrect an old target.
+    this.suppressRouteCleanupReload = true;
+    void Promise.resolve(this.router.navigate([], {
+      relativeTo: this.route, replaceUrl: true, queryParamsHandling: 'merge',
+      queryParams: { open: null, pending: null, round: null,
+        ...(view === undefined ? {} : { view }) },
+    })).then(success => {
+      if (!success) this.suppressRouteCleanupReload = false;
+    }).catch(() => { this.suppressRouteCleanupReload = false; });
+  }
+
+  private abandonEmailTarget(clearUrl = true): void {
+    const hasTarget = this.routeActivated
+      ? Object.values(this.emailTarget).some(value => !!value)
+      : ['open', 'pending', 'round'].some(key => !!this.route.snapshot.queryParamMap.get(key));
+    if (hasTarget) ++this.notificationSelectionVersion;
+    this.emailTargetConsumed = true;
+    this.notificationTargetMissing.set(false);
+    if (clearUrl) this.clearEmailLinkParameters();
+  }
+
+  readonly visiblePageNumbers = computed(() => {
+    const page = this.page();
+    return page ? mailboxPageNumbers(page.offset, page.limit, page.total) : [];
+  });
+  readonly returnedPageNumbers = computed(() =>
+    mailboxPageNumbers(this.returnedOffset(), PAGE_SIZE, this.returnedTotal()));
+  readonly pendingPageNumbers = computed(() =>
+    mailboxPageNumbers(this.pendingOffset(), PAGE_SIZE, this.pendingTotal()));
+  readonly roundPageNumbers = computed(() =>
+    mailboxPageNumbers(this.roundOffset(), PAGE_SIZE, this.roundTotal()));
 
 
   readonly selected = computed(() => this.page()?.items.find(
@@ -458,6 +509,16 @@ export class RealMailboxComponent implements OnInit {
     // block authenticated mailbox access or document preview.
     void this.loadDepartments();
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const hasTarget = !!(params.get('open') || params.get('pending') || params.get('round'));
+      if (this.suppressRouteCleanupReload && !hasTarget) {
+        this.suppressRouteCleanupReload = false;
+        return;
+      }
+      this.suppressRouteCleanupReload = false;
+      this.routeActivated = true;
+      this.emailTarget = { open: params.get('open'), pending: params.get('pending'),
+        round: params.get('round') };
+      this.emailTargetConsumed = false;
       const unitCode = params.get('unitCode');
       if (unitCode && (params.has('pending') || params.has('round'))
           && this.session.availableWorkspaces().some(unit => unit.code === unitCode)) {
@@ -497,7 +558,9 @@ export class RealMailboxComponent implements OnInit {
 
   setInboxView(view: CorrespondenceInboxView): void {
     if (this.box() !== 'inbox' || this.inboxView() === view) return;
+    this.abandonEmailTarget(false);
     this.inboxView.set(view);
+    this.clearEmailLinkParameters(view);
     this.pendingOffset.set(0);
     this.roundOffset.set(0);
     this.returnedOffset.set(0);
@@ -514,6 +577,9 @@ export class RealMailboxComponent implements OnInit {
     this.closeHistory();
     this.mobileDetailsOpen.set(false);
     const version = ++this.pageVersion;
+    const navigationVersion = this.notificationSelectionVersion;
+    const preferMailbox = this.preferMailboxPage;
+    this.preferMailboxPage = false;
     ++this.detailVersion;
     this.closePreview();
     this.closePendingPreview();
@@ -558,14 +624,14 @@ export class RealMailboxComponent implements OnInit {
           .catch(() => ({ result: null, failed: true }))
           : Promise.resolve({ result: null, failed: false }),
       ]);
-      if (version !== this.pageVersion) return;
+      if (version !== this.pageVersion || navigationVersion !== this.notificationSelectionVersion) return;
       // The email carries only an opaque case ID. Search the authorized mailbox
       // rather than guessing which row was intended or bypassing its ACL.
-      const requestedId = this.route.snapshot.queryParamMap.get('open');
+      const requestedId = this.requestedEmailTarget('open');
       const requestedPending = this.box() === 'inbox'
-        ? this.route.snapshot.queryParamMap.get('pending') : null;
+        ? this.requestedEmailTarget('pending') : null;
       const requestedRound = this.box() === 'inbox'
-        ? this.route.snapshot.queryParamMap.get('round') : null;
+        ? this.requestedEmailTarget('round') : null;
       const displayedPage = requestedId
         ? await findAuthorizedNotificationPage(page, requestedId, offset =>
             firstValueFrom(this.secretaryMode()
@@ -580,7 +646,7 @@ export class RealMailboxComponent implements OnInit {
             offset => firstValueFrom(this.secretaryApi.list(managerUnit, 'pending', offset, PAGE_SIZE)),
             () => version === this.pageVersion)
         : pending.result;
-      if (version !== this.pageVersion) return;
+      if (version !== this.pageVersion || navigationVersion !== this.notificationSelectionVersion) return;
       if (requestedPending && pendingPage) this.pendingOffset.set(pendingPage.offset);
       this.pendingApprovals.set(pendingPage?.items ?? []);
       this.pendingTotal.set(pendingPage?.total ?? 0);
@@ -592,12 +658,17 @@ export class RealMailboxComponent implements OnInit {
       this.page.set(displayedPage);
       const requestedItem = displayedPage.items.find(item => item.technicalId === requestedId);
       const pendingSelection = pendingPage?.items.find(item => item.technicalId === requestedPending)
-        ?? (!requestedId && !requestedPending && !requestedRound ? pendingPage?.items[0] : null);
+        ?? (!preferMailbox && !requestedId && !requestedPending && !requestedRound
+          ? pendingPage?.items[0] : null);
+      if (requestedId || requestedPending || requestedRound) {
+        this.emailTargetConsumed = true;
+        this.clearEmailLinkParameters();
+      }
       if (requestedRound) {
         // The independent Round N queue will select its own authorized request.
         this.selectedId.set(null);
       } else if (pendingSelection) {
-        this.selectPending(pendingSelection);
+        this.selectPending(pendingSelection, false);
       } else if ((requestedId && !requestedItem) || requestedPending) {
         this.notificationTargetMissing.set(true);
         this.selectedId.set(null);
@@ -609,7 +680,7 @@ export class RealMailboxComponent implements OnInit {
         if (id) void this.loadDetails(id, id === requestedId && !!requestedItem?.unread);
       }
     } catch {
-      if (version === this.pageVersion) {
+      if (version === this.pageVersion && navigationVersion === this.notificationSelectionVersion) {
         this.page.set(null);
         this.selectedId.set(null);
         this.listError.set(true);
@@ -625,16 +696,17 @@ export class RealMailboxComponent implements OnInit {
     this.roundTotal.set(0);
     this.roundLoadError.set(false);
     if (!eligible || !managerUnit) return;
+    const requestedRound = this.requestedEmailTarget('round');
+    const navigationVersion = this.notificationSelectionVersion;
     try {
       const page = await firstValueFrom(this.roundApi.pending(managerUnit,
         this.roundOffset(), PAGE_SIZE));
-      const requestedRound = this.route.snapshot.queryParamMap.get('round');
       const displayed = requestedRound
         ? await findAuthorizedNotificationPage(page, requestedRound,
             offset => firstValueFrom(this.roundApi.pending(managerUnit, offset, PAGE_SIZE)),
             () => version === this.pageVersion)
         : page;
-      if (version !== this.pageVersion) return;
+      if (version !== this.pageVersion || navigationVersion !== this.notificationSelectionVersion) return;
       this.roundRequests.set(displayed.items);
       this.roundTotal.set(displayed.total);
       if (requestedRound) {
@@ -642,7 +714,7 @@ export class RealMailboxComponent implements OnInit {
         if (selection) {
           this.roundOffset.set(displayed.offset);
           this.notificationTargetMissing.set(false);
-          this.selectRound(selection);
+          this.selectRound(selection, false);
         } else {
           this.notificationTargetMissing.set(true);
         }
@@ -653,6 +725,7 @@ export class RealMailboxComponent implements OnInit {
   }
 
   select(id: string): void {
+    this.abandonEmailTarget();
     this.closePendingPreview();
     this.selectedPending.set(null);
     this.clearRoundSelection();
@@ -679,9 +752,10 @@ export class RealMailboxComponent implements OnInit {
     if (id) void this.loadDetails(id);
   }
 
-  selectPending(item: SecretaryDraft): void {
+  selectPending(item: SecretaryDraft, userInitiated = true): void {
     if (!this.managerApprovalUnit() || this.managerApprovalUnit() !== item.unitCode
         || item.approvalStatus !== 'PENDING') return;
+    if (userInitiated) this.abandonEmailTarget();
     this.closeHistory();
     this.closePreview();
     this.closeShare();
@@ -760,27 +834,31 @@ export class RealMailboxComponent implements OnInit {
   }
 
   returnedPrevious(): void {
+    this.abandonEmailTarget();
     if (this.returnedOffset() < PAGE_SIZE || this.loading()) return;
     this.returnedOffset.update(value => value - PAGE_SIZE);
-    void this.loadPage(0);
+    void this.loadPage(this.page()?.offset ?? 0);
   }
 
   returnedNext(): void {
+    this.abandonEmailTarget();
     if (this.returnedOffset() + PAGE_SIZE >= this.returnedTotal() || this.loading()) return;
     this.returnedOffset.update(value => value + PAGE_SIZE);
-    void this.loadPage(0);
+    void this.loadPage(this.page()?.offset ?? 0);
   }
 
   pendingPrevious(): void {
+    this.abandonEmailTarget();
     if (this.pendingOffset() < PAGE_SIZE || this.loading()) return;
     this.pendingOffset.update(value => value - PAGE_SIZE);
-    void this.loadPage(0);
+    void this.loadPage(this.page()?.offset ?? 0);
   }
 
   pendingNext(): void {
+    this.abandonEmailTarget();
     if (this.pendingOffset() + PAGE_SIZE >= this.pendingTotal() || this.loading()) return;
     this.pendingOffset.update(value => value + PAGE_SIZE);
-    void this.loadPage(0);
+    void this.loadPage(this.page()?.offset ?? 0);
   }
 
   openPendingDocument(document: SecretaryPdf): void {
@@ -805,9 +883,10 @@ export class RealMailboxComponent implements OnInit {
     this.roundReturnReason.set('');
   }
 
-  selectRound(item: PendingRoundContinuation): void {
+  selectRound(item: PendingRoundContinuation, userInitiated = true): void {
     if (this.box() !== 'inbox' || this.managerApprovalUnit() !== item.unitCode
         || this.roundBusy()) return;
+    if (userInitiated) this.abandonEmailTarget();
     this.closeHistory();
     this.closePreview();
     this.closePendingPreview();
@@ -920,16 +999,18 @@ export class RealMailboxComponent implements OnInit {
   }
 
   roundPrevious(): void {
+    this.abandonEmailTarget();
     if (this.roundOffset() < PAGE_SIZE || this.loading() || this.roundBusy()) return;
     this.roundOffset.update(value => value - PAGE_SIZE);
-    void this.loadPage(0);
+    void this.loadPage(this.page()?.offset ?? 0);
   }
 
   roundNext(): void {
+    this.abandonEmailTarget();
     if (this.roundOffset() + PAGE_SIZE >= this.roundTotal()
         || this.loading() || this.roundBusy()) return;
     this.roundOffset.update(value => value + PAGE_SIZE);
-    void this.loadPage(0);
+    void this.loadPage(this.page()?.offset ?? 0);
   }
 
   openRoundDocument(document: CorrespondenceDetails['documents'][number]): void {
@@ -1372,14 +1453,59 @@ export class RealMailboxComponent implements OnInit {
     }
   }
 
+  goToMailboxPage(pageNumber: number): void {
+    if (this.loading()) return;
+    const page = this.page();
+    const offset = page && mailboxPageOffset(pageNumber, page.limit, page.total);
+    if (offset === null || offset === undefined || offset === page?.offset) return;
+    this.abandonEmailTarget();
+    this.preferMailboxPage = true;
+    void this.loadPage(offset);
+  }
+
+  goToPendingPage(pageNumber: number): void {
+    if (this.loading() || this.pendingBusy()) return;
+    const offset = mailboxPageOffset(pageNumber, PAGE_SIZE, this.pendingTotal());
+    if (offset === null || offset === this.pendingOffset()) return;
+    this.abandonEmailTarget();
+    this.pendingOffset.set(offset);
+    void this.loadPage(this.page()?.offset ?? 0);
+  }
+
+  goToReturnedPage(pageNumber: number): void {
+    if (this.loading()) return;
+    const offset = mailboxPageOffset(pageNumber, PAGE_SIZE, this.returnedTotal());
+    if (offset === null || offset === this.returnedOffset()) return;
+    this.abandonEmailTarget();
+    this.returnedOffset.set(offset);
+    void this.loadPage(this.page()?.offset ?? 0);
+  }
+
+  goToRoundPage(pageNumber: number): void {
+    if (this.loading() || this.roundBusy()) return;
+    const offset = mailboxPageOffset(pageNumber, PAGE_SIZE, this.roundTotal());
+    if (offset === null || offset === this.roundOffset()) return;
+    this.abandonEmailTarget();
+    this.roundOffset.set(offset);
+    void this.loadPage(this.page()?.offset ?? 0);
+  }
+
   previous(): void {
+    this.abandonEmailTarget();
     const p = this.page();
-    if (p && this.canGoBack()) void this.loadPage(Math.max(0, p.offset - p.limit));
+    if (p && this.canGoBack()) {
+      this.preferMailboxPage = true;
+      void this.loadPage(Math.max(0, p.offset - p.limit));
+    }
   }
 
   next(): void {
+    this.abandonEmailTarget();
     const p = this.page();
-    if (p && this.canGoForward()) void this.loadPage(p.offset + p.limit);
+    if (p && this.canGoForward()) {
+      this.preferMailboxPage = true;
+      void this.loadPage(p.offset + p.limit);
+    }
   }
 
   openCompose(): void {

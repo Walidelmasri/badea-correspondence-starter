@@ -2,10 +2,10 @@ package org.badea.correspondence.infrastructure.alfresco;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.Objects;
 
 import org.alfresco.model.ContentModel;
@@ -117,7 +117,9 @@ public final class AlfrescoCorrespondenceMailboxLister {
                 && !"unread".equals(view))
             throw new IllegalArgumentException("Invalid inbox view");
 
-        List<MailboxSummary> matches = new ArrayList<>();
+        BoundedMailboxPageCollector<MailboxSummary> matches = new BoundedMailboxPageCollector<>(
+                offset, limit, Comparator.comparing(MailboxSummary::modifiedAt)
+                    .reversed().thenComparing(MailboxSummary::technicalId));
         NodeRef root = folders.locateCorrespondenceRoot();
         int deniedFolders = 0;
         boolean deniedChildren = false;
@@ -130,7 +132,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
             }
             if (!ContentModel.TYPE_FOLDER.equals(nodes.getType(folder))) continue;
             deniedChildren |= collect(folder, box, role, department, employeeId, view,
-                    secretaryProjection, matches);
+                    secretaryProjection, matches::add);
         }
         // Do not silently return a partial/empty President mailbox on ACL denial.
         // Never bypass Alfresco permissions or disclose inaccessible content.
@@ -139,12 +141,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
             throw new CorrespondenceMailboxPermissionException();
         }
 
-        matches.sort(Comparator.comparing(MailboxSummary::modifiedAt)
-                .reversed().thenComparing(MailboxSummary::technicalId));
-        int total = matches.size();
-        int from = Math.min(offset, total);
-        int to = (int) Math.min((long) from + limit, total);
-        return new MailboxPage(matches.subList(from, to), offset, limit, total);
+        return new MailboxPage(matches.page(), offset, limit, matches.total());
     }
 
     /** Exact-case membership check using the same Director Inbox criteria as list().
@@ -189,7 +186,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
 
     private boolean collect(NodeRef folder, String box, CorrespondenceActorRole role,
             DepartmentCode department, String employeeId, String view,
-            boolean secretaryProjection, List<MailboxSummary> matches) {
+            boolean secretaryProjection, Consumer<MailboxSummary> matches) {
         boolean deniedChild = false;
         for (ChildAssociationRef association : nodes.getChildAssocs(folder)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(association.getTypeQName())) continue;
@@ -222,7 +219,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
                         || !"drafts".equals(box)) {
                     continue;
                 }
-                matches.add(new MailboxSummary(
+                matches.accept(new MailboxSummary(
                         required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
                         optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
                         required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
@@ -261,7 +258,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
                 unread = readReceipts.isUnread(node, employeeId, incoming);
             }
             if ("inbox".equals(box) && "unread".equals(view) && !unread) continue;
-            matches.add(new MailboxSummary(
+            matches.accept(new MailboxSummary(
                     required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
                     optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
                     required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),

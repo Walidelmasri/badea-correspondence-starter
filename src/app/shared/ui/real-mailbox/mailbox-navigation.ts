@@ -45,3 +45,22 @@ export async function findAuthorizedNotificationPage<T extends {
   }
   return first;
 }
+
+/** A small page-number window; each selection requests only that server page. */
+export function mailboxPageNumbers(offset: number, limit: number, total: number): number[] {
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit)
+      || limit < 1 || !Number.isSafeInteger(total) || total <= 0) return [];
+  const count = Math.ceil(total / limit);
+  const current = Math.min(count, Math.floor(offset / limit) + 1);
+  const start = Math.max(1, Math.min(current - 2, count - 4));
+  return Array.from({ length: Math.min(5, count - start + 1) }, (_, i) => start + i);
+}
+
+/** Only API page boundaries may be navigated to; never client-slice loaded items. */
+export function mailboxPageOffset(pageNumber: number, limit: number, total: number): number | null {
+  if (!Number.isSafeInteger(pageNumber) || pageNumber < 1
+      || !Number.isSafeInteger(limit) || limit < 1
+      || !Number.isSafeInteger(total) || total < 1) return null;
+  const offset = (pageNumber - 1) * limit;
+  return Number.isSafeInteger(offset) && offset < total ? offset : null;
+}

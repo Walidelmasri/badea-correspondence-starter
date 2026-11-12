@@ -615,7 +615,9 @@ public final class AlfrescoCorrespondenceRepository
             throw new IllegalArgumentException("Invalid secretary listing page");
         }
         NodeRef folder = folderLocator.locateDepartmentFolder(unit);
-        List<SecretaryDatedCase> cases = new ArrayList<>();
+        BoundedMailboxPageCollector<SecretaryDatedCase> cases = new BoundedMailboxPageCollector<>(
+            offset, pageSize, Comparator.comparingLong(SecretaryDatedCase::modifiedAt).reversed()
+                .thenComparing(row -> row.item().technicalId()));
         for (ChildAssociationRef link : nodeService.getChildAssocs(folder)) {
             if (!ContentModel.ASSOC_CONTAINS.equals(link.getTypeQName())) continue;
             var child = link.getChildRef();
@@ -641,13 +643,8 @@ public final class AlfrescoCorrespondenceRepository
             long stamp = modified instanceof java.util.Date date ? date.getTime() : 0L;
             cases.add(new SecretaryDatedCase(secretaryCase(child, status, owner), stamp));
         }
-        cases.sort(Comparator.comparingLong(SecretaryDatedCase::modifiedAt).reversed()
-            .thenComparing(row -> row.item().technicalId()));
-        int total = cases.size();
-        if (offset >= total) return new SecretaryPage(List.of(), total);
-        int end = (int) Math.min((long) total, (long) offset + pageSize);
-        return new SecretaryPage(cases.subList(offset, end).stream()
-            .map(SecretaryDatedCase::item).toList(), total);
+        return new SecretaryPage(cases.page().stream().map(SecretaryDatedCase::item).toList(),
+            cases.total());
     }
 
     public void reviseSecretaryDraft(TransitionCorrespondenceCommand command,

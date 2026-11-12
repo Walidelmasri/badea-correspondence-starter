@@ -22,7 +22,7 @@
       </div>
     }
     @if (secretaryMode() && box() === 'inbox' && (inboxView() === 'needs_action' || inboxView() === 'all')) {
-      @if (returnedItems().length || returnedLoadError()) {
+      @if (returnedItems().length || returnedTotal() > 0 || returnedLoadError()) {
         <section class="mailbox-pending-approvals" [attr.aria-label]="returnedLabels().heading">
           <div class="mailbox-pending-heading">
             <strong>{{ returnedLabels().heading }}</strong>
@@ -49,6 +49,10 @@
               <div>
                 <button type="button" [disabled]="returnedOffset() === 0 || loading()"
                   (click)="returnedPrevious()">{{ labels().previous }}</button>
+                @for (number of returnedPageNumbers(); track number) {
+                  <button type="button" [attr.aria-current]="returnedOffset() / pendingPageSize + 1 === number ? 'page' : null"
+                    [disabled]="loading()" (click)="goToReturnedPage(number)">{{ number }}</button>
+                }
                 <button type="button" [disabled]="returnedOffset() + pendingPageSize >= returnedTotal() || loading()"
                   (click)="returnedNext()">{{ labels().next }}</button>
               </div>
@@ -58,7 +62,7 @@
       }
     }
     @if (managerApprovalUnit() && (inboxView() === 'needs_action' || inboxView() === 'all')) {
-      @if (pendingApprovals().length || pendingLoadError()) {
+      @if (pendingApprovals().length || pendingTotal() > 0 || pendingLoadError()) {
         <section class="mailbox-pending-approvals" [attr.aria-label]="pendingLabels().heading">
           <div class="mailbox-pending-heading">
             <strong>{{ pendingLabels().heading }}</strong>
@@ -84,6 +88,10 @@
               <div>
                 <button type="button" [disabled]="pendingOffset() === 0 || loading()"
                   (click)="pendingPrevious()">{{ pendingLabels().previous }}</button>
+                @for (number of pendingPageNumbers(); track number) {
+                  <button type="button" [attr.aria-current]="pendingOffset() / pendingPageSize + 1 === number ? 'page' : null"
+                    [disabled]="loading()" (click)="goToPendingPage(number)">{{ number }}</button>
+                }
                 <button type="button" [disabled]="pendingOffset() + pendingPageSize >= pendingTotal() || loading()"
                   (click)="pendingNext()">{{ pendingLabels().next }}</button>
               </div>
@@ -93,7 +101,7 @@
       }
     }
     @if (managerApprovalUnit() && (inboxView() === 'needs_action' || inboxView() === 'all')) {
-      @if (roundRequests().length || roundLoadError()) {
+      @if (roundRequests().length || roundTotal() > 0 || roundLoadError()) {
         <section class="mailbox-pending-approvals" [attr.aria-label]="roundLabels().heading">
           <div class="mailbox-pending-heading">
             <strong>{{ roundLabels().heading }}</strong>
@@ -119,6 +127,10 @@
               <div>
                 <button type="button" [disabled]="roundOffset() === 0 || loading() || roundBusy()"
                   (click)="roundPrevious()">{{ roundLabels().previous }}</button>
+                @for (number of roundPageNumbers(); track number) {
+                  <button type="button" [attr.aria-current]="roundOffset() / pendingPageSize + 1 === number ? 'page' : null"
+                    [disabled]="loading()" (click)="goToRoundPage(number)">{{ number }}</button>
+                }
                 <button type="button" [disabled]="roundOffset() + pendingPageSize >= roundTotal() || loading() || roundBusy()"
                   (click)="roundNext()">{{ roundLabels().next }}</button>
               </div>
@@ -171,7 +183,11 @@
             {{ labels().of }} {{ results.total }}</span>
           <div>
             <button type="button" [disabled]="!canGoBack()" (click)="previous()">{{ labels().previous }}</button>
-            <button type="button" [disabled]="!canGoForward()" (click)="next()">{{ labels().next }}</button>
+            @for (number of visiblePageNumbers(); track number) {
+                  <button type="button" [attr.aria-current]="results.offset / results.limit + 1 === number ? 'page' : null"
+                    [disabled]="loading()" (click)="goToMailboxPage(number)">{{ number }}</button>
+                }
+                <button type="button" [disabled]="!canGoForward()" (click)="next()">{{ labels().next }}</button>
           </div>
         </div>
       }

@@ -97,7 +97,9 @@ public final class AlfrescoCorrespondenceDraftLister {
                 folderLocator.locateDepartmentFolder(
                         departmentCode);
 
-        List<DraftSummary> drafts = new ArrayList<>();
+        BoundedMailboxPageCollector<DraftSummary> drafts = new BoundedMailboxPageCollector<>(
+                offset, limit, Comparator.comparing(DraftSummary::modifiedAt)
+                    .reversed().thenComparing(DraftSummary::technicalId));
 
         for (ChildAssociationRef association :
                 nodeService.getChildAssocs(departmentFolder)) {
@@ -157,27 +159,7 @@ public final class AlfrescoCorrespondenceDraftLister {
                     readSummary(correspondence));
         }
 
-        drafts.sort(
-                Comparator
-                        .comparing(
-                                DraftSummary::modifiedAt)
-                        .reversed()
-                        .thenComparing(
-                                DraftSummary::technicalId));
-
-        int total = drafts.size();
-
-        int from = Math.min(offset, total);
-
-        int to = (int) Math.min(
-                (long) from + limit,
-                total);
-
-        return new DraftPage(
-                drafts.subList(from, to),
-                offset,
-                limit,
-                total);
+        return new DraftPage(drafts.page(), offset, limit, drafts.total());
     }
 
     private DraftSummary readSummary(

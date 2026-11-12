@@ -9,7 +9,7 @@ import {
 
 import { Router } from '@angular/router';
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
-import { composeRouteForRole, MAILBOX_PAGE_SIZE } from '../../../shared/ui/real-mailbox/mailbox-navigation';
+import { composeRouteForRole, MAILBOX_PAGE_SIZE, mailboxPageNumbers, mailboxPageOffset } from '../../../shared/ui/real-mailbox/mailbox-navigation';
 import { CorrespondenceDocumentPreviewComponent } from '../../../shared/ui/correspondence-document-preview/correspondence-document-preview.component';
 import { OfficeCompletionEditorComponent } from '../../../shared/ui/office-completion/office-completion-editor.component';
 import { firstValueFrom } from 'rxjs';
@@ -83,6 +83,19 @@ export class DraftsPageComponent implements OnInit {
       (draft) => draft.technicalId === selectedId,
     ) ?? null;
   });
+
+  readonly visiblePageNumbers = computed(() => {
+    const current = this.page();
+    return current ? mailboxPageNumbers(current.offset, current.limit, current.total) : [];
+  });
+
+  goToPage(number: number): void {
+    if (this.loading()) return;
+    const current = this.page();
+    const offset = current && mailboxPageOffset(number, current.limit, current.total);
+    if (offset === null || offset === undefined || offset === current?.offset) return;
+    void this.loadPage(offset);
+  }
 
   readonly canGoBack = computed(() => {
     const page = this.page();

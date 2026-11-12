@@ -97,6 +97,11 @@
               {{ labels().pagination.previous }}
             </button>
 
+            @for (number of visiblePageNumbers(); track number) {
+              <button type="button" [disabled]="loading()"
+                [attr.aria-current]="result.offset / result.limit + 1 === number ? 'page' : null"
+                (click)="goToPage(number)">{{ number }}</button>
+            }
             <button
               type="button"
               [disabled]="!canGoForward()"

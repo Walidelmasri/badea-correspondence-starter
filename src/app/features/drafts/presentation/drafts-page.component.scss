@@ -368,3 +368,4 @@
     font-size: 0.75rem;
   }
 }
+.drafts-pagination button[aria-current="page"] { border-color: var(--color-primary-700); color: var(--color-primary-700); font-weight: 700; }
