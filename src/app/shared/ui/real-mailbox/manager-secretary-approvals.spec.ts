@@ -67,6 +67,10 @@ describe('Manager approvals inside the existing Inbox', () => {
       { provide: CorrespondenceApiService, useValue: {
         listMailbox: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 10 })),
         listSecretaryInbox: vi.fn(() => of({ items: [], total: 0, offset: 0, limit: 10 })),
+        getSecretaryInboxDetails: vi.fn((_unit: string, technicalId: string) => of({
+          technicalId, state: 'ARCHIVED', documents: [], generatedDocuments: [],
+        })),
+        getSecretaryInboxHistory: vi.fn(() => of({ items: [], total: 0 })),
       } },
       { provide: CorrespondenceService, useValue: { getDepartments: vi.fn(() => of([])) } },
       { provide: TranslationService, useValue: { language: () => 'en' } },
@@ -136,21 +140,59 @@ describe('Manager approvals inside the existing Inbox', () => {
     expect(mailbox.selectedPending()?.technicalId).toBe(second.technicalId);
   });
 
-  it('opens a returned personal draft from the secretary Needs Action section', async () => {
-    const returned = { ...pending, approvalStatus: 'RETURNED' as const,
-      ownerEmployeeId: '99999', returnReason: 'Fix attachments' };
+  it('shows returned drafts inside the authorized 10-item secretary Inbox page', async () => {
+    const returned = {
+      technicalId: id, subject: pending.subject, documentNumber: null,
+      state: 'DRAFT' as const, approvalStatus: 'RETURNED' as const,
+      originDepartmentCode: '117', senderName: 'Secretary', returnReason: 'Fix attachments',
+      needsAction: true, unread: false, incomingSequence: 0,
+      createdAt: pending.createdAt, modifiedAt: pending.modifiedAt,
+    };
     session.secretaryMailbox = () => true;
     session.secretaryInboxUnitCode = () => '117';
-    secretary.list.mockImplementation((_unit: string, view: string) => of({
-      items: view === 'mine' ? [returned] : [pending], total: 1, offset: 0, limit: 10,
+    const api = TestBed.inject(CorrespondenceApiService);
+    vi.spyOn(api, 'listSecretaryInbox').mockReturnValue(of({
+      items: [returned], total: 1, offset: 0, limit: 10,
     }));
     await mailbox.loadPage(0);
-    expect(secretary.list).toHaveBeenCalledWith('117', 'mine', 0, 10, 'returned');
-    expect(mailbox.returnedItems().map(item => item.technicalId)).toEqual([id]);
-    mailbox.openReturned(returned);
+    expect(api.listSecretaryInbox).toHaveBeenCalledWith('117', 0, 10, 'needs_action');
+    expect(mailbox.page()?.items).toEqual([returned]);
+    expect(mailbox.page()?.total).toBe(1);
+    expect(secretary.list).not.toHaveBeenCalledWith('117', 'mine', 0, 10, 'returned');
+    mailbox.openReturnedId(id);
     expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/secretary/new'], {
-      queryParams: { draft: id },
+      queryParams: { draft: id, unitCode: '117' },
     });
+  });
+
+  it('paginates combined secretary Inbox without appending returned rows', async () => {
+    session.secretaryMailbox = () => true;
+    session.secretaryInboxUnitCode = () => '117';
+    const api = TestBed.inject(CorrespondenceApiService);
+    const pageItems = Array.from({ length: 12 }, (_, index) => ({
+      technicalId: `case-${index + 1}`, subject: `Case ${index + 1}`,
+      state: index < 2 ? 'DRAFT' as const : 'WITH_DIRECTOR' as const,
+      approvalStatus: index < 2 ? 'RETURNED' as const : undefined,
+      originDepartmentCode: '117', senderName: 'Sender',
+      documentNumber: null, returnReason: index < 2 ? 'Please revise' : null,
+      needsAction: true, unread: false, incomingSequence: 0,
+      createdAt: pending.createdAt, modifiedAt: pending.modifiedAt,
+    }));
+    vi.spyOn(api, 'listSecretaryInbox').mockImplementation((_unit, offset = 0, limit = 25) => of({
+      items: pageItems.slice(offset, offset + limit), offset, limit, total: 12,
+    }));
+    await mailbox.loadPage(0);
+    expect(mailbox.page()?.items).toHaveLength(10);
+    expect(mailbox.page()?.total).toBe(12);
+    mailbox.goToMailboxPage(2);
+    await vi.waitFor(() => expect(mailbox.page()?.offset).toBe(10));
+    expect(mailbox.page()?.items).toHaveLength(2);
+    expect(api.listSecretaryInbox).toHaveBeenCalledWith('117', 10, 10, 'needs_action');
+    expect(secretary.list).not.toHaveBeenCalledWith('117', 'mine', 0, 10, 'returned');
+    mailbox.setInboxView('returned');
+    await vi.waitFor(() => expect(mailbox.inboxView()).toBe('returned'));
+    expect(api.listSecretaryInbox).toHaveBeenCalledWith('117', 0, 10, 'returned');
+    await vi.waitFor(() => expect(mailbox.page()?.offset).toBe(0));
   });
 
   it('never queries the approval queue without a selected manager appointment', async () => {

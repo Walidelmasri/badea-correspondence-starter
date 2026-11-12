@@ -66,6 +66,30 @@ class TarasolSecretarySharedInboxWebScriptTest {
     }
 
     @Test
+    void returnedFilterSerializesTheOwnersReasonWithoutChangingDocumentAccess() throws IOException {
+        when(request.getParameter("view")).thenReturn("returned");
+        var summary = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(
+            "case-1", "Returned Secretary Draft", null, "DRAFT", "117", "Secretary",
+            Instant.parse("2026-11-11T07:00:00Z"),
+            Instant.parse("2026-11-11T08:00:00Z"), true, false, 0,
+            "RETURNED", "Please replace the PDF");
+        when(service.list(secretary, new DepartmentCode("117"), "returned", 10, 10))
+            .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
+                List.of(summary), 10, 10, 12));
+        when(request.getParameter("offset")).thenReturn("10");
+        webScript.execute(request, response);
+        verify(response).setStatus(Status.STATUS_OK);
+        var result = new JSONObject(output.toString());
+        assertEquals(12, result.getInt("total"));
+        assertEquals(10, result.getInt("offset"));
+        assertEquals(1, result.getJSONArray("items").length());
+        var item = result.getJSONArray("items").getJSONObject(0);
+        assertEquals("RETURNED", item.getString("approvalStatus"));
+        assertEquals("Please replace the PDF", item.getString("returnReason"));
+        assertEquals("DRAFT", item.getString("state"));
+    }
+
+    @Test
     void rejectsInvalidDepartmentBeforeServiceInvocation() throws IOException {
         when(request.getParameter("unitCode")).thenReturn("117 OR 1=1");
         webScript.execute(request, response);

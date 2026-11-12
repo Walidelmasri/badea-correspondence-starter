@@ -60,7 +60,7 @@ const AR_TRANSLATIONS = {
 
   mailbox: {
     inboxFilterLabel: 'تصفية الوارد',
-    inboxFilters: { all: 'الكل', unread: 'غير مقروء', needs_action: 'يتطلب إجراء', handled: 'تم التعامل معه', archived: 'مؤرشف' },
+    inboxFilters: { all: 'الكل', unread: 'غير مقروء', needs_action: 'يتطلب إجراء', returned: 'أُعيدت للتعديل', handled: 'تم التعامل معه', archived: 'مؤرشف' },
     forwardToPresident: 'إرسال إلى الرئيس',
     confirmForwardToPresident: 'هل تريد إرسال هذه المراسلة إلى الرئيس؟',
     forwarding: 'جارٍ الإرسال...',
@@ -603,7 +603,7 @@ const EN_TRANSLATIONS = {
 
   mailbox: {
     inboxFilterLabel: 'Inbox filter',
-    inboxFilters: { all: 'All', unread: 'Unread', needs_action: 'Needs action', handled: 'Previously handled', archived: 'Archived' },
+    inboxFilters: { all: 'All', unread: 'Unread', needs_action: 'Needs action', returned: 'Returned', handled: 'Previously handled', archived: 'Archived' },
     forwardToPresident: 'Forward to President',
     confirmForwardToPresident: 'Forward this correspondence to the President?',
     forwarding: 'Forwarding...',

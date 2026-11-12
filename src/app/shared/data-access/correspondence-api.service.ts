@@ -130,8 +130,9 @@ export interface CorrespondenceHistoryPage {
 
 export type CorrespondenceMailboxBox = 'inbox' | 'sent';
 export type CorrespondenceInboxView = 'all' | 'needs_action' | 'handled' | 'archived' | 'unread';
+export type SecretaryInboxView = CorrespondenceInboxView | 'returned';
 
-export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary {
+export interface CorrespondenceMailboxSummary extends Omit<CorrespondenceDraftSummary, 'approvalStatus'> {
   readonly state: CorrespondenceDetails['state'];
   readonly originDepartmentCode: string;
   readonly senderName: string;
@@ -139,7 +140,8 @@ export interface CorrespondenceMailboxSummary extends CorrespondenceDraftSummary
   readonly unread: boolean;
   readonly incomingSequence: number;
   /** Only secretary Sent uses this additional presentation status. */
-  readonly approvalStatus?: 'PENDING' | 'APPROVED';
+  readonly approvalStatus?: 'PENDING' | 'APPROVED' | 'RETURNED' | null;
+  readonly returnReason?: string | null;
 }
 
 export interface CorrespondenceMailboxPage {
@@ -390,7 +392,7 @@ export class CorrespondenceApiService {
   /** Shared unit Inbox reads are distinct from Director operations. Backend
    * rechecks the secretary Alfresco group, active Oracle unit and case scope. */
   listSecretaryInbox(unitCode: string, offset = 0, limit = 25,
-      view: CorrespondenceInboxView = 'needs_action'): Observable<CorrespondenceMailboxPage> {
+      view: SecretaryInboxView = 'needs_action'): Observable<CorrespondenceMailboxPage> {
     return this.http.get<CorrespondenceMailboxPage>(SECRETARY_INBOX_URL,
       { params: { unitCode, offset, limit, view } });
   }

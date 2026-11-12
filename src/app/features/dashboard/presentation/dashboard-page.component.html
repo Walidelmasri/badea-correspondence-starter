@@ -76,30 +76,32 @@
           </div>
           <span class="panel__count">{{ s.needsAction }}</span>
         </div>
-        @if (s.urgent.length || returnedItems().length) {
+        @if (s.urgent.length) {
           <div class="focus-list">
-            @for (item of returnedItems(); track item.technicalId) {
-              <a class="focus-item" routerLink="/secretary/new" [queryParams]="{ draft: item.technicalId }">
-                <span class="focus-item__mark" aria-hidden="true"></span>
-                <div class="focus-item__body">
-                  <strong>{{ item.subject }}</strong>
-                  <span>{{ translation.language() === 'ar' ? 'أُعيدت للتعديل' : 'Returned for revision' }}</span>
-                  @if (item.returnReason) {
-                    <span dir="auto">{{ translation.language() === 'ar' ? 'سبب الإرجاع:' : 'Return reason:' }} {{ item.returnReason }}</span>
-                  }
-                </div>
-                <time>{{ formattedDate(item.modifiedAt) }}</time>
-              </a>
-            }
             @for (item of s.urgent; track item.technicalId) {
-              <div class="focus-item">
-                <span class="focus-item__mark" aria-hidden="true"></span>
-                <div class="focus-item__body">
-                  <strong>{{ item.subject }}</strong>
-                  <span>{{ item.documentNumber || labels().noNumber }}</span>
+              @if (item.approvalStatus === 'RETURNED' && secretaryMode()) {
+                <a class="focus-item" routerLink="/secretary/new"
+                  [queryParams]="{ draft: item.technicalId, unitCode: item.originDepartmentCode }">
+                  <span class="focus-item__mark" aria-hidden="true"></span>
+                  <div class="focus-item__body">
+                    <strong>{{ item.subject }}</strong>
+                    <span>{{ translation.language() === 'ar' ? 'أُعيدت للتعديل' : 'Returned for revision' }}</span>
+                    @if (item.returnReason) {
+                      <span dir="auto">{{ translation.language() === 'ar' ? 'سبب الإرجاع:' : 'Return reason:' }} {{ item.returnReason }}</span>
+                    }
+                  </div>
+                  <time>{{ formattedDate(item.modifiedAt) }}</time>
+                </a>
+              } @else {
+                <div class="focus-item">
+                  <span class="focus-item__mark" aria-hidden="true"></span>
+                  <div class="focus-item__body">
+                    <strong>{{ item.subject }}</strong>
+                    <span>{{ item.documentNumber || labels().noNumber }}</span>
+                  </div>
+                  <time>{{ formattedDate(item.modifiedAt) }}</time>
                 </div>
-                <time>{{ formattedDate(item.modifiedAt) }}</time>
-              </div>
+              }
             }
           </div>
         } @else {

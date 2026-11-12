@@ -25,6 +25,7 @@ import {
   CorrespondenceHistoryEntry,
   CorrespondenceMailboxBox,
   CorrespondenceInboxView,
+  SecretaryInboxView,
   CorrespondenceMailboxPage,
   DepartmentAssignment,
   ShareEmployeeResult,
@@ -76,16 +77,10 @@ export class RealMailboxComponent implements OnInit {
   // the department whose secretary submissions this Inbox may review.
   readonly managerApprovalUnit = computed(() => this.box() === 'inbox'
     ? managerApprovalUnit(this.session) : null);
-  readonly returnedItems = signal<readonly SecretaryDraft[]>([]);
-  readonly returnedTotal = signal(0);
-  readonly returnedOffset = signal(0);
-  readonly returnedLoadError = signal(false);
   readonly returnedLabels = computed(() => this.translation.language() === 'ar' ? {
     heading: 'أُعيدت للتعديل', reason: 'سبب الإرجاع:', open: 'تعديل وإعادة إرسال',
-    failed: 'تعذر تحميل المراسلات المعادة',
   } : {
     heading: 'Returned for revision', reason: 'Return reason:', open: 'Edit and resubmit',
-    failed: 'Could not load returned correspondence',
   });
   readonly pendingApprovals = signal<readonly SecretaryDraft[]>([]);
   readonly pendingTotal = signal(0);
@@ -258,9 +253,10 @@ export class RealMailboxComponent implements OnInit {
     : this.translation.text().sent);
   readonly labels = computed(() => this.translation.text().mailbox);
 
-  readonly inboxView = signal<CorrespondenceInboxView>('needs_action');
-  readonly inboxViews: readonly CorrespondenceInboxView[] =
-    ['all', 'unread', 'needs_action', 'handled', 'archived'];
+  readonly inboxView = signal<SecretaryInboxView>('needs_action');
+  readonly inboxViews = computed<readonly SecretaryInboxView[]>(() => this.secretaryMode()
+    ? ['all', 'unread', 'needs_action', 'returned', 'handled', 'archived']
+    : ['all', 'unread', 'needs_action', 'handled', 'archived']);
   readonly page = signal<CorrespondenceMailboxPage | null>(null);
   readonly loading = signal(false);
   readonly presidentReviewOpening = signal(false);
@@ -433,7 +429,7 @@ export class RealMailboxComponent implements OnInit {
       : this.route.snapshot.queryParamMap.get(kind);
   }
 
-  private clearEmailLinkParameters(view?: CorrespondenceInboxView): void {
+  private clearEmailLinkParameters(view?: SecretaryInboxView): void {
     if (this.suppressRouteCleanupReload && view === undefined) return;
     const params = this.route.snapshot.queryParamMap;
     if (!params.get('open') && !params.get('pending') && !params.get('round')
@@ -463,8 +459,6 @@ export class RealMailboxComponent implements OnInit {
     const page = this.page();
     return page ? mailboxPageNumbers(page.offset, page.limit, page.total) : [];
   });
-  readonly returnedPageNumbers = computed(() =>
-    mailboxPageNumbers(this.returnedOffset(), PAGE_SIZE, this.returnedTotal()));
   readonly pendingPageNumbers = computed(() =>
     mailboxPageNumbers(this.pendingOffset(), PAGE_SIZE, this.pendingTotal()));
   readonly roundPageNumbers = computed(() =>
@@ -529,8 +523,10 @@ export class RealMailboxComponent implements OnInit {
       } else if (unitCode && this.session.availableWorkspaces().some(unit => unit.code === unitCode)) {
         this.session.selectWorkspace(unitCode);
       }
+      const requestedView = inboxViewFromQuery(params.get('view'));
       this.inboxView.set(this.box() === 'inbox'
-        ? inboxViewFromQuery(params.get('view')) : 'all');
+        ? (requestedView === 'returned' && !this.secretaryMode() ? 'needs_action' : requestedView)
+        : 'all');
       if (params.get('pending')) this.pendingOffset.set(0);
       if (params.get('round')) this.roundOffset.set(0);
       // Invalidate any in-flight page fetch when opening a notification.
@@ -556,14 +552,14 @@ export class RealMailboxComponent implements OnInit {
       ? (match.nameArabic || match.nameEnglish) : match.nameEnglish;
   }
 
-  setInboxView(view: CorrespondenceInboxView): void {
-    if (this.box() !== 'inbox' || this.inboxView() === view) return;
+  setInboxView(view: SecretaryInboxView): void {
+    if (this.box() !== 'inbox' || this.inboxView() === view
+        || (view === 'returned' && !this.secretaryMode())) return;
     this.abandonEmailTarget(false);
     this.inboxView.set(view);
     this.clearEmailLinkParameters(view);
     this.pendingOffset.set(0);
     this.roundOffset.set(0);
-    this.returnedOffset.set(0);
     this.mobileDetailsOpen.set(false);
     this.selectedId.set(null);
     // Invalidate the previous page request so switching filters while loading works.
@@ -603,24 +599,21 @@ export class RealMailboxComponent implements OnInit {
     try {
       const unit = this.secretaryUnitCode();
       const managerUnit = this.managerApprovalUnit();
+      const currentView = this.inboxView();
+      const institutionalView: CorrespondenceInboxView = currentView === 'returned'
+        ? 'needs_action' : currentView;
       const showPending = !!managerUnit && (this.inboxView() === 'needs_action' || this.inboxView() === 'all');
-      const showReturned = this.box() === 'inbox' && !!unit
-        && (this.inboxView() === 'needs_action' || this.inboxView() === 'all');
       // Never hold the normal Inbox hostage to a potentially expensive
       // continuation-request scan. The manager queue is an independent load.
       void this.loadRoundQueue(managerUnit, showPending, version);
-      const [page, pending, returned] = await Promise.all([
+      const [page, pending] = await Promise.all([
         firstValueFrom(this.secretaryMode()
           ? this.box() === 'sent'
             ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
             : this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
-          : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView())),
+          : this.api.listMailbox(this.box(), offset, PAGE_SIZE, institutionalView)),
         showPending ? firstValueFrom(this.secretaryApi.list(managerUnit!, 'pending',
           this.pendingOffset(), PAGE_SIZE)).then(result => ({ result, failed: false }))
-          .catch(() => ({ result: null, failed: true }))
-          : Promise.resolve({ result: null, failed: false }),
-        showReturned ? firstValueFrom(this.secretaryApi.list(unit!, 'mine',
-          this.returnedOffset(), PAGE_SIZE, 'returned')).then(result => ({ result, failed: false }))
           .catch(() => ({ result: null, failed: true }))
           : Promise.resolve({ result: null, failed: false }),
       ]);
@@ -638,7 +631,7 @@ export class RealMailboxComponent implements OnInit {
               ? this.box() === 'sent'
                 ? this.api.listSecretarySent(unit!, offset, PAGE_SIZE)
                 : this.api.listSecretaryInbox(unit!, offset, PAGE_SIZE, this.inboxView())
-              : this.api.listMailbox(this.box(), offset, PAGE_SIZE, this.inboxView())),
+              : this.api.listMailbox(this.box(), offset, PAGE_SIZE, institutionalView)),
             () => version === this.pageVersion)
         : page;
       const pendingPage = requestedPending && pending.result && managerUnit
@@ -651,10 +644,6 @@ export class RealMailboxComponent implements OnInit {
       this.pendingApprovals.set(pendingPage?.items ?? []);
       this.pendingTotal.set(pendingPage?.total ?? 0);
       this.pendingLoadError.set(pending.failed);
-      this.returnedItems.set(returned.result?.items.filter(item => item.approvalStatus === 'RETURNED'
-        && item.unitCode === unit) ?? []);
-      this.returnedTotal.set(returned.result?.total ?? 0);
-      this.returnedLoadError.set(returned.failed);
       this.page.set(displayedPage);
       const requestedItem = displayedPage.items.find(item => item.technicalId === requestedId);
       const pendingSelection = pendingPage?.items.find(item => item.technicalId === requestedPending)
@@ -676,8 +665,15 @@ export class RealMailboxComponent implements OnInit {
         const id = requestedItem?.technicalId
           ?? displayedPage.items.find(item => item.technicalId === this.selectedId())?.technicalId
           ?? displayedPage.items[0]?.technicalId ?? null;
-        this.selectedId.set(id);
-        if (id) void this.loadDetails(id, id === requestedId && !!requestedItem?.unread);
+        const row = displayedPage.items.find(item => item.technicalId === id);
+        this.selectedId.set(row?.approvalStatus === 'RETURNED' ? null : id);
+        if (id && row?.approvalStatus === 'RETURNED') {
+          // The personal, returned draft is authorized by the secretary editor,
+          // never by the shared Director document/detail reader.
+          if (id === requestedId) this.openReturnedId(id);
+        } else if (id) {
+          void this.loadDetails(id, id === requestedId && !!requestedItem?.unread);
+        }
       }
     } catch {
       if (version === this.pageVersion && navigationVersion === this.notificationSelectionVersion) {
@@ -830,21 +826,17 @@ export class RealMailboxComponent implements OnInit {
   openReturned(item: SecretaryDraft): void {
     if (!this.secretaryMode() || this.secretaryUnitCode() !== item.unitCode
         || item.approvalStatus !== 'RETURNED') return;
-    void this.router.navigate(['/secretary/new'], { queryParams: { draft: item.technicalId } });
+    this.openReturnedId(item.technicalId);
   }
 
-  returnedPrevious(): void {
+  openReturnedId(technicalId: string): void {
+    if (!this.secretaryMode() || !this.secretaryUnitCode()
+        || !this.page()?.items.some(item => item.technicalId === technicalId
+          && item.approvalStatus === 'RETURNED')) return;
     this.abandonEmailTarget();
-    if (this.returnedOffset() < PAGE_SIZE || this.loading()) return;
-    this.returnedOffset.update(value => value - PAGE_SIZE);
-    void this.loadPage(this.page()?.offset ?? 0);
-  }
-
-  returnedNext(): void {
-    this.abandonEmailTarget();
-    if (this.returnedOffset() + PAGE_SIZE >= this.returnedTotal() || this.loading()) return;
-    this.returnedOffset.update(value => value + PAGE_SIZE);
-    void this.loadPage(this.page()?.offset ?? 0);
+    void this.router.navigate(['/secretary/new'], {
+      queryParams: { draft: technicalId, unitCode: this.secretaryUnitCode() },
+    });
   }
 
   pendingPrevious(): void {
@@ -1469,15 +1461,6 @@ export class RealMailboxComponent implements OnInit {
     if (offset === null || offset === this.pendingOffset()) return;
     this.abandonEmailTarget();
     this.pendingOffset.set(offset);
-    void this.loadPage(this.page()?.offset ?? 0);
-  }
-
-  goToReturnedPage(pageNumber: number): void {
-    if (this.loading()) return;
-    const offset = mailboxPageOffset(pageNumber, PAGE_SIZE, this.returnedTotal());
-    if (offset === null || offset === this.returnedOffset()) return;
-    this.abandonEmailTarget();
-    this.returnedOffset.set(offset);
     void this.loadPage(this.page()?.offset ?? 0);
   }
 

@@ -42,6 +42,12 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private static final QName PROP_SENDER = q("createdByNameEnglish");
     private static final QName PROP_CREATION_ROLE = q("createdByCorrespondenceRole");
     private static final QName PROP_CREATED_BY_ID = q("createdByEmployeeId");
+    private static final QName PROP_SECRETARY_OWNER = q("secretaryOwnerEmployeeId");
+    private static final QName PROP_SECRETARY_STATUS = q("secretaryApprovalStatus");
+    private static final QName TYPE_WORKFLOW_ACTION = q("workflowAction");
+    private static final QName PROP_ACTION_SEQUENCE = q("actionSequence");
+    private static final QName PROP_ACTION_TYPE = q("actionType");
+    private static final QName PROP_EXPLANATION = q("explanation");
     private static final QName PROP_PRESIDENT_REVISION = q("presidentReviewRevision");
     private static final QName PROP_PRESIDENT_UPDATED = q("presidentReviewUpdatedAt");
     private static final QName PROP_PRESIDENT_REVIEW_OWNER = q("presidentReviewUpdatedByEmployeeId");
@@ -114,7 +120,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
         if (role == CorrespondenceActorRole.DIRECTOR && department == null) throw forbidden();
         if (!"all".equals(view) && !"needs_action".equals(view)
                 && !"handled".equals(view) && !"archived".equals(view)
-                && !"unread".equals(view))
+                && !"unread".equals(view)
+                && !(secretaryProjection && "returned".equals(view)))
             throw new IllegalArgumentException("Invalid inbox view");
 
         BoundedMailboxPageCollector<MailboxSummary> matches = new BoundedMailboxPageCollector<>(
@@ -198,6 +205,28 @@ public final class AlfrescoCorrespondenceMailboxLister {
             if (!TYPE_CORRESPONDENCE.equals(nodes.getType(node))) continue;
 
             CorrespondenceState state = readState(node);
+            // Personal returned secretary drafts are first-class secretary Inbox
+            // rows. They share the SAME bounded collector, sort order, and page
+            // total as routed correspondence; never append a second UI list.
+            if (state == CorrespondenceState.DRAFT && secretaryProjection
+                    && "inbox".equals(box)) {
+                if (("all".equals(view) || "needs_action".equals(view)
+                        || "returned".equals(view))
+                        && department != null
+                        && department.value().equals(optional(node, PROP_ORIGIN))
+                        && employeeId != null
+                        && employeeId.equals(optional(node, PROP_SECRETARY_OWNER))
+                        && "RETURNED".equals(optional(node, PROP_SECRETARY_STATUS))) {
+                    matches.accept(new MailboxSummary(
+                        required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
+                        optional(node, PROP_DOCUMENT_NUMBER), state.name(),
+                        department.value(), required(node, PROP_SENDER),
+                        timestamp(node, ContentModel.PROP_CREATED),
+                        timestamp(node, ContentModel.PROP_MODIFIED), true, false, 0,
+                        "RETURNED", latestSecretaryReturnReason(node)));
+                }
+                continue;
+            }
             String origin = required(node, PROP_ORIGIN);
             var distributed = departmentAssignments.read(node);
             boolean directorReceived = role == CorrespondenceActorRole.DIRECTOR && department != null
@@ -206,9 +235,12 @@ public final class AlfrescoCorrespondenceMailboxLister {
             boolean directorNeedsAction = directorReceived
                     && activeAssignments.stream().anyMatch(a -> a.isActionableFor(department));
             boolean active = isAssigned(node, state, role, department) || directorNeedsAction;
-            boolean actionable = secretaryProjection
-                    ? secretaryReturnedRequestNeedsAction(node, state, department, employeeId)
-                    : active;
+            boolean returnedRoundRequest = secretaryProjection
+                    && secretaryReturnedRequestNeedsAction(node, state, department, employeeId);
+            boolean actionable = secretaryProjection ? returnedRoundRequest : active;
+            // The Returned filter also includes authorized returned Round N
+            // continuation requests, which remain routed correspondence.
+            if ("returned".equals(view) && !returnedRoundRequest) continue;
             // Executive drafts are creator-private and belong only in their
             // owner's Drafts box. Director draft listing remains unchanged.
             if (state == CorrespondenceState.DRAFT) {
@@ -265,6 +297,24 @@ public final class AlfrescoCorrespondenceMailboxLister {
                     timestamp(node, ContentModel.PROP_MODIFIED), actionable, unread, incoming));
         }
         return deniedChild;
+    }
+
+    /** Read the persisted latest manager-return explanation only for the owner
+     * whose returned draft has already passed the unit and identity checks. */
+    private String latestSecretaryReturnReason(NodeRef draft) {
+        long latest = -1;
+        String reason = null;
+        for (ChildAssociationRef assoc : nodes.getChildAssocs(draft)) {
+            if (!ContentModel.ASSOC_CONTAINS.equals(assoc.getTypeQName())) continue;
+            NodeRef action = assoc.getChildRef();
+            if (action == null || !TYPE_WORKFLOW_ACTION.equals(nodes.getType(action))
+                    || !"RETURN_TO_SECRETARY".equals(optional(action, PROP_ACTION_TYPE))) continue;
+            Serializable sequence = nodes.getProperty(action, PROP_ACTION_SEQUENCE);
+            if (!(sequence instanceof Number number) || number.longValue() <= latest) continue;
+            latest = number.longValue();
+            reason = optional(action, PROP_EXPLANATION);
+        }
+        return reason;
     }
 
     /** Only a returned, current-cycle request owned by this secretary is a personal
@@ -416,7 +466,16 @@ public final class AlfrescoCorrespondenceMailboxLister {
     public record MailboxSummary(String technicalId, String subject, String documentNumber,
             String state, String originDepartmentCode, String senderName,
             Instant createdAt, Instant modifiedAt, boolean needsAction,
-            boolean unread, long incomingSequence) {
+            boolean unread, long incomingSequence,
+            String approvalStatus, String returnReason) {
+        public MailboxSummary(String technicalId, String subject, String documentNumber,
+                String state, String originDepartmentCode, String senderName,
+                Instant createdAt, Instant modifiedAt, boolean needsAction,
+                boolean unread, long incomingSequence) {
+            this(technicalId, subject, documentNumber, state, originDepartmentCode,
+                    senderName, createdAt, modifiedAt, needsAction, unread, incomingSequence,
+                    null, null);
+        }
         public MailboxSummary(String technicalId, String subject, String documentNumber,
                 String state, String originDepartmentCode, String senderName,
                 Instant createdAt, Instant modifiedAt, boolean needsAction) {

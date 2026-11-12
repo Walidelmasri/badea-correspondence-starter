@@ -10,7 +10,6 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom, forkJoin } from 'rxjs';
 
 import { AuthSessionStore } from '../../../core/auth/auth-session.store';
-import { TarasolSecretaryApiService, SecretaryDraft } from '../../tarasol-secretary/tarasol-secretary-api.service';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import {
   CorrespondenceApiService,
@@ -29,8 +28,6 @@ import { PresidentSignatureSettingsComponent } from '../../president-review/pres
 })
 export class DashboardPageComponent implements OnInit {
   private readonly api = inject(CorrespondenceApiService);
-  private readonly secretaryApi = inject(TarasolSecretaryApiService);
-  readonly returnedItems = signal<readonly SecretaryDraft[]>([]);
   private readonly session = inject(AuthSessionStore);
   readonly translation = inject(TranslationService);
   readonly labels = computed(() => this.translation.text().dashboard);
@@ -67,12 +64,9 @@ export class DashboardPageComponent implements OnInit {
           urgent: this.api.listSecretaryInbox(unitCode, 0, 7, 'needs_action'),
           handled: this.api.listSecretaryInbox(unitCode, 0, 1, 'handled'),
           archived: this.api.listSecretaryInbox(unitCode, 0, 1, 'archived'),
-          returned: this.secretaryApi.list(unitCode, 'mine', 0, 7, 'returned'),
         }));
-        this.returnedItems.set(pages.returned.items.filter(item => item.approvalStatus === 'RETURNED'
-          && item.unitCode === unitCode));
         this.stats.set(buildSecretaryDashboardSnapshot(
-          pages.all, pages.urgent, pages.handled, pages.archived, pages.returned.total,
+          pages.all, pages.urgent, pages.handled, pages.archived,
         ));
         return;
       }

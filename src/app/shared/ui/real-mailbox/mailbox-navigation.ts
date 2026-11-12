@@ -14,11 +14,12 @@ export function composeRouteForRole(role: ComposeActorRole): string {
 }
 
 /** Default Inbox to actionable correspondence while honoring explicit filter links. */
-export function inboxViewFromQuery(value: string | null): 'all' | 'unread' | 'needs_action' | 'handled' | 'archived' {
+export function inboxViewFromQuery(value: string | null): 'all' | 'unread' | 'needs_action' | 'returned' | 'handled' | 'archived' {
   switch (value) {
     case 'all':
     case 'unread':
     case 'needs_action':
+    case 'returned':
     case 'handled':
     case 'archived':
       return value;

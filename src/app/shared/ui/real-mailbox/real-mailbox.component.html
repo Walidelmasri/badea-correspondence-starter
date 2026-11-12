@@ -13,53 +13,13 @@
   <div workspace-list>
     @if (box() === 'inbox') {
       <div class="mailbox-views" role="group" [attr.aria-label]="labels().inboxFilterLabel">
-        @for (view of inboxViews; track view) {
+        @for (view of inboxViews(); track view) {
           <button type="button" class="mailbox-view"
             [class.mailbox-view--active]="inboxView() === view"
             [attr.aria-pressed]="inboxView() === view"
             (click)="setInboxView(view)">{{ labels().inboxFilters[view] }}</button>
         }
       </div>
-    }
-    @if (secretaryMode() && box() === 'inbox' && (inboxView() === 'needs_action' || inboxView() === 'all')) {
-      @if (returnedItems().length || returnedTotal() > 0 || returnedLoadError()) {
-        <section class="mailbox-pending-approvals" [attr.aria-label]="returnedLabels().heading">
-          <div class="mailbox-pending-heading">
-            <strong>{{ returnedLabels().heading }}</strong>
-            <span class="mailbox-count">{{ returnedTotal() }}</span>
-          </div>
-          @if (returnedLoadError()) {
-            <p role="alert" class="mailbox-transition-notice">{{ returnedLabels().failed }}</p>
-          }
-          @for (item of returnedItems(); track item.technicalId) {
-            <button type="button" class="mailbox-item" (click)="openReturned(item)">
-              <span class="mailbox-item__date">{{ formatDate(item.modifiedAt) }}</span>
-              <strong>{{ item.subject }}</strong>
-              <small>{{ returnedLabels().heading }}</small>
-              @if (item.returnReason) {
-                <span dir="auto">{{ returnedLabels().reason }} {{ item.returnReason }}</span>
-              }
-              <small>{{ returnedLabels().open }}</small>
-            </button>
-          }
-          @if (returnedTotal() > pendingPageSize) {
-            <div class="mailbox-pagination">
-              <span>{{ returnedOffset() + 1 }}–{{ returnedOffset() + returnedItems().length }}
-                {{ labels().of }} {{ returnedTotal() }}</span>
-              <div>
-                <button type="button" [disabled]="returnedOffset() === 0 || loading()"
-                  (click)="returnedPrevious()">{{ labels().previous }}</button>
-                @for (number of returnedPageNumbers(); track number) {
-                  <button type="button" [attr.aria-current]="returnedOffset() / pendingPageSize + 1 === number ? 'page' : null"
-                    [disabled]="loading()" (click)="goToReturnedPage(number)">{{ number }}</button>
-                }
-                <button type="button" [disabled]="returnedOffset() + pendingPageSize >= returnedTotal() || loading()"
-                  (click)="returnedNext()">{{ labels().next }}</button>
-              </div>
-            </div>
-          }
-        </section>
-      }
     }
     @if (managerApprovalUnit() && (inboxView() === 'needs_action' || inboxView() === 'all')) {
       @if (pendingApprovals().length || pendingTotal() > 0 || pendingLoadError()) {
@@ -154,7 +114,7 @@
         <button type="button" (click)="loadPage(0)">{{ labels().retry }}</button>
       </div>
     } @else if (page(); as results) {
-      @if (results.items.length === 0 && pendingApprovals().length === 0 && roundRequests().length === 0 && returnedItems().length === 0) {
+      @if (results.items.length === 0 && pendingApprovals().length === 0 && roundRequests().length === 0) {
         <div class="mailbox-empty">
           <strong>{{ headings().empty.title }}</strong>
           <p>{{ headings().empty.description }}</p>
@@ -164,7 +124,7 @@
           <button type="button" class="mailbox-item"
             [class.mailbox-item--selected]="selectedId() === item.technicalId"
             [class.mailbox-item--unread]="item.unread"
-            (click)="select(item.technicalId)">
+            (click)="item.approvalStatus === 'RETURNED' ? openReturnedId(item.technicalId) : select(item.technicalId)">
             <span class="mailbox-item__date">{{ formatDate(item.modifiedAt) }}</span>
             <strong>{{ item.subject }}</strong>
             @if (box() === 'inbox' && item.unread) {
@@ -172,8 +132,16 @@
                 {{ translation.language() === 'ar' ? 'غير مقروء' : 'Unread' }}
               </span>
             }
-            <span>{{ item.senderName }}</span>
-            <small>{{ secretaryMode() && box() === 'sent' ? secretarySentLabel(item) : statusLabel(item.state) }}</small>
+            @if (item.approvalStatus === 'RETURNED') {
+              <small>{{ returnedLabels().heading }}</small>
+              @if (item.returnReason) {
+                <span dir="auto">{{ returnedLabels().reason }} {{ item.returnReason }}</span>
+              }
+              <small>{{ returnedLabels().open }}</small>
+            } @else {
+              <span>{{ item.senderName }}</span>
+              <small>{{ secretaryMode() && box() === 'sent' ? secretarySentLabel(item) : statusLabel(item.state) }}</small>
+            }
           </button>
         }
       }

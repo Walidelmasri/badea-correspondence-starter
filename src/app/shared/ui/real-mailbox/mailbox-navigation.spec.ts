@@ -31,7 +31,7 @@ describe('correspondence creation navigation', () => {
   it('starts Inbox on needs action and preserves deep links to every filter', () => {
     expect(inboxViewFromQuery(null)).toBe('needs_action');
     expect(inboxViewFromQuery('unknown')).toBe('needs_action');
-    for (const view of ['all', 'unread', 'needs_action', 'handled', 'archived']) {
+    for (const view of ['all', 'unread', 'needs_action', 'returned', 'handled', 'archived']) {
       expect(inboxViewFromQuery(view)).toBe(view);
     }
   });

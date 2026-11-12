@@ -54,6 +54,8 @@ public final class TarasolSecretarySharedInboxWebScript extends AbstractWebScrip
                     .put("needsAction", item.needsAction())
                     .put("unread", item.unread())
                     .put("incomingSequence", item.incomingSequence())
+                    .put("approvalStatus", nullable(item.approvalStatus()))
+                    .put("returnReason", nullable(item.returnReason()))
                     .put("createdAt", item.createdAt().toString())
                     .put("modifiedAt", item.modifiedAt().toString()));
             }

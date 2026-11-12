@@ -113,6 +113,7 @@ class AlfrescoCorrespondenceMailboxListerTest {
         when(nodes.getProperty(request, qname("roundTwoRequestStatus"))).thenReturn("RETURNED");
         when(nodes.getProperty(request, qname("roundTwoRequestCycle"))).thenReturn(1L);
         assertEquals(1, lister.listSecretaryInbox(DEPARTMENT, "99999", "needs_action", 0, 10).total());
+        assertEquals(1, lister.listSecretaryInbox(DEPARTMENT, "99999", "returned", 0, 10).total());
         assertTrue(lister.listSecretaryInbox(DEPARTMENT, "99999", "all", 0, 10)
                 .items().getFirst().needsAction());
         assertEquals(0, lister.listSecretaryInbox(DEPARTMENT, "other", "needs_action", 0, 10).total());
@@ -416,6 +417,92 @@ class AlfrescoCorrespondenceMailboxListerTest {
                 .thenReturn(Date.from(Instant.parse("2026-10-18T07:00:00Z")));
         assertEquals(0, lister.list("drafts", CorrespondenceActorRole.PRESIDENT,
                 null, "10001", "all", 0, 25).total());
+    }
+
+    @Test
+    void returnedSecretaryDraftsShareOneBoundedPageWithRoutedInbox() {
+        // Ten normal cases plus two returned personal drafts: never 12 visible
+        // against a footer saying 1-10 of 10.
+        prop("state", "WITH_DIRECTOR");
+        prop("assignedRole", "DIRECTOR");
+        prop("assignedDepartmentCode", "117");
+        java.util.ArrayList<ChildAssociationRef> children = new java.util.ArrayList<>();
+        children.add(association(document));
+        for (int i = 1; i < 10; i++) {
+            NodeRef normal = node(String.format("00000000-0000-0000-0000-%012d", i));
+            children.add(association(normal));
+            when(nodes.getType(normal)).thenReturn(qname("correspondence"));
+            when(permissions.hasPermission(normal, PermissionService.READ))
+                .thenReturn(AccessStatus.ALLOWED);
+            when(nodes.getProperty(normal, qname("technicalId")))
+                .thenReturn(String.format("10000000-0000-0000-0000-%012d", i));
+            when(nodes.getProperty(normal, qname("subject"))).thenReturn("Normal " + i);
+            when(nodes.getProperty(normal, qname("state"))).thenReturn("WITH_DIRECTOR");
+            when(nodes.getProperty(normal, qname("originDepartmentCode"))).thenReturn("117");
+            when(nodes.getProperty(normal, qname("assignedRole"))).thenReturn("DIRECTOR");
+            when(nodes.getProperty(normal, qname("assignedDepartmentCode"))).thenReturn("117");
+            when(nodes.getProperty(normal, qname("createdByNameEnglish"))).thenReturn("Manager");
+            when(nodes.getProperty(normal, ContentModel.PROP_CREATED))
+                .thenReturn(Date.from(Instant.parse("2026-11-09T08:00:00Z")));
+            when(nodes.getProperty(normal, ContentModel.PROP_MODIFIED))
+                .thenReturn(Date.from(Instant.parse("2026-11-09T09:00:00Z")));
+        }
+        for (int i = 1; i <= 2; i++) {
+            NodeRef returned = node(String.format("20000000-0000-0000-0000-%012d", i));
+            children.add(association(returned));
+            when(nodes.getType(returned)).thenReturn(qname("correspondence"));
+            when(permissions.hasPermission(returned, PermissionService.READ))
+                .thenReturn(AccessStatus.ALLOWED);
+            when(nodes.getProperty(returned, qname("technicalId")))
+                .thenReturn(String.format("30000000-0000-0000-0000-%012d", i));
+            when(nodes.getProperty(returned, qname("subject"))).thenReturn("Returned " + i);
+            when(nodes.getProperty(returned, qname("state"))).thenReturn("DRAFT");
+            when(nodes.getProperty(returned, qname("originDepartmentCode"))).thenReturn("117");
+            when(nodes.getProperty(returned, qname("secretaryOwnerEmployeeId"))).thenReturn("99999");
+            when(nodes.getProperty(returned, qname("secretaryApprovalStatus")))
+                .thenReturn("RETURNED");
+            when(nodes.getProperty(returned, qname("createdByNameEnglish"))).thenReturn("Secretary");
+            when(nodes.getProperty(returned, ContentModel.PROP_CREATED))
+                .thenReturn(Date.from(Instant.parse("2026-11-11T08:00:00Z")));
+            when(nodes.getProperty(returned, ContentModel.PROP_MODIFIED))
+                .thenReturn(Date.from(Instant.parse("2026-11-11T09:00:00Z")));
+        }
+        // Do not put the mock action construction inside another Mockito stubbing.
+        NodeRef returnedOne = node("20000000-0000-0000-0000-000000000001");
+        NodeRef action = node("40000000-0000-0000-0000-000000000001");
+        ChildAssociationRef actionAssoc = association(action);
+        when(nodes.getChildAssocs(returnedOne)).thenReturn(List.of(actionAssoc));
+        when(nodes.getType(action)).thenReturn(qname("workflowAction"));
+        when(nodes.getProperty(action, qname("actionType"))).thenReturn("RETURN_TO_SECRETARY");
+        when(nodes.getProperty(action, qname("actionSequence"))).thenReturn(2L);
+        when(nodes.getProperty(action, qname("explanation")))
+            .thenReturn("Please replace the PDF");
+        when(nodes.getChildAssocs(folder)).thenReturn(children);
+
+        var first = lister.listSecretaryInbox(DEPARTMENT, "99999", "all", 0, 10);
+        var second = lister.listSecretaryInbox(DEPARTMENT, "99999", "all", 10, 10);
+        assertEquals(12, first.total());
+        assertEquals(12, second.total());
+        assertEquals(10, first.items().size());
+        assertEquals(2, second.items().size());
+        assertEquals(2, first.items().stream()
+                .filter(row -> "RETURNED".equals(row.approvalStatus())).count());
+        assertEquals("Please replace the PDF", first.items().stream()
+                .filter(row -> "Returned 1".equals(row.subject()))
+                .findFirst().orElseThrow().returnReason());
+        assertEquals(2, lister.listSecretaryInbox(DEPARTMENT,
+                "99999", "returned", 0, 10).total());
+        assertEquals(2, lister.listSecretaryInbox(DEPARTMENT,
+                "99999", "needs_action", 0, 10).total());
+        assertEquals(0, lister.listSecretaryInbox(DEPARTMENT,
+                "99999", "unread", 0, 10).total());
+        assertEquals(10, lister.listSecretaryInbox(DEPARTMENT,
+                "other-secretary", "all", 0, 10).total());
+        assertEquals(10, lister.list("inbox", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "manager", "all", 0, 10).total());
+        assertThrows(IllegalArgumentException.class, () ->
+            lister.list("inbox", CorrespondenceActorRole.DIRECTOR,
+                DEPARTMENT, "manager", "returned", 0, 10));
     }
 
     private void action(String employee, String role, String target, String targetDepartment) {

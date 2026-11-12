@@ -63,7 +63,7 @@ public final class TarasolSecretarySharedInboxService {
                 || !access.hasActiveSecretaryAssignment(actor.employeeId(), unit)) {
             throw new CorrespondenceAuthorizationException("Secretary Inbox access denied");
         }
-        if (view == null || !java.util.Set.of("all", "unread", "needs_action", "handled", "archived")
+        if (view == null || !java.util.Set.of("all", "unread", "needs_action", "handled", "archived", "returned")
                 .contains(view)) {
             throw new IllegalArgumentException("Invalid Inbox view");
         }
