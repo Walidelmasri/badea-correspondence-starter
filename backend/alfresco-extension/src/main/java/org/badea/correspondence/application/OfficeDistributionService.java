@@ -91,7 +91,13 @@ public final class OfficeDistributionService {
         // Only the saved review's President may authorize this reusable mark.
         // A missing or different owner's signature leaves the official PDF unsigned.
         PresidentSignatureDrawing signature = signatureStore == null ? null
-                : signatureStore.loadForReview(command.technicalId()).orElse(null);
+                : signatureStore.loadForReview(command.technicalId(), review.revision()).orElse(null);
+        // A specifically chosen signature must never silently become unsigned.
+        // Previous reviews without a selected slot retain the existing unsigned behavior.
+        if (new org.json.JSONObject(review.json()).optInt("selectedSignatureSlot", 0) != 0
+                && signature == null) {
+            throw new IllegalStateException("Selected presidential signature snapshot is missing");
+        }
         var printContext = new OfficeActionSheetPrintContext(
                 LocalDate.ofInstant(now, ZoneId.of("Asia/Riyadh")), java.util.Map.of(), signature,
                 java.time.LocalTime.ofInstant(now, ZoneId.of("Asia/Riyadh")));

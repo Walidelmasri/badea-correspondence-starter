@@ -73,7 +73,19 @@ describe('President signature popup', () => {
     expect(api.deactivatePresidentSignature).not.toHaveBeenCalled();
     component.confirmRemoval.set(true);
     await component.remove();
-    expect(api.deactivatePresidentSignature).toHaveBeenCalledWith(2);
+    expect(api.deactivatePresidentSignature).toHaveBeenCalledWith(2, 1);
     expect(component.status()?.configured).toBe(false);
   });
+  it('can switch to the independent second signature slot', async () => {
+    const {component, api} = create(false);
+    await component.toggle();
+    await component.chooseSlot(2);
+    expect(component.selectedSlot()).toBe(2);
+    expect(api.getPresidentSignatureStatus).toHaveBeenLastCalledWith(2);
+    component.strokes.push([[0.1,0.1],[0.3,0.5],[0.7,0.8],[0.9,0.9]]);
+    component.consented.set(true);
+    await component.save();
+    expect(api.registerPresidentSignature).toHaveBeenCalledWith(expect.objectContaining({slot: 2}));
+  });
+
 });

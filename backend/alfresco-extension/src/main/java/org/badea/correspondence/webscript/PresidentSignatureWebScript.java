@@ -18,6 +18,7 @@ import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
 import org.badea.correspondence.security.CorrespondenceAuthorizationException;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.springframework.extensions.webscripts.AbstractWebScript;
 import org.springframework.extensions.webscripts.Status;
 import org.springframework.extensions.webscripts.WebScriptRequest;
@@ -47,31 +48,43 @@ public final class PresidentSignatureWebScript extends AbstractWebScript {
                 throw new CorrespondenceAuthorizationException("Only the President can manage the signature");
             }
             String employeeId = currentEmployee.getCurrentEmployee().employeeId().value();
+            int slot = write || request.getParameter("slot") == null ? 1 : readSlot(request.getParameter("slot"));
             PresidentSignatureStore.Status status;
             if (write) {
                 String raw = request.getContent() == null ? null : request.getContent().getContent();
                 if (raw == null || raw.length() > 75000) throw new IllegalArgumentException("Invalid signature payload");
                 JSONObject body = new JSONObject(raw);
+                slot = body.has("slot") ? readSlot(body.get("slot").toString()) : 1;
                 long revision = body.getLong("expectedRevision");
                 if ("deactivate".equals(body.optString("action"))) {
-                    status = signatures.deactivate(employeeId, revision);
+                    status = slot == 1 ? signatures.deactivate(employeeId, revision)
+                            : signatures.deactivate(slot, employeeId, revision);
                 } else {
                     if (!body.getBoolean("authorizeReuse")) {
                         throw new IllegalArgumentException("Explicit authorization is required");
                     }
                     PresidentSignatureDrawing drawing = PresidentSignatureDrawing.fromJson(body.getJSONObject("drawing").toString());
-                    status = signatures.register(drawing, employeeId, revision);
+                    status = slot == 1 ? signatures.register(drawing, employeeId, revision)
+                            : signatures.register(slot, drawing, employeeId, revision);
                 }
             } else {
-                status = signatures.status();
+                status = slot == 1 ? signatures.status() : signatures.status(slot);
             }
             Optional<PresidentSignatureDrawing> ownSignature = status.configured()
-                    ? signatures.previewForOwner(employeeId) : Optional.empty();
-            JSONObject result = new JSONObject().put("configured", status.configured())
+                    ? (slot == 1 ? signatures.previewForOwner(employeeId)
+                            : signatures.previewForOwner(slot, employeeId)) : Optional.empty();
+            JSONObject result = new JSONObject().put("slot", slot).put("configured", status.configured())
                     .put("revision", status.revision())
                     .put("updatedAt", status.updatedAt() == null ? JSONObject.NULL : status.updatedAt().toString())
                     .put("previewDataUrl", ownSignature.isPresent()
                             ? renderPreview(ownSignature.get()) : JSONObject.NULL);
+            JSONArray audit = new JSONArray();
+            for (PresidentSignatureStore.AuditEntry event : signatures.audit(slot)) {
+                audit.put(new JSONObject().put("slot", event.slot()).put("revision", event.revision())
+                        .put("action", event.action()).put("actorEmployeeId", event.actorEmployeeId())
+                        .put("at", event.at().toString()));
+            }
+            result.put("audit", audit);
             send(response, Status.STATUS_OK, result);
         } catch (CorrespondenceAuthorizationException unauthorized) {
             send(response, Status.STATUS_FORBIDDEN, new JSONObject().put("code", "PRESIDENT_ONLY"));
@@ -80,6 +93,13 @@ public final class PresidentSignatureWebScript extends AbstractWebScript {
         } catch (org.json.JSONException | IllegalArgumentException invalid) {
             send(response, Status.STATUS_BAD_REQUEST, new JSONObject().put("code", "INVALID_SIGNATURE"));
         }
+    }
+
+    private static int readSlot(String raw) {
+        if (!"1".equals(raw) && !"2".equals(raw)) {
+            throw new IllegalArgumentException("Signature slot must be 1 or 2");
+        }
+        return Integer.parseInt(raw);
     }
 
     private static String renderPreview(PresidentSignatureDrawing signature) throws IOException {

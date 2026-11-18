@@ -996,3 +996,12 @@
     height: 62dvh;
   }
 }
+/* Per-correspondence signature selection; does not change routing or PDF annotation. */
+.president-signature-selection { padding: 1rem; border-top: 1px solid var(--color-border); }
+.signature-selection-heading { display:flex; justify-content:space-between; align-items:center; gap:.6rem; }
+.president-signature-selection p { font-size: .78rem; color: var(--color-text-secondary); }
+.signature-selection-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; margin:.6rem 0; }
+.signature-selection-options button { min-width:0; padding:.5rem; border:1px solid var(--color-border);
+  border-radius:.7rem; background:var(--color-surface); font:inherit; }
+.signature-selection-options button.selected { border-color:var(--color-primary-700); box-shadow:inset 0 0 0 1px var(--color-primary-700); }
+.signature-selection-options img { display:block; width:100%; max-height:55px; object-fit:contain; }

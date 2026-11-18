@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.json.JSONObject;
 import org.badea.correspondence.workflow.CorrespondenceActorRole;
 
 /** Called only after workflow eligibility checks, inside the transition transaction. */
@@ -20,11 +21,20 @@ public final class PresidentDocumentFinalizationService implements PresidentDocu
     private final PresidentPdfRenderer renderer;
     private final PresidentGeneratedDocumentStore generated;
     private final PresidentInkReviewParser parser;
+    private final PresidentSignatureStore signatures;
 
     public PresidentDocumentFinalizationService(PresidentReviewStateRepository reviews,
             CorrespondenceDetailsRepository details, CorrespondenceDocumentContentRepository sources,
             PresidentPdfRenderer renderer, PresidentGeneratedDocumentStore generated,
             PresidentInkReviewParser parser) {
+        this(reviews, details, sources, renderer, generated, parser, null);
+    }
+
+    public PresidentDocumentFinalizationService(PresidentReviewStateRepository reviews,
+            CorrespondenceDetailsRepository details, CorrespondenceDocumentContentRepository sources,
+            PresidentPdfRenderer renderer, PresidentGeneratedDocumentStore generated,
+            PresidentInkReviewParser parser, PresidentSignatureStore signatures) {
+        this.signatures = signatures;
         this.reviews = Objects.requireNonNull(reviews);
         this.details = Objects.requireNonNull(details);
         this.sources = Objects.requireNonNull(sources);
@@ -43,6 +53,20 @@ public final class PresidentDocumentFinalizationService implements PresidentDocu
         if (snapshot.isEmpty()) return;
         PresidentReviewState revision = snapshot.get();
         PresidentInkReview ink = parser.parse(revision.json());
+        // Freeze the exact chosen drawing and revision in the SAME required
+        // transaction as the President's final PDFs and SEND_TO_OFFICE transition.
+        // This prevents later slot edits from changing an official action sheet.
+        JSONObject signedReview = new JSONObject(revision.json());
+        if (signedReview.has("selectedSignatureSlot") && !signedReview.isNull("selectedSignatureSlot")) {
+            int slot = signedReview.getInt("selectedSignatureSlot");
+            long signatureRevision = signedReview.getLong("selectedSignatureRevision");
+            if ((slot != 1 && slot != 2) || signatureRevision < 1) {
+                throw new IllegalArgumentException("Invalid selected presidential signature");
+            }
+            if (signatures == null) throw new IllegalStateException("Signature storage unavailable");
+            signatures.freezeForReview(command.technicalId(), command.actorEmployeeId().value(),
+                    revision.revision(), slot, signatureRevision);
+        }
         var original = details.findByTechnicalId(command.technicalId()).documents();
         Set<String> known = new HashSet<>();
         for (CorrespondenceDocument document : original) known.add(document.nodeId());

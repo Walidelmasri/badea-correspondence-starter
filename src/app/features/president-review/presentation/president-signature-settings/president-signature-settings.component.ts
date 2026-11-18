@@ -29,6 +29,12 @@ type Stroke = Coord[];
             <button type="button" class="signature-close" (click)="close()" [disabled]="saving()"
               [attr.aria-label]="ar() ? 'إغلاق' : 'Close'">×</button>
           </div>
+          <div class="signature-slots" role="group" [attr.aria-label]="ar() ? 'التوقيعات' : 'Signatures'">
+            <button type="button" [class.signature-slot-active]="selectedSlot() === 1"
+              [disabled]="saving()" (click)="chooseSlot(1)">{{ ar() ? 'التوقيع ١' : 'Signature 1' }}</button>
+            <button type="button" [class.signature-slot-active]="selectedSlot() === 2"
+              [disabled]="saving()" (click)="chooseSlot(2)">{{ ar() ? 'التوقيع ٢' : 'Signature 2' }}</button>
+          </div>
           <p class="signature-note">{{ ar()
             ? 'يُستخدم التوقيع المحفوظ في أوراق الإجراء الجديدة بعد اعتماد المراجعة. لا تتغير المستندات السابقة.'
             : 'The saved signature is applied to new action sheets after an approved review. Existing documents remain unchanged.' }}</p>
@@ -105,6 +111,14 @@ type Stroke = Coord[];
               </div>
             }
           }
+          @if (status()?.audit?.length) {
+            <section class="signature-audit" [attr.aria-label]="ar() ? 'سجل تغييرات التوقيع' : 'Signature change history'">
+              <strong>{{ ar() ? 'سجل التغييرات' : 'Change history' }}</strong>
+              @for (entry of status()!.audit!.slice(0, 10); track entry.revision) {
+                <p>{{ entry.action }} · {{ entry.at }} · {{ entry.actorEmployeeId }} · v{{ entry.revision }}</p>
+              }
+            </section>
+          }
           @if (feedback()) { <p role="status" class="signature-feedback">{{ feedback() }}</p> }
         </div>
       }
@@ -139,6 +153,11 @@ type Stroke = Coord[];
     .signature-confirm { border: 1px solid #e3c4c5; background: #fff7f7; padding: 12px;
       border-radius: 8px; margin-top: 12px; }
     .signature-feedback { font-size: .86rem; font-weight: 650; }
+    .signature-slots { display:flex; gap:8px; margin-top:14px; }
+    .signature-slots button { flex:1; }
+    .signature-slot-active { background:#164435; color:white; border-color:#164435; }
+    .signature-audit { margin-top:16px; border-top:1px solid #d7e6df; padding-top:10px; }
+    .signature-audit p { margin:6px 0; font-size:.72rem; color:#526c62; }
     @media (max-width: 600px) { .signature-panel--modal { width: 95vw; padding: 14px; } }
   `],
 })
@@ -155,6 +174,7 @@ export class PresidentSignatureSettingsComponent {
   readonly consented = signal(false);
   readonly feedback = signal('');
   readonly status = signal<PresidentSignatureStatus | null>(null);
+  readonly selectedSlot = signal<1 | 2>(1);
   readonly strokes: Stroke[] = [];
   private current: Stroke | null = null;
   private loadVersion = 0;
@@ -179,13 +199,22 @@ export class PresidentSignatureSettingsComponent {
     this.clear();
   }
 
+  async chooseSlot(slot: 1 | 2): Promise<void> {
+    if (this.saving() || slot === this.selectedSlot()) return;
+    this.selectedSlot.set(slot);
+    this.editing.set(false);
+    this.confirmRemoval.set(false);
+    this.clear();
+    await this.loadStatus();
+  }
+
   async loadStatus(): Promise<void> {
     const version = ++this.loadVersion;
     this.loadingStatus.set(true);
     this.status.set(null);
     this.feedback.set('');
     try {
-      const status = await firstValueFrom(this.api.getPresidentSignatureStatus());
+      const status = await firstValueFrom(this.api.getPresidentSignatureStatus(this.selectedSlot()));
       if (version !== this.loadVersion || !this.open()) return;
       this.status.set(status);
       this.editing.set(!status.configured);
@@ -268,6 +297,7 @@ export class PresidentSignatureSettingsComponent {
     this.saving.set(true);
     try {
       const result = await firstValueFrom(this.api.registerPresidentSignature({
+        ...(this.selectedSlot() === 2 ? {slot: 2 as const} : {}),
         expectedRevision: current.revision,
         authorizeReuse: true,
         drawing: {schemaVersion: 1, strokes: this.strokes.map(s => [...s])},
@@ -287,7 +317,7 @@ export class PresidentSignatureSettingsComponent {
     if (!current?.configured || !current.previewDataUrl || !this.confirmRemoval() || this.saving()) return;
     this.saving.set(true);
     try {
-      const result = await firstValueFrom(this.api.deactivatePresidentSignature(current.revision));
+      const result = await firstValueFrom(this.api.deactivatePresidentSignature(current.revision, this.selectedSlot()));
       this.status.set(result);
       this.editing.set(true);
       this.confirmRemoval.set(false);

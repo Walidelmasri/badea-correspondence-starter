@@ -106,6 +106,27 @@ class PresidentSignatureWebScriptTest {
         verify(response).setStatus(Status.STATUS_OK);
     }
 
+    @Test void presidentMayReadSecondSlotWithoutExposingRawStrokes() throws Exception {
+        var roles = mock(CorrespondenceActorRoleResolver.class);
+        var employee = mock(CurrentEmployeeService.class);
+        var store = mock(PresidentSignatureStore.class);
+        var request = mock(WebScriptRequest.class);
+        var response = mock(WebScriptResponse.class);
+        var out = new StringWriter();
+        when(request.getParameter("slot")).thenReturn("2");
+        when(response.getWriter()).thenReturn(new PrintWriter(out));
+        when(roles.resolveCurrentUserRole()).thenReturn(CorrespondenceActorRole.PRESIDENT);
+        when(employee.getCurrentEmployee()).thenReturn(PRESIDENT);
+        when(store.status(2)).thenReturn(new PresidentSignatureStore.Status(false, 0, null));
+        when(store.audit(2)).thenReturn(List.of());
+        new PresidentSignatureWebScript(roles, employee, store, false).execute(request, response);
+        assertEquals(2, new JSONObject(out.toString()).getInt("slot"));
+        verify(store).status(2);
+        verify(store, never()).status();
+        assertFalse(out.toString().contains("strokes"));
+        verify(response).setStatus(Status.STATUS_OK);
+    }
+
     @Test void wrongWorkspaceIsRejectedBeforeReadingSignature() throws Exception {
         var roles = mock(CorrespondenceActorRoleResolver.class);
         var employee = mock(CurrentEmployeeService.class);

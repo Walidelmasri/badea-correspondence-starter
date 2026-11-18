@@ -86,7 +86,7 @@ class OfficeDistributionServiceTest {
                 new PresidentSignatureDrawing.Point(.2f,.5f),
                 new PresidentSignatureDrawing.Point(.6f,.2f),
                 new PresidentSignatureDrawing.Point(.9f,.8f))));
-        when(signatureStore.loadForReview(command.technicalId())).thenReturn(Optional.of(signature));
+        when(signatureStore.loadForReview(command.technicalId(), 5)).thenReturn(Optional.of(signature));
         var signatureAware=new OfficeDistributionService(correspondence,returns,president,office,
                 details,departments,new OfficeDistributionPlanner(departments),directors,pdf,storage,
                 clock,signatureStore);
@@ -96,6 +96,21 @@ class OfficeDistributionServiceTest {
         var context=org.mockito.ArgumentCaptor.forClass(OfficeActionSheetPrintContext.class);
         verify(pdf).render(any(),any(),anyList(),anyList(),context.capture());
         assertEquals(signature,context.getValue().presidentSignature());
+    }
+
+    @Test void chosenSignatureMissingFrozenRevisionFailsClosedBeforePdfDispatch() {
+        var signatureStore = mock(PresidentSignatureStore.class);
+        when(president.find(command.technicalId())).thenReturn(Optional.of(new PresidentReviewState(5,
+                "{\"schemaVersion\":1,\"selectedSignatureSlot\":2,\"selectedSignatureRevision\":7,\"selectedRecipientIds\":[\"117\"],\"selectedCopyRecipientIds\":[],\"selectedActionCodes\":[],\"typedExplanation\":\"President\"}")));
+        when(signatureStore.loadForReview(command.technicalId(), 5)).thenReturn(Optional.empty());
+        var signatureAware = new OfficeDistributionService(correspondence, returns, president, office,
+                details, departments, new OfficeDistributionPlanner(departments), directors, pdf, storage,
+                clock, signatureStore);
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> signatureAware.distribute(command, CorrespondenceActorRole.PRESIDENT_OFFICE));
+        assertEquals("Selected presidential signature snapshot is missing", failure.getMessage());
+        verifyNoInteractions(pdf);
+        verify(storage, never()).distribute(any(), any(), any(), anyList());
     }
 
     @Test void forbidsPrematureDispatch() {

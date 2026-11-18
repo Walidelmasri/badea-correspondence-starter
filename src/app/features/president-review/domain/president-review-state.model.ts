@@ -54,6 +54,8 @@ export interface PresidentReviewDraftState {
   readonly typedExplanation: string;
   readonly explanationInkDocument: PresidentExplanationInkDocument;
   readonly pdfInkDocuments: readonly PresidentReviewPdfInkDocument[];
+  readonly selectedSignatureSlot?: 1 | 2 | null;
+  readonly selectedSignatureRevision?: number | null;
 }
 
 const ACTION_CODES:
@@ -88,6 +90,8 @@ export function createEmptyPresidentReviewDraftState():
     explanationInkDocument:
       createEmptyPresidentExplanationInkDocument(),
     pdfInkDocuments: [],
+    selectedSignatureSlot: null,
+    selectedSignatureRevision: null,
   };
 }
 
@@ -122,6 +126,12 @@ export function normalizePresidentReviewDraftState(
       empty.explanationInkDocument,
     ),
     pdfInkDocuments: normalizePdfInkDocuments(value['pdfInkDocuments']),
+    selectedSignatureSlot: value['selectedSignatureSlot'] === 1 || value['selectedSignatureSlot'] === 2
+      ? value['selectedSignatureSlot'] : null,
+    selectedSignatureRevision: (value['selectedSignatureSlot'] === 1 || value['selectedSignatureSlot'] === 2) &&
+      typeof value['selectedSignatureRevision'] === 'number' &&
+      Number.isSafeInteger(value['selectedSignatureRevision']) && value['selectedSignatureRevision'] > 0
+        ? value['selectedSignatureRevision'] : null,
   };
 }
 

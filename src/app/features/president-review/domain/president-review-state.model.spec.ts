@@ -28,6 +28,8 @@ describe('PresidentReviewDraftState', () => {
         pages: [{ id: 'explanation-page-1', strokes: [] }],
       },
       pdfInkDocuments: [],
+      selectedSignatureSlot: null,
+      selectedSignatureRevision: null,
     } satisfies PresidentReviewDraftState);
 
     expect(JSON.parse(JSON.stringify(state))).toEqual(state);
@@ -47,6 +49,19 @@ describe('PresidentReviewDraftState', () => {
     expect(state.explanationMode).toBe('pen');
     expect(state.pdfInkDocuments).toEqual([]);
     expect(state.explanationInkDocument.pages).toHaveLength(1);
+  });
+
+  it('preserves a valid versioned signature choice and rejects malformed revisions', () => {
+    const selected = normalizePresidentReviewDraftState({
+      schemaVersion: 1, selectedSignatureSlot: 2, selectedSignatureRevision: 7,
+    });
+    expect(selected.selectedSignatureSlot).toBe(2);
+    expect(selected.selectedSignatureRevision).toBe(7);
+    const invalid = normalizePresidentReviewDraftState({
+      schemaVersion: 1, selectedSignatureSlot: 9, selectedSignatureRevision: -1,
+    });
+    expect(invalid.selectedSignatureSlot).toBeNull();
+    expect(invalid.selectedSignatureRevision).toBeNull();
   });
 
   it('preserves valid strokes and discards malformed ink safely', () => {

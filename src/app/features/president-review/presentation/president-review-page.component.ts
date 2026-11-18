@@ -36,6 +36,7 @@ import {
   CorrespondenceApiService,
   CorrespondenceDetails,
   CorrespondenceGeneratedDocument,
+  PresidentSignatureStatus,
 } from '../../../shared/data-access/correspondence-api.service';
 
 import {
@@ -137,6 +138,10 @@ export class PresidentReviewPageComponent {
   readonly handoffInProgress = signal(false);
   readonly handoffUncertain = signal(false);
   readonly handoffError = signal(false);
+  readonly signatureSlotStatuses = signal<readonly PresidentSignatureStatus[]>([]);
+  readonly signatureSlotsLoading = signal(false);
+  readonly selectedSignatureSlot = signal<1 | 2 | null>(null);
+  readonly selectedSignatureRevision = signal<number | null>(null);
 
   private detailsRequest: Subscription | null = null;
   private readonly pdfObjectUrls = new Set<string>();
@@ -480,6 +485,41 @@ export class PresidentReviewPageComponent {
     this.previousDocumentPreview.set(null);
   }
 
+  async reloadSignatureSlots(): Promise<boolean> {
+    const id = this.technicalId();
+    if (!id) return false;
+    this.signatureSlotsLoading.set(true);
+    try {
+      const [first, second] = await Promise.all([
+        firstValueFrom(this.api.getPresidentSignatureStatus(1)),
+        firstValueFrom(this.api.getPresidentSignatureStatus(2)),
+      ]);
+      if (id !== this.technicalId()) return false;
+      this.signatureSlotStatuses.set([first, second]);
+      const chosen = this.signatureSlotStatuses().find(slot => slot.slot === this.selectedSignatureSlot());
+      if (this.selectedSignatureSlot() && (!chosen?.configured || chosen.revision !== this.selectedSignatureRevision())) {
+        // A concurrently edited signature cannot silently replace the chosen drawing.
+        this.selectedSignatureSlot.set(null);
+        this.selectedSignatureRevision.set(null);
+        this.scheduleAutosave();
+      }
+      return true;
+    } catch {
+      if (id === this.technicalId()) this.signatureSlotStatuses.set([]);
+      return false;
+    } finally {
+      if (id === this.technicalId()) this.signatureSlotsLoading.set(false);
+    }
+  }
+
+  chooseSignatureSlot(slot: 1 | 2 | null): void {
+    const current = this.signatureSlotStatuses().find(item => item.slot === slot);
+    if (slot !== null && (!current?.configured || !current.previewDataUrl)) return;
+    this.selectedSignatureSlot.set(slot);
+    this.selectedSignatureRevision.set(current?.revision ?? null);
+    this.scheduleAutosave();
+  }
+
   selectAttachment(id: string): void {
     if (this.attachments().some((attachment) => attachment.id === id)) {
       this.activeAttachmentId.set(id);
@@ -649,6 +689,7 @@ export class PresidentReviewPageComponent {
     }
     if (!this.reviewLoaded()) {
       this.loadPresidentReview(technicalId);
+      void this.reloadSignatureSlots();
     }
   }
 
@@ -683,6 +724,15 @@ export class PresidentReviewPageComponent {
     this.clearSaveTimer();
 
     try {
+      if (this.selectedSignatureSlot()) {
+        // Refresh the selected signature revision immediately before final handoff.
+        // A replacement in another tab must cause an explicit new selection.
+        const refreshed = await this.reloadSignatureSlots();
+        if (!refreshed || !this.selectedSignatureSlot()) {
+          this.handoffError.set(true);
+          return;
+        }
+      }
       if (!await this.ensureReviewPersisted(id)) {
         this.handoffError.set(true);
         return;
@@ -766,6 +816,8 @@ export class PresidentReviewPageComponent {
 
     this.technicalId.set(technicalId);
     this.revision.set(0);
+    this.signatureSlotStatuses.set([]);
+    this.signatureSlotsLoading.set(false);
 
     this.reviewLoaded.set(technicalId === null);
 
@@ -945,6 +997,8 @@ export class PresidentReviewPageComponent {
     this.pdfInkDocuments.set(
       state.pdfInkDocuments,
     );
+    this.selectedSignatureSlot.set(state.selectedSignatureSlot ?? null);
+    this.selectedSignatureRevision.set(state.selectedSignatureRevision ?? null);
 
     /**
      * Reveal persisted choices even if they were
@@ -1029,6 +1083,8 @@ export class PresidentReviewPageComponent {
       typedExplanation: this.typedExplanation(),
       explanationInkDocument: this.explanationInkDocument(),
       pdfInkDocuments: this.pdfInkDocuments(),
+      selectedSignatureSlot: this.selectedSignatureSlot(),
+      selectedSignatureRevision: this.selectedSignatureRevision(),
     };
   }
 

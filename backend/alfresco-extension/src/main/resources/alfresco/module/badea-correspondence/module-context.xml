@@ -376,6 +376,7 @@
     <constructor-arg ref="badeaPresidentPdfRenderer" />
     <constructor-arg ref="badeaPresidentGeneratedDocumentStore" />
     <constructor-arg ref="badeaPresidentInkReviewParser" />
+    <constructor-arg ref="badeaPresidentSignatureStore" />
 </bean>
 
 <!--

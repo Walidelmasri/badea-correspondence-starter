@@ -332,12 +332,6 @@
                     {{ translation.text().presidentReview.yourDirection }}
                 </h2>
 
-                <p>
-                    {{
-                    translation.text()
-                        .presidentReview.directionHint
-                    }}
-                </p>
             </header>
 
             <section class="decision-section">
@@ -551,6 +545,39 @@
                     </div>
                 }
             </section>
+
+            @if (technicalId()) {
+              <section class="president-signature-selection" aria-label="President signature selection">
+                <div class="signature-selection-heading">
+                  <strong>{{ translation.language() === 'ar' ? 'التوقيع المعتمد' : 'Signature for this review' }}</strong>
+                  <button type="button" (click)="reloadSignatureSlots()" [disabled]="signatureSlotsLoading()">
+                    {{ translation.language() === 'ar' ? 'تحديث' : 'Refresh' }}
+                  </button>
+                </div>
+                <p>{{ translation.language() === 'ar'
+                  ? 'اختر أحد التوقيعين المحفوظين لاستخدامه في ورقة الإجراء الخاصة بهذه المراسلة.'
+                  : 'Choose a saved signature for this correspondence action sheet.' }}</p>
+                <div class="signature-selection-options">
+                  @for (signature of signatureSlotStatuses(); track signature.slot) {
+                    <button type="button" [disabled]="!signature.configured || !signature.previewDataUrl"
+                      [class.selected]="selectedSignatureSlot() === signature.slot && selectedSignatureRevision() === signature.revision"
+                      (click)="chooseSignatureSlot(signature.slot === 2 ? 2 : 1)">
+                      {{ translation.language() === 'ar' ? 'التوقيع ' + signature.slot : 'Signature ' + signature.slot }}
+                      @if (signature.previewDataUrl) { <img [src]="signature.previewDataUrl" alt="" /> }
+                    </button>
+                  }
+                </div>
+                @if (selectedSignatureSlot()) {
+                  <button type="button" (click)="chooseSignatureSlot(null)">
+                    {{ translation.language() === 'ar' ? 'بدون توقيع' : 'No signature' }}
+                  </button>
+                } @else {
+                  <p role="status">{{ translation.language() === 'ar'
+                    ? 'لم يتم اختيار توقيع. ستصدر ورقة الإجراء بدون توقيع.'
+                    : 'No signature selected. The action sheet will be unsigned.' }}</p>
+                }
+              </section>
+            }
 
             <footer class="decision-panel__footer">
                 @if (handoffError() || handoffUncertain()) {
