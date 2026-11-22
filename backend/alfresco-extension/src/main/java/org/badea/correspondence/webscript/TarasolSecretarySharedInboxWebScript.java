@@ -51,6 +51,7 @@ public final class TarasolSecretarySharedInboxWebScript extends AbstractWebScrip
                     .put("state", item.state())
                     .put("originDepartmentCode", item.originDepartmentCode())
                     .put("senderName", item.senderName())
+                    .put("senderNameArabic", nullable(item.senderNameArabic()))
                     .put("needsAction", item.needsAction())
                     .put("unread", item.unread())
                     .put("incomingSequence", item.incomingSequence())

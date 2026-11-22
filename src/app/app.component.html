@@ -157,7 +157,7 @@
                       [queryParams]="{ view: 'unread', open: item.technicalId }"
                       (click)="notifications.close()">
                       <strong>{{ item.subject }}</strong>
-                      <span>{{ item.senderName }}</span>
+                      <span>{{ mailboxSenderName(item, translation.language()) }}</span>
                     </a>
                   </li>
                 }

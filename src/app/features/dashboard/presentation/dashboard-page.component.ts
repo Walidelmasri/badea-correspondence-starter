@@ -16,6 +16,7 @@ import {
   CorrespondenceMailboxSummary,
 } from '../../../shared/data-access/correspondence-api.service';
 import { buildDashboardSnapshot, buildSecretaryDashboardSnapshot, DashboardSnapshot } from './dashboard-metrics';
+import { mailboxSenderName } from '../../../shared/ui/mailbox-sender-name';
 import { PresidentSignatureSettingsComponent } from '../../president-review/presentation/president-signature-settings/president-signature-settings.component';
 
 @Component({
@@ -90,6 +91,7 @@ export class DashboardPageComponent implements OnInit {
     }
   }
 
+  readonly mailboxSenderName = mailboxSenderName;
   correspondenceStatus(item: CorrespondenceMailboxSummary): string {
     const labels = this.labels();
     if (item.state === 'ARCHIVED') return labels.archivedStatus;

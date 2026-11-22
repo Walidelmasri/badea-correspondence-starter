@@ -139,7 +139,7 @@
               }
               <small>{{ returnedLabels().open }}</small>
             } @else {
-              <span>{{ item.senderName }}</span>
+              <span>{{ mailboxSenderName(item, translation.language()) }}</span>
               <small>{{ secretaryMode() && box() === 'sent' ? secretarySentLabel(item) : statusLabel(item.state) }}</small>
             }
           </button>
@@ -375,7 +375,7 @@
           </button>
         </header>
         <dl>
-          <div><dt>{{ labels().sender }}</dt><dd>{{ item.senderName }}</dd></div>
+          <div><dt>{{ labels().sender }}</dt><dd>{{ mailboxSenderName(item, translation.language()) }}</dd></div>
           <div><dt>{{ labels().documentNumber }}</dt>
             <dd>{{ item.documentNumber || labels().noDocumentNumber }}</dd></div>
           <div><dt>{{ labels().updated }}</dt><dd>{{ formatDate(item.modifiedAt) }}</dd></div>

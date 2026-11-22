@@ -69,6 +69,16 @@ class AlfrescoCorrespondenceMailboxListerTest {
     }
 
     @Test
+    void mailboxProvidesBothStoredSenderNamesWithoutChangingEnglishName() {
+        prop("createdByNameArabic", "اسم المرسل");
+        var page = lister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
+                DEPARTMENT, "99999", "all", 0, 10);
+        assertEquals(1, page.total());
+        assertEquals("Director", page.items().getFirst().senderName());
+        assertEquals("اسم المرسل", page.items().getFirst().senderNameArabic());
+    }
+
+    @Test
     void secretaryCanReadDirectorInboxButNotClaimDirectorAction() {
         prop("state", "WITH_DIRECTOR");
         prop("assignedRole", "DIRECTOR");

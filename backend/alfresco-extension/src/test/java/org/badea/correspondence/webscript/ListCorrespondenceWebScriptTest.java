@@ -269,7 +269,8 @@ class ListCorrespondenceWebScriptTest {
                 "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "Office task", "N-2",
                 "WITH_PRESIDENT_OFFICE", "117", "Director",
                 Instant.parse("2026-10-18T08:00:00Z"),
-                Instant.parse("2026-10-18T09:00:00Z"));
+                Instant.parse("2026-10-18T09:00:00Z"), false, false, 0,
+                null, null, "اسم المرسل");
         when(mailboxLister.list("inbox", CorrespondenceActorRole.PRESIDENT_OFFICE,
                 new DepartmentCode("101"), "10001", "all", 0, 25))
                 .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
@@ -280,6 +281,8 @@ class ListCorrespondenceWebScriptTest {
         assertEquals(1, result.getInt("total"));
         assertEquals("WITH_PRESIDENT_OFFICE",
                 result.getJSONArray("items").getJSONObject(0).getString("state"));
+        assertEquals("Director", result.getJSONArray("items").getJSONObject(0).getString("senderName"));
+        assertEquals("اسم المرسل", result.getJSONArray("items").getJSONObject(0).getString("senderNameArabic"));
     }
 
     @Test

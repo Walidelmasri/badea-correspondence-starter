@@ -40,6 +40,7 @@ public final class AlfrescoCorrespondenceMailboxLister {
     private static final QName PROP_SUBJECT = q("subject");
     private static final QName PROP_DOCUMENT_NUMBER = q("documentNumber");
     private static final QName PROP_SENDER = q("createdByNameEnglish");
+    private static final QName PROP_SENDER_ARABIC = q("createdByNameArabic");
     private static final QName PROP_CREATION_ROLE = q("createdByCorrespondenceRole");
     private static final QName PROP_CREATED_BY_ID = q("createdByEmployeeId");
     private static final QName PROP_SECRETARY_OWNER = q("secretaryOwnerEmployeeId");
@@ -223,7 +224,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
                         department.value(), required(node, PROP_SENDER),
                         timestamp(node, ContentModel.PROP_CREATED),
                         timestamp(node, ContentModel.PROP_MODIFIED), true, false, 0,
-                        "RETURNED", latestSecretaryReturnReason(node)));
+                        "RETURNED", latestSecretaryReturnReason(node),
+                        optional(node, PROP_SENDER_ARABIC)));
                 }
                 continue;
             }
@@ -255,7 +257,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
                         required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
                         optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
                         required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
-                        timestamp(node, ContentModel.PROP_MODIFIED), false));
+                        timestamp(node, ContentModel.PROP_MODIFIED), false, false, 0,
+                        null, null, optional(node, PROP_SENDER_ARABIC)));
                 continue;
             }
             List<CorrespondenceParticipation> actions = participationReader.read(node);
@@ -294,7 +297,8 @@ public final class AlfrescoCorrespondenceMailboxLister {
                     required(node, PROP_TECHNICAL_ID), required(node, PROP_SUBJECT),
                     optional(node, PROP_DOCUMENT_NUMBER), state.name(), origin,
                     required(node, PROP_SENDER), timestamp(node, ContentModel.PROP_CREATED),
-                    timestamp(node, ContentModel.PROP_MODIFIED), actionable, unread, incoming));
+                    timestamp(node, ContentModel.PROP_MODIFIED), actionable, unread, incoming,
+                    null, null, optional(node, PROP_SENDER_ARABIC)));
         }
         return deniedChild;
     }
@@ -467,7 +471,16 @@ public final class AlfrescoCorrespondenceMailboxLister {
             String state, String originDepartmentCode, String senderName,
             Instant createdAt, Instant modifiedAt, boolean needsAction,
             boolean unread, long incomingSequence,
-            String approvalStatus, String returnReason) {
+            String approvalStatus, String returnReason, String senderNameArabic) {
+        public MailboxSummary(String technicalId, String subject, String documentNumber,
+                String state, String originDepartmentCode, String senderName,
+                Instant createdAt, Instant modifiedAt, boolean needsAction,
+                boolean unread, long incomingSequence,
+                String approvalStatus, String returnReason) {
+            this(technicalId, subject, documentNumber, state, originDepartmentCode,
+                    senderName, createdAt, modifiedAt, needsAction, unread, incomingSequence,
+                    approvalStatus, returnReason, null);
+        }
         public MailboxSummary(String technicalId, String subject, String documentNumber,
                 String state, String originDepartmentCode, String senderName,
                 Instant createdAt, Instant modifiedAt, boolean needsAction,

@@ -102,6 +102,9 @@ public final class TarasolSecretaryWorkflowWebScript extends AbstractWebScript {
                         .put("approvalStatus", item.approvalStatus())
                         .put("state", item.state() == null ? JSONObject.NULL : item.state())
                         .put("senderName", item.senderName() == null ? JSONObject.NULL : item.senderName())
+                        .put("senderNameArabic", "sent".equals(personalBox)
+                            && employee.employeeId().value().equals(item.ownerEmployeeId())
+                            && employee.nameArabic() != null ? employee.nameArabic() : JSONObject.NULL)
                         .put("returnReason", item.returnReason() == null
                             ? JSONObject.NULL : item.returnReason())
                         .put("documentNumber", item.documentNumber() == null

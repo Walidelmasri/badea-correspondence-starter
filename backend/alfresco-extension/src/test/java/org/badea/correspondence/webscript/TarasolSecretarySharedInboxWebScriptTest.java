@@ -48,7 +48,8 @@ class TarasolSecretarySharedInboxWebScriptTest {
         var summary = new AlfrescoCorrespondenceMailboxLister.MailboxSummary(
             "case-1", "Subject", null, "WITH_DIRECTOR", "117", "Sender",
             Instant.parse("2026-11-04T07:00:00Z"),
-            Instant.parse("2026-11-04T08:00:00Z"), true, true, 4);
+            Instant.parse("2026-11-04T08:00:00Z"), true, true, 4,
+            null, null, "اسم المرسل");
         when(service.list(secretary, new DepartmentCode("117"), "needs_action", 0, 10))
             .thenReturn(new AlfrescoCorrespondenceMailboxLister.MailboxPage(
                 List.of(summary), 0, 10, 1));
@@ -63,6 +64,7 @@ class TarasolSecretarySharedInboxWebScriptTest {
         assertEquals(true, item.getBoolean("needsAction"));
         assertTrue(item.isNull("documentNumber"));
         assertEquals(4, item.getLong("incomingSequence"));
+        assertEquals("اسم المرسل", item.getString("senderNameArabic"));
     }
 
     @Test

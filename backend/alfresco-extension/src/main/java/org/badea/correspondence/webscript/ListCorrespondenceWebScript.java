@@ -233,6 +233,8 @@ public final class ListCorrespondenceWebScript
             item.put("state", summary.state());
             item.put("originDepartmentCode", summary.originDepartmentCode());
             item.put("senderName", summary.senderName());
+            item.put("senderNameArabic", summary.senderNameArabic() == null
+                    ? JSONObject.NULL : summary.senderNameArabic());
             item.put("needsAction", summary.needsAction());
             item.put("unread", summary.unread());
             item.put("incomingSequence", summary.incomingSequence());

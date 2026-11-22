@@ -34,6 +34,7 @@ import {
 } from './core/i18n/translation.service';
 
 import { UnreadInboxStore } from './core/notifications/unread-inbox.store';
+import { mailboxSenderName } from './shared/ui/mailbox-sender-name';
 import { AuthSessionStore } from './core/auth/auth-session.store';
 
 import { MAIN_NAVIGATION,
@@ -105,6 +106,7 @@ export class AppComponent {
     inject(TranslationService);
 
   readonly notifications = inject(UnreadInboxStore);
+  readonly mailboxSenderName = mailboxSenderName;
 
   readonly navigation =
     MAIN_NAVIGATION;

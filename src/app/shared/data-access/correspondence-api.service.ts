@@ -136,6 +136,7 @@ export interface CorrespondenceMailboxSummary extends Omit<CorrespondenceDraftSu
   readonly state: CorrespondenceDetails['state'];
   readonly originDepartmentCode: string;
   readonly senderName: string;
+  readonly senderNameArabic?: string | null;
   readonly needsAction: boolean;
   readonly unread: boolean;
   readonly incomingSequence: number;
@@ -415,6 +416,7 @@ export class CorrespondenceApiService {
       readonly documentNumber: string | null;
       readonly state: CorrespondenceDetails['state'];
       readonly senderName: string | null;
+      readonly senderNameArabic?: string | null;
       readonly ownerEmployeeId: string;
       readonly approvalStatus: 'PENDING' | 'APPROVED';
       readonly createdAt: string;
@@ -439,6 +441,7 @@ export class CorrespondenceApiService {
         state: item.state,
         originDepartmentCode: unitCode,
         senderName: item.senderName || item.ownerEmployeeId,
+        senderNameArabic: item.senderNameArabic ?? null,
         needsAction: false,
         unread: false,
         incomingSequence: 0,

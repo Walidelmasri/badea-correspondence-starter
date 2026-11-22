@@ -150,7 +150,7 @@
             <div class="recent-item">
               <div class="recent-item__subject">
                 <strong>{{ item.subject }}</strong>
-                <span>{{ item.documentNumber || labels().noNumber }} · {{ item.senderName }}</span>
+                <span>{{ item.documentNumber || labels().noNumber }} · {{ mailboxSenderName(item, translation.language()) }}</span>
               </div>
               <span [class]="'recent-item__status ' + (item.state === 'ARCHIVED' ? 'recent-item__status--archived' : item.needsAction ? 'recent-item__status--action' : 'recent-item__status--handled')">
                 {{ correspondenceStatus(item) }}

@@ -31,6 +31,7 @@ import {
   ShareEmployeeResult,
 } from '../../data-access/correspondence-api.service';
 import { eligibleForInitialOfficeForward } from './office-forward-eligibility';
+import { mailboxSenderName } from '../mailbox-sender-name';
 import { chooseFeaturedPacket } from './featured-packet';
 import { queueFollowUpFiles } from './follow-up-file-queue';
 import { historicalSourceDocumentGroups, sourceDocumentsForRound } from './source-document-rounds';
@@ -313,6 +314,7 @@ export class RealMailboxComponent implements OnInit {
     current: 'New-round attachments',
     empty: 'No official PDFs added to this round yet. Earlier rounds remain in historical documents.',
   });
+  readonly mailboxSenderName = mailboxSenderName;
   actorDisplayName(actor: { actorNameArabic: string | null; actorNameEnglish: string }): string {
     return this.translation.language() === 'ar'
       ? (actor.actorNameArabic?.trim() || actor.actorNameEnglish)
