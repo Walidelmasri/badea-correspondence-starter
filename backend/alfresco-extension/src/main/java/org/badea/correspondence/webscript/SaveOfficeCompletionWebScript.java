@@ -1,6 +1,6 @@
 package org.badea.correspondence.webscript;
 
-import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+import org.badea.correspondence.security.InstitutionalOfficeMutationScope;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,9 +48,12 @@ public final class SaveOfficeCompletionWebScript extends AbstractWebScript {
             if (req.getParameter("workspaceUnit") != null) {
                 role=roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee).role();
             }
-            OfficeCompletionState saved=service.save(new SaveOfficeCompletionCommand(
+            SaveOfficeCompletionCommand command = new SaveOfficeCompletionCommand(
                     id,expected,expectedPresident,employee.employeeId(),
-                    employee.nameEnglish(),employee.nameArabic(),state.toString()),role);
+                    employee.nameEnglish(),employee.nameArabic(),state.toString());
+            final var verifiedRole = role;
+            OfficeCompletionState saved = InstitutionalOfficeMutationScope.execute(
+                    verifiedRole, () -> service.save(command, verifiedRole));
             JSONObject answer=new JSONObject();
             answer.put("technicalId",id);
             answer.put("revision",saved.revision());

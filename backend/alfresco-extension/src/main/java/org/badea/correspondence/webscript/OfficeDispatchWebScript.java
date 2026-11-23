@@ -1,6 +1,6 @@
 package org.badea.correspondence.webscript;
 
-import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
+import org.badea.correspondence.security.InstitutionalOfficeMutationScope;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,9 +45,12 @@ public final class OfficeDispatchWebScript extends AbstractWebScript {
             if (req.getParameter("workspaceUnit") != null) {
                 role = roles.resolveWorkspace(req.getParameter("workspaceUnit"), employee).role();
             }
-            String dispatchId=service.distribute(new OfficeDispatchCommand(
+            OfficeDispatchCommand command = new OfficeDispatchCommand(
                     id,president,office,employee.employeeId(),employee.nameEnglish(),
-                    employee.nameArabic()), role);
+                    employee.nameArabic());
+            final var verifiedRole = role;
+            String dispatchId = InstitutionalOfficeMutationScope.execute(
+                    verifiedRole, () -> service.distribute(command, verifiedRole));
             JSONObject response=new JSONObject();
             response.put("technicalId",id);
             response.put("dispatchId",dispatchId);
