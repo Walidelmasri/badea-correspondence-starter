@@ -13,7 +13,9 @@ import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentCode;
 import org.badea.correspondence.directory.DepartmentDirectoryEntry;
 import org.badea.correspondence.directory.DirectoryUsername;
+import org.badea.correspondence.directory.EmployeeDirectory;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
+import org.badea.correspondence.directory.EmployeeDirectoryException;
 import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceHistoryReader;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -33,12 +35,13 @@ class GetCorrespondenceHistoryWebScriptTest {
     private final CorrespondenceActorRoleResolver roles=mock(CorrespondenceActorRoleResolver.class, org.mockito.Mockito.CALLS_REAL_METHODS);
     private final CorrespondenceDetailsService details=mock(CorrespondenceDetailsService.class);
     private final AlfrescoCorrespondenceHistoryReader reader=mock(AlfrescoCorrespondenceHistoryReader.class);
+    private final EmployeeDirectory directory=mock(EmployeeDirectory.class);
     private final WebScriptRequest request=mock(WebScriptRequest.class);
     private final WebScriptResponse response=mock(WebScriptResponse.class);
     private final StringWriter output=new StringWriter();
     private final PrintWriter writer=new PrintWriter(output);
     private final GetCorrespondenceHistoryWebScript endpoint=
-        new GetCorrespondenceHistoryWebScript(employees,roles,details,reader);
+        new GetCorrespondenceHistoryWebScript(employees,roles,details,reader,directory);
 
     @BeforeEach
     void setUp() throws Exception {
@@ -67,6 +70,65 @@ class GetCorrespondenceHistoryWebScriptTest {
         JSONObject result=new JSONObject(output.toString());
         assertEquals(1,result.getInt("total"));
         assertEquals("DIRECTOR",result.getJSONArray("items").getJSONObject(0).getString("actorRole"));
+    }
+
+    @Test
+    void resolvesHistoricalDepartmentCompletionArabicWithoutMutatingAudit() throws Exception {
+        var action = new AlfrescoCorrespondenceHistoryReader.ActionEntry(
+                2, "COMPLETE_DEPARTMENT_ASSIGNMENT", "DIRECTOR", "Department Manager", null,
+                "WITH_DIRECTOR", "WITH_DIRECTOR", Instant.parse("2026-11-22T09:00:00Z"),
+                "Done", "40001");
+        var nextAction = new AlfrescoCorrespondenceHistoryReader.ActionEntry(
+                3, "COMPLETE_DEPARTMENT_ASSIGNMENT", "DIRECTOR", "Department Manager", null,
+                "WITH_DIRECTOR", "WITH_DIRECTOR", Instant.parse("2026-11-22T10:00:00Z"),
+                "Done again", "40001");
+        when(reader.list(ID)).thenReturn(List.of(action, nextAction));
+        when(directory.findActiveByEmployeeId(new EmployeeId("40001")))
+                .thenReturn(Optional.of(new EmployeeDirectoryEntry(
+                        new EmployeeId("40001"), new DirectoryUsername("director.user"),
+                        "Department Manager", "مدير الإدارة", Optional.empty())));
+
+        endpoint.execute(request,response);
+        JSONObject result = new JSONObject(output.toString());
+        assertEquals("مدير الإدارة", result.getJSONArray("items").getJSONObject(0)
+                .getString("actorNameArabic"));
+        assertEquals("Department Manager", result.getJSONArray("items").getJSONObject(0)
+                .getString("actorNameEnglish"));
+        assertFalse(result.getJSONArray("items").getJSONObject(0).has("actorEmployeeId"));
+        assertNull(action.actorNameArabic());
+        verify(directory, times(1)).findActiveByEmployeeId(new EmployeeId("40001"));
+    }
+
+    @Test
+    void directoryFailureKeepsHistoricalEnglishFallback() throws Exception {
+        var action = new AlfrescoCorrespondenceHistoryReader.ActionEntry(
+                2, "COMPLETE_DEPARTMENT_ASSIGNMENT", "DIRECTOR", "Department Manager", null,
+                "WITH_DIRECTOR", "WITH_DIRECTOR", Instant.parse("2026-11-22T09:00:00Z"),
+                null, "40001");
+        when(reader.list(ID)).thenReturn(List.of(action));
+        when(directory.findActiveByEmployeeId(new EmployeeId("40001")))
+                .thenThrow(new EmployeeDirectoryException("Directory unavailable"));
+
+        endpoint.execute(request,response);
+        JSONObject result = new JSONObject(output.toString());
+        JSONObject item = result.getJSONArray("items").getJSONObject(0);
+        assertTrue(item.isNull("actorNameArabic"));
+        assertEquals("Department Manager", item.getString("actorNameEnglish"));
+        verify(response).setStatus(Status.STATUS_OK);
+    }
+
+    @Test
+    void alreadyBilingualHistoryNeedsNoAdditionalDirectoryQuery() throws Exception {
+        var action = new AlfrescoCorrespondenceHistoryReader.ActionEntry(
+                2, "COMPLETE_DEPARTMENT_ASSIGNMENT", "DIRECTOR", "Manager", "المدير",
+                "WITH_DIRECTOR", "WITH_DIRECTOR", Instant.parse("2026-11-22T09:00:00Z"),
+                null, "40001");
+        when(reader.list(ID)).thenReturn(List.of(action));
+        endpoint.execute(request,response);
+        JSONObject result = new JSONObject(output.toString());
+        assertEquals("المدير", result.getJSONArray("items").getJSONObject(0)
+                .getString("actorNameArabic"));
+        verifyNoInteractions(directory);
     }
 
     @Test

@@ -70,7 +70,8 @@ public final class AlfrescoCorrespondenceHistoryReader
                 n.longValue(), actionType,
                 required(child,"actorRole"), required(child,"actorNameEnglish"),
                 optional(child,"actorNameArabic"), required(child,"fromState"),
-                required(child,"toState"), d.toInstant(), explanation));
+                required(child,"toState"), d.toInstant(), explanation,
+                optional(child,"actorEmployeeId")));
         }
         entries.sort(Comparator.comparingLong(ActionEntry::sequence));
         for (int i=1; i<entries.size(); i++) {
@@ -102,5 +103,12 @@ public final class AlfrescoCorrespondenceHistoryReader
 
     public record ActionEntry(long sequence, String actionType, String actorRole,
             String actorNameEnglish, String actorNameArabic, String fromState,
-            String toState, Instant actedAt, String explanation) {}
+            String toState, Instant actedAt, String explanation, String actorEmployeeId) {
+        public ActionEntry(long sequence, String actionType, String actorRole,
+                String actorNameEnglish, String actorNameArabic, String fromState,
+                String toState, Instant actedAt, String explanation) {
+            this(sequence, actionType, actorRole, actorNameEnglish, actorNameArabic,
+                    fromState, toState, actedAt, explanation, null);
+        }
+    }
 }

@@ -37,6 +37,7 @@ class AlfrescoCorrespondenceHistoryReaderTest {
         assertEquals("SEND_TO_OFFICE",result.get(0).actionType());
         assertEquals("SEND_TO_PRESIDENT",result.get(1).actionType());
         assertEquals(2,result.get(1).sequence());
+        assertEquals("40001", result.get(0).actorEmployeeId());
     }
 
     @Test
@@ -85,6 +86,7 @@ class AlfrescoCorrespondenceHistoryReaderTest {
         when(nodes.getProperty(item,q("actionType"))).thenReturn(action);
         when(nodes.getProperty(item,q("actorRole"))).thenReturn(role);
         when(nodes.getProperty(item,q("actorNameEnglish"))).thenReturn("Test User");
+        when(nodes.getProperty(item,q("actorEmployeeId"))).thenReturn("40001");
         when(nodes.getProperty(item,q("fromState"))).thenReturn("DRAFT");
         when(nodes.getProperty(item,q("toState"))).thenReturn("WITH_PRESIDENT_OFFICE");
     }

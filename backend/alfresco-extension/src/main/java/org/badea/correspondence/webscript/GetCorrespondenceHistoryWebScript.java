@@ -3,15 +3,20 @@ package org.badea.correspondence.webscript;
 import org.badea.correspondence.security.CorrespondenceWorkspaceContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import org.badea.correspondence.application.CorrespondenceDetailsService;
 import org.badea.correspondence.application.CurrentEmployeeNotFoundException;
 import org.badea.correspondence.application.CurrentEmployeeService;
 import org.badea.correspondence.directory.DepartmentCode;
+import org.badea.correspondence.directory.EmployeeDirectory;
 import org.badea.correspondence.directory.EmployeeDirectoryEntry;
 import org.badea.correspondence.directory.EmployeeDirectoryException;
+import org.badea.correspondence.directory.EmployeeId;
 import org.badea.correspondence.infrastructure.alfresco.AlfrescoCorrespondenceHistoryReader;
 import org.badea.correspondence.infrastructure.alfresco.CorrespondenceRepositoryException;
 import org.badea.correspondence.security.CorrespondenceActorRoleResolver;
@@ -31,14 +36,16 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
     private final CorrespondenceActorRoleResolver roles;
     private final CorrespondenceDetailsService details;
     private final AlfrescoCorrespondenceHistoryReader reader;
+    private final EmployeeDirectory directory;
 
     public GetCorrespondenceHistoryWebScript(CurrentEmployeeService employees,
             CorrespondenceActorRoleResolver roles, CorrespondenceDetailsService details,
-            AlfrescoCorrespondenceHistoryReader reader) {
+            AlfrescoCorrespondenceHistoryReader reader, EmployeeDirectory directory) {
         this.employees = Objects.requireNonNull(employees);
         this.roles = Objects.requireNonNull(roles);
         this.details = Objects.requireNonNull(details);
         this.reader = Objects.requireNonNull(reader);
+        this.directory = Objects.requireNonNull(directory);
     }
 
     @Override
@@ -71,13 +78,14 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
                         return reader.list(id);
                     });
             JSONArray items = new JSONArray();
+            Map<String, Optional<String>> arabicNames = new HashMap<>();
             for (var a : history) {
                 JSONObject item = new JSONObject();
                 item.put("sequence", a.sequence());
                 item.put("actionType", a.actionType());
                 item.put("actorRole", a.actorRole());
                 item.put("actorNameEnglish", a.actorNameEnglish());
-                item.put("actorNameArabic", nullable(a.actorNameArabic()));
+                item.put("actorNameArabic", nullable(displayArabicName(a, arabicNames)));
                 item.put("fromState", a.fromState());
                 item.put("toState", a.toState());
                 item.put("actedAt", a.actedAt().toString());
@@ -102,6 +110,30 @@ public final class GetCorrespondenceHistoryWebScript extends AbstractWebScript {
         } catch (IllegalArgumentException e) {
             error(response, Status.STATUS_BAD_REQUEST, "INVALID_REQUEST");
         }
+    }
+
+    // Display-only fallback for older department completions that did not store
+    // actorNameArabic. Never write to immutable workflow history.
+    private String displayArabicName(AlfrescoCorrespondenceHistoryReader.ActionEntry action,
+            Map<String, Optional<String>> cache) {
+        if (action.actorNameArabic() != null && !action.actorNameArabic().isBlank()) {
+            return action.actorNameArabic();
+        }
+        if (!"COMPLETE_DEPARTMENT_ASSIGNMENT".equals(action.actionType())
+                || action.actorEmployeeId() == null || action.actorEmployeeId().isBlank()) {
+            return action.actorNameArabic();
+        }
+        Optional<String> resolved = cache.computeIfAbsent(action.actorEmployeeId(), id -> {
+            try {
+                return directory.findActiveByEmployeeId(new EmployeeId(id))
+                        .map(EmployeeDirectoryEntry::nameArabic)
+                        .filter(name -> !name.isBlank());
+            } catch (EmployeeDirectoryException lookupFailed) {
+                // Preserve history availability and the existing English fallback.
+                return Optional.empty();
+            }
+        });
+        return resolved.orElse(action.actorNameArabic());
     }
 
     private static Object nullable(String s) { return s == null ? JSONObject.NULL : s; }

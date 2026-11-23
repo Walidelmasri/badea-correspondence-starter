@@ -693,6 +693,7 @@
         <constructor-arg ref="badeaCorrespondenceActorRoleResolver" />
         <constructor-arg ref="badeaCorrespondenceDetailsService" />
         <constructor-arg ref="badeaCorrespondenceHistoryReader" />
+        <constructor-arg ref="badeaCorrespondenceEmployeeDirectory" />
     </bean>
 <!-- Office-authored additions are distinct from the President review state. -->
 <bean id="badeaOfficeCompletionRepository"
