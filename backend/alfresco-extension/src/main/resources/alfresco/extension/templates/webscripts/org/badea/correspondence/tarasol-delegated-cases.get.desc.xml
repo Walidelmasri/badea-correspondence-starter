@@ -3,6 +3,6 @@
     <shortname>List personal delegated case handoffs</shortname>
     <url>/badea/tarasol/delegation/cases</url>
     <authentication>user</authentication>
-    <transaction>readonly</transaction>
+    <transaction allow="readonly">required</transaction>
     <format default="json">argument</format>
 </webscript>
