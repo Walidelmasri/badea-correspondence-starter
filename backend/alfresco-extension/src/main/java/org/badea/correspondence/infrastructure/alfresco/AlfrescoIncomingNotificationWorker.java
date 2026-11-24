@@ -140,18 +140,18 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
             if (submitted >= MAX_SENDS_PER_SWEEP) break;
             List<AlfrescoNotificationRecipientResolver.Recipient> matching;
             try {
-                matching = switch (event.kind()) {
-                    case SECRETARY_RETURN, SECRETARY_APPROVED, ROUND_RETURN, ROUND_APPROVED ->
-                        recipients.resolveSpecificEmployee(event.targetEmployeeId(), event.actorEmployeeId());
-                    case DEPARTMENT_SECRETARIES ->
-                        recipients.resolveUnitSecretaries(event.department(), event.actorEmployeeId());
-                    case MANAGER_REQUEST, ROUND_REQUEST ->
-                        recipients.resolveApprovalManagers(event.department(), event.role(), event.actorEmployeeId());
-                    case INCOMING, DEPARTMENT_MANAGER_RETURN ->
-                        recipients.resolve(event.role(), event.department(), event.actorEmployeeId());
-                };
+                matching = inTransaction(true, () -> resolveRecipients(recipients, event));
             } catch (RuntimeException unresolved) {
                 LOG.log(Level.WARNING, "Could not resolve workflow notification recipients", unresolved);
+                continue;
+            }
+            // Freeze recipients once per event before any SMTP submission, including an empty set.
+            // A later assignment/group change must not expand the original notification audience.
+            try {
+                var eligible = matching.stream().filter(r -> deliveryPolicy.permits(r.email())).toList();
+                inTransaction(false, () -> { snapshot(event, eligible); return null; });
+            } catch (RuntimeException failure) {
+                LOG.log(Level.WARNING, "Could not persist notification audience", failure);
                 continue;
             }
             // NodeService reads must remain inside an Alfresco read transaction.
@@ -162,7 +162,8 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
             for (var recipient : matching) {
                 if (submitted >= MAX_SENDS_PER_SWEEP) break;
                 // Never create delivery markers or submit SMTP for blocked test recipients.
-                if (!deliveryPolicy.permits(recipient.email())) continue;
+                if (!deliveryPolicy.permits(recipient.email())
+                        || !inTransaction(true, () -> isPending(event, recipient.employeeId()))) continue;
                 CorrespondenceIncomingMailTemplate.Rendered message;
                 try {
                     // Every email points to its committed correspondence, never to a generic Inbox.
@@ -176,6 +177,13 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                 } catch (IllegalArgumentException templateError) {
                     // Invalid site configuration must not consume a durable SMTP-attempt marker.
                     LOG.warning("Workflow email template could not be rendered; check internal Inbox URL");
+                    continue;
+                }
+                // Re-resolve against live authorization immediately before claiming the queued recipient.
+                try {
+                    if (!inTransaction(true, () -> resolveRecipients(recipients, event).contains(recipient))) continue;
+                } catch (RuntimeException unresolved) {
+                    LOG.log(Level.WARNING, "Could not revalidate workflow notification recipient", unresolved);
                     continue;
                 }
                 if (!inTransaction(false, () -> claim(event, recipient.employeeId()))) continue;
@@ -254,7 +262,7 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                             String owner = text(child, "targetEmployeeId");
                             if (owner == null) continue;
                             found.add(new Event(correspondence, "ACTION-" + child.getId(),
-                                Kind.SECRETARY_RETURN, role, null, actor, owner,
+                                Kind.SECRETARY_RETURN, role, originUnit(correspondence), actor, owner,
                                 reference, subject, explanation));
                             continue;
                         }
@@ -279,7 +287,7 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                             if (owner != null) {
                                 found.add(new Event(correspondence,
                                     "SECRETARY-APPROVED-" + child.getId(), Kind.SECRETARY_APPROVED,
-                                    CorrespondenceActorRole.SECRETARY, null, actor, owner,
+                                    CorrespondenceActorRole.SECRETARY, originUnit(correspondence), actor, owner,
                                     reference, subject, null));
                             }
                         }
@@ -323,7 +331,7 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
                                 ? ("101".equals(unit.value()) ? CorrespondenceActorRole.PRESIDENT_OFFICE
                                     : CorrespondenceActorRole.DIRECTOR)
                                 : CorrespondenceActorRole.SECRETARY,
-                            kind == Kind.ROUND_REQUEST ? unit : null,
+                            unit,
                             actor, kind == Kind.ROUND_REQUEST ? null : owner,
                             reference, subject, text(child, "roundTwoDecisionReason")));
                     }
@@ -333,21 +341,78 @@ public final class AlfrescoIncomingNotificationWorker implements ApplicationCont
         return List.copyOf(found);
     }
 
-    private boolean claim(Event event, String employeeId) {
+    private DepartmentCode originUnit(NodeRef correspondence) {
+        String unit = text(correspondence, "originDepartmentCode");
+        return unit == null ? null : new DepartmentCode(unit);
+    }
+
+    private List<AlfrescoNotificationRecipientResolver.Recipient> resolveRecipients(
+            AlfrescoNotificationRecipientResolver recipients, Event event) {
+        return switch (event.kind()) {
+            case SECRETARY_RETURN, SECRETARY_APPROVED, ROUND_RETURN, ROUND_APPROVED ->
+                recipients.resolveSpecificEmployee(event.department(), event.targetEmployeeId(), event.actorEmployeeId());
+            case DEPARTMENT_SECRETARIES -> recipients.resolveUnitSecretaries(event.department(), event.actorEmployeeId());
+            case MANAGER_REQUEST, ROUND_REQUEST -> recipients.resolveApprovalManagers(event.department(), event.role(), event.actorEmployeeId());
+            case INCOMING, DEPARTMENT_MANAGER_RETURN -> recipients.resolve(event.role(), event.department(), event.actorEmployeeId());
+        };
+    }
+
+    private static final String SNAPSHOT = "@audience";
+
+    // Existing receipts are authoritative. Older events with an attempted delivery cannot
+    // safely reconstruct the original audience; do not add previously unrecorded recipients.
+    void snapshot(Event event, List<AlfrescoNotificationRecipientResolver.Recipient> eligible) {
+        if (marker(event, SNAPSHOT) != null) return;
+        boolean legacyAttempt = nodes.getChildAssocs(event.correspondence()).stream()
+            .map(ChildAssociationRef::getChildRef)
+            .anyMatch(child -> TYPE_DELIVERY.equals(nodes.getType(child))
+                && event.eventKey().equals(nodes.getProperty(child, PROP_KEY)));
+        if (legacyAttempt) {
+            // Historical partial deliveries cannot be distinguished from newly eligible users.
+            // Report unrecorded candidates for operator reconciliation, never silently resend.
+            long unrecorded = eligible.stream().filter(r -> marker(event, r.employeeId()) == null).count();
+            if (unrecorded > 0) LOG.warning("Legacy notification audience requires reconciliation: "
+                + event.eventKey() + "; unrecorded eligible recipients=" + unrecorded);
+        } else {
+            for (var recipient : eligible) {
+                if (marker(event, recipient.employeeId()) == null) {
+                    createMarker(event, recipient.employeeId(), "PENDING");
+                }
+            }
+        }
+        createMarker(event, SNAPSHOT, "AUDIENCE_FROZEN");
+    }
+
+    private NodeRef marker(Event event, String employeeId) {
+        return nodes.getChildByName(event.correspondence(), ContentModel.ASSOC_CONTAINS,
+                filename(event, employeeId));
+    }
+
+    private boolean isPending(Event event, String employeeId) {
+        NodeRef pending = marker(event, employeeId);
+        return pending != null && TYPE_DELIVERY.equals(nodes.getType(pending))
+                && "PENDING".equals(nodes.getProperty(pending, PROP_STATUS));
+    }
+
+    boolean claim(Event event, String employeeId) {
+        if (!isPending(event, employeeId)) return false;
+        update(event, employeeId, "ATTEMPTING");
+        return true;
+    }
+
+    private void createMarker(Event event, String employeeId, String status) {
         String filename = filename(event, employeeId);
-        if (nodes.getChildByName(event.correspondence(), ContentModel.ASSOC_CONTAINS, filename) != null) return false;
         Map<QName, Serializable> properties = new HashMap<>();
         properties.put(ContentModel.PROP_NAME, filename);
         properties.put(PROP_KEY, event.eventKey());
         properties.put(PROP_EMPLOYEE, employeeId);
-        properties.put(PROP_STATUS, "ATTEMPTING");
+        properties.put(PROP_STATUS, status);
         properties.put(PROP_UPDATED, Date.from(Instant.now()));
         ChildAssociationRef created = nodes.createNode(event.correspondence(), ContentModel.ASSOC_CONTAINS,
                 q(filename), TYPE_DELIVERY, properties);
         if (created == null || created.getChildRef() == null) {
             throw new IllegalStateException("Notification delivery marker was not created");
         }
-        return true;
     }
 
     private void update(Event event, String employeeId, String status) {

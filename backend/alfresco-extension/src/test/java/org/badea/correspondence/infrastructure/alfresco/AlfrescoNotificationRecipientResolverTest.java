@@ -27,8 +27,11 @@ class AlfrescoNotificationRecipientResolverTest {
             new AlfrescoNotificationRecipientResolver(groups, directory, departments);
 
     private void group(String role, String... members) {
-        when(groups.getContainedAuthorities(AuthorityType.USER,
-                "GROUP_BADEA_CORRESPONDENCE_" + role, false)).thenReturn(Set.of(members));
+        String authority = "GROUP_BADEA_CORRESPONDENCE_" + role;
+        when(groups.getContainedAuthorities(AuthorityType.USER, authority, false)).thenReturn(Set.of(members));
+        for (String member : members) {
+            when(groups.getAuthoritiesForUser(member)).thenReturn(Set.of(authority));
+        }
     }
 
     private void person(String username, String id, String department) {
@@ -49,22 +52,45 @@ class AlfrescoNotificationRecipientResolverTest {
                         username, "الاسم العربي", Optional.empty())));
     }
 
-    @Test void privateSecretaryReturnUsesOnlyTheTargetEmployee() {
-        when(directory.findActiveByEmployeeId(new EmployeeId("24428")))
-            .thenReturn(Optional.of(new EmployeeDirectoryEntry(new EmployeeId("24428"),
+    @Test void privateSecretaryReturnUsesOnlyTheCurrentlyAssignedTargetEmployee() {
+        var access = mock(TarasolEffectiveAccessReader.class);
+        var scoped = new AlfrescoNotificationRecipientResolver(groups, directory, departments, access);
+        var unit = new DepartmentCode("117");
+        var id = new EmployeeId("24428");
+        group("SECRETARIES", "secretary.one");
+        when(access.hasActiveSecretaryAssignment(id, unit)).thenReturn(true);
+        when(directory.findActiveByEmployeeId(id))
+            .thenReturn(Optional.of(new EmployeeDirectoryEntry(id,
                 new DirectoryUsername("secretary.one"), "Secretary One", null, Optional.empty())));
-        var recipient = resolver.resolveSpecificEmployee("24428", "18284");
+        var recipient = scoped.resolveSpecificEmployee(unit, "24428", "18284");
         assertEquals(List.of("secretary.one@badea.org"),
             recipient.stream().map(AlfrescoNotificationRecipientResolver.Recipient::email).toList());
-        assertTrue(resolver.resolveSpecificEmployee("24428", "24428").isEmpty());
-        assertTrue(resolver.resolveSpecificEmployee("../admin", "18284").isEmpty());
-        verifyNoInteractions(groups);
+        assertTrue(scoped.resolveSpecificEmployee(unit, "24428", "24428").isEmpty());
+        assertTrue(scoped.resolveSpecificEmployee(unit, "../admin", "18284").isEmpty());
+        assertTrue(scoped.resolveSpecificEmployee(new DepartmentCode("118"), "24428", "18284").isEmpty());
+        when(access.hasActiveSecretaryAssignment(id, unit)).thenReturn(false);
+        assertTrue(scoped.resolveSpecificEmployee(unit, "24428", "18284").isEmpty());
     }
 
     @Test void inactiveSecretaryCannotBeNotified() {
-        when(directory.findActiveByEmployeeId(new EmployeeId("24428"))).thenReturn(Optional.empty());
-        assertTrue(resolver.resolveSpecificEmployee("24428", "18284").isEmpty());
+        var access = mock(TarasolEffectiveAccessReader.class);
+        var scoped = new AlfrescoNotificationRecipientResolver(groups, directory, departments, access);
+        var unit = new DepartmentCode("117");
+        var id = new EmployeeId("24428");
+        when(access.hasActiveSecretaryAssignment(id, unit)).thenReturn(true);
+        when(directory.findActiveByEmployeeId(id)).thenReturn(Optional.empty());
+        assertTrue(scoped.resolveSpecificEmployee(unit, "24428", "18284").isEmpty());
         verifyNoInteractions(groups);
+    }
+
+    @Test void staleOfficeEnumerationDoesNotAuthorizeRemovedMember() {
+        group("PRESIDENT_OFFICE", "removed.user", "office.user");
+        person("removed.user", "100", null);
+        person("office.user", "101", null);
+        when(groups.getAuthoritiesForUser("removed.user")).thenReturn(Set.of());
+        assertEquals(List.of("office.user@badea.org"), resolver.resolve(
+            CorrespondenceActorRole.PRESIDENT_OFFICE, null, "200").stream()
+            .map(AlfrescoNotificationRecipientResolver.Recipient::email).toList());
     }
 
     @Test void directorUsesOnlyActiveOfficialManagerAndNotAnotherDepartmentEmployee() {

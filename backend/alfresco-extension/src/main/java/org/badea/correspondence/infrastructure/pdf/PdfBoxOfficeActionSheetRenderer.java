@@ -8,7 +8,6 @@ import java.awt.geom.PathIterator;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
-import java.text.Normalizer;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -39,17 +38,35 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
     private static final Font FONT = new Font("Dialog", Font.PLAIN, 11);
     private static final FontRenderContext FRC = new FontRenderContext(null, true, true);
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final List<List<String>> DEPARTMENT_COLUMNS = List.of(
-        List.of("نائب رئيس المصرف لقطاع الموارد المؤسسية", "إدارة الشؤون القانونية",
-                "إدارة الشؤون الإدارية والخدمات اللوجستية", "إدارة التحول الرقمي",
-                "إدارة العمليات المالية والمصرفية", "إدارة الموارد البشرية",
-                "مكتب تقييم فعالية التنمية"),
-        List.of("مكتب الشراكات التنموية", "مستشارو رئيس المصرف",
-                "المكاتب الإقليمية", "الاتصال والإعلام", "إدارة الاستراتيجية",
-                "إدارة المخاطر", "مكتب الامتثال والنزاهة"),
-        List.of("نائب رئيس المصرف لقطاع العمليات", "إدارة العمليات قطاع عام",
-                "إدارة العمليات قطاع خاص وتمويل التجارة", "إدارة الخزانة والاستثمار",
-                "إدارة التدقيق الداخلي", "أمانة مجلسي المحافظين والإدارة واللجان"));
+    private record DepartmentCell(String code, String label) {
+        boolean represents(DepartmentDirectoryEntry recipient) {
+            return code != null && code.equals(recipient.code().value());
+        }
+    }
+    private static final List<List<DepartmentCell>> DEPARTMENT_COLUMNS = List.of(
+        List.of(
+            new DepartmentCell(null, "نائب رئيس المصرف لقطاع الموارد المؤسسية"),
+            new DepartmentCell("119", "إدارة الشؤون القانونية"),
+            new DepartmentCell("116", "إدارة الشؤون الإدارية والخدمات اللوجستية"),
+            new DepartmentCell("117", "إدارة التحول الرقمي"),
+            new DepartmentCell("115", "إدارة العمليات المالية والمصرفية"),
+            new DepartmentCell("118", "إدارة الموارد البشرية"),
+            new DepartmentCell("106", "مكتب تقييم فعالية التنمية")),
+        List.of(
+            new DepartmentCell("107", "مكتب الشراكات التنموية"),
+            new DepartmentCell("109", "مستشارو رئيس المصرف"),
+            new DepartmentCell("108", "المكاتب الإقليمية"),
+            new DepartmentCell("110", "الاتصال والإعلام"),
+            new DepartmentCell("111", "إدارة الاستراتيجية"),
+            new DepartmentCell("104", "إدارة المخاطر"),
+            new DepartmentCell("105", "مكتب الامتثال والنزاهة")),
+        List.of(
+            new DepartmentCell(null, "نائب رئيس المصرف لقطاع العمليات"),
+            new DepartmentCell("112", "إدارة العمليات قطاع عام"),
+            new DepartmentCell("113", "إدارة العمليات قطاع خاص وتمويل التجارة"),
+            new DepartmentCell("114", "إدارة الخزانة والاستثمار"),
+            new DepartmentCell("103", "إدارة التدقيق الداخلي"),
+            new DepartmentCell("102", "أمانة مجلسي المحافظين والإدارة واللجان")));
     private static final float DEPARTMENT_TABLE_LEFT = 22f;
     private static final float DEPARTMENT_TABLE_RIGHT = 573f;
     private static final float DEPARTMENT_TABLE_TOP = 197f;
@@ -332,8 +349,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 || !plan.otherRecipient().isBlank() || !plan.otherAction().isBlank()) return true;
         // Preserve real recipients whose names cannot be represented in the table.
         for (DepartmentDirectoryEntry recipient : to) {
-            if (DEPARTMENT_COLUMNS.stream().flatMap(List::stream).noneMatch(name ->
-                    normalize(name).equals(normalize(recipient.nameArabic())))) return true;
+            if (DEPARTMENT_COLUMNS.stream().flatMap(List::stream).noneMatch(cell -> cell.represents(recipient))) return true;
         }
         boolean ink = plan.explanationInkPages().stream().anyMatch(page -> !page.isEmpty());
         String typed = plan.presidentDirections();
@@ -500,13 +516,6 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         }
         return List.copyOf(rows);
     }
-    private static String normalize(String name) {
-        if (name == null) return "";
-        return Normalizer.normalize(name, Normalizer.Form.NFKD)
-                .replaceAll("[\\u064B-\\u065F\\u0670\\u0640]","")
-                .replaceAll("[اأإآ]","ا")
-                .replaceAll("\\s+","").replace("–","").replace("-","").trim();
-    }
     private static void drawDepartmentTable(PDPageContentStream canvas, float pageHeight,
             List<DepartmentDirectoryEntry> selected) throws IOException {
         float width = DEPARTMENT_TABLE_RIGHT - DEPARTMENT_TABLE_LEFT;
@@ -538,11 +547,12 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
         outline(canvas,heading,(DEPARTMENT_TABLE_LEFT+DEPARTMENT_TABLE_RIGHT
                 + textWidth(heading,10))/2f,DEPARTMENT_TABLE_TOP+13,10,pageHeight,true);
         for (int col = 0; col < DEPARTMENT_COLUMNS.size(); col++) {
-            List<String> names = DEPARTMENT_COLUMNS.get(col);
+            List<DepartmentCell> cells = DEPARTMENT_COLUMNS.get(col);
             float left = DEPARTMENT_TABLE_LEFT + col*columnWidth;
             float right = left+columnWidth;
-            for (int row = 0; row < names.size(); row++) {
-                String name = names.get(row);
+            for (int row = 0; row < cells.size(); row++) {
+                DepartmentCell cell = cells.get(row);
+                String name = cell.label();
                 float top = DEPARTMENT_TABLE_TOP+DEPARTMENT_TABLE_HEADING_HEIGHT
                         + row*DEPARTMENT_TABLE_ROW_HEIGHT;
                 List<String> lines = List.of();
@@ -562,8 +572,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
                 canvas.setLineWidth(0.8f);
                 canvas.addRect(boxX,pageHeight-boxTop-11f,11f,11f);
                 canvas.stroke();
-                if (selected.stream().anyMatch(recipient ->
-                        normalize(name).equals(normalize(recipient.nameArabic())))) {
+                if (selected.stream().anyMatch(cell::represents)) {
                     canvas.setLineWidth(1.4f);
                     canvas.moveTo(boxX+2,pageHeight-(boxTop+6));
                     canvas.lineTo(boxX+5,pageHeight-(boxTop+9));

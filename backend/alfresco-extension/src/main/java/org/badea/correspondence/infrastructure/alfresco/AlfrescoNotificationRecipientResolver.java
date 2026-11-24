@@ -56,14 +56,17 @@ public final class AlfrescoNotificationRecipientResolver {
             String nameEnglish, String nameArabic) { }
 
     /** A secretary return or approval alert has exactly one persisted recipient. */
-    public List<Recipient> resolveSpecificEmployee(String targetEmployeeId, String actorEmployeeId) {
-        if (targetEmployeeId == null || !targetEmployeeId.matches("[0-9A-Za-z_-]{1,64}")
+    public List<Recipient> resolveSpecificEmployee(DepartmentCode unit, String targetEmployeeId, String actorEmployeeId) {
+        if (unit == null || secretaryAssignments == null || targetEmployeeId == null || !targetEmployeeId.matches("[0-9A-Za-z_-]{1,64}")
                 || targetEmployeeId.equals(actorEmployeeId)) return List.of();
-        var found = employees.findActiveByEmployeeId(new EmployeeId(targetEmployeeId));
+        EmployeeId target = new EmployeeId(targetEmployeeId);
+        if (!secretaryAssignments.hasActiveSecretaryAssignment(target, unit)) return List.of();
+        var found = employees.findActiveByEmployeeId(target);
         if (found.isEmpty()) return List.of();
         var employee = found.get();
         String username = employee.username().value();
-        if (!username.matches("[a-z0-9][a-z0-9._-]{0,63}")) return List.of();
+        if (!username.matches("[a-z0-9][a-z0-9._-]{0,63}")
+                || !normalizedGroupMembers(TarasolSecretaryGroupPolicy.AUTHORITY).contains(username)) return List.of();
         return List.of(new Recipient(employee.employeeId().value(), username,
                 username + "@badea.org", employee.nameEnglish(), employee.nameArabic()));
     }
@@ -166,6 +169,8 @@ public final class AlfrescoNotificationRecipientResolver {
             if (!normalized.matches("[a-z0-9][a-z0-9._-]{0,63}(@badea\\.org)?")) continue;
             DirectoryUsername username = new DirectoryUsername(normalized);
             if (!uniqueAccounts.add(username.value())) continue;
+            Set<String> currentAuthorities = authorities.getAuthoritiesForUser(member);
+            if (currentAuthorities == null || !currentAuthorities.contains(group)) continue;
             var found = employees.findActiveByUsername(username);
             if (found.isEmpty()) continue;
             EmployeeDirectoryEntry person = found.get();

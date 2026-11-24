@@ -47,6 +47,7 @@ class AlfrescoIncomingNotificationEventsTest {
                 .thenReturn(Date.from(Instant.parse("2026-11-11T12:01:00Z")));
         }
         when(nodes.getProperty(correspondence, q("subject"))).thenReturn("Secretary test");
+        when(nodes.getProperty(correspondence, q("originDepartmentCode"))).thenReturn("117");
         when(nodes.getProperty(submit, q("actionType")))
             .thenReturn("SUBMIT_FOR_MANAGER_APPROVAL");
         when(nodes.getProperty(submit, q("targetRole"))).thenReturn("DIRECTOR");
@@ -77,6 +78,7 @@ class AlfrescoIncomingNotificationEventsTest {
                 && "Review and respond".equals(e.explanation())));
         assertTrue(events.stream().anyMatch(e ->
             e.kind() == AlfrescoIncomingNotificationWorker.Kind.SECRETARY_RETURN
+                && "117".equals(e.department().value())
                 && "Revise the attachments".equals(e.explanation())));
         verify(nodes, never()).setProperty(any(), any(), any());
     }
@@ -121,6 +123,7 @@ class AlfrescoIncomingNotificationEventsTest {
             AlfrescoIncomingNotificationWorker.Kind.ROUND_REQUEST && "117".equals(e.department().value())));
         assertTrue(events.stream().anyMatch(e -> e.kind() ==
             AlfrescoIncomingNotificationWorker.Kind.ROUND_RETURN
+            && "117".equals(e.department().value())
             && "100".equals(e.targetEmployeeId()) && "Update report".equals(e.explanation())));
         verify(nodes, never()).setProperty(any(), any(), any());
     }

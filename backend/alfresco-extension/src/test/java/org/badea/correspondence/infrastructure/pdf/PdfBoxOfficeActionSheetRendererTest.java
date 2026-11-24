@@ -15,6 +15,48 @@ class PdfBoxOfficeActionSheetRendererTest {
         return new OfficeActionSheetPrintContext(LocalDate.of(2026,10,26),
                 java.util.Map.of(new DepartmentCode("117"), "أحمد محمد"));
     }
+    @Test void renamedKnownUnitDoesNotCreateAnnexAndUnknownUnitStillDoes() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+            "Subject", null, "117/20261026/1", LocalDate.of(2026,10,26),
+            "IT", "117", "Author", null, List.of());
+        for (String code : List.of("102", "110", "112", "113", "999")) {
+            var unit = new DepartmentCode(code);
+            var plan = new OfficeDistributionPlan(1,1,
+                new DistributionRecipients(List.of(unit),List.of()), List.of(),"","","","","");
+            var recipients = List.of(new DepartmentDirectoryEntry(unit, "Department", "إدارة أخرى"));
+            byte[] bytes = new PdfBoxOfficeActionSheetRenderer().render(source,plan,
+                recipients,List.of(),printContext());
+            try (var pdf = Loader.loadPDF(bytes)) {
+                assertEquals("999".equals(code) ? 2 : 1, pdf.getNumberOfPages(), code);
+            }
+        }
+    }
+
+    @Test void unitCodeSelectsCorrectTickEvenWhenDisplayNamesAreIdentical() throws Exception {
+        var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
+            "Subject", null, "117/20261026/1", LocalDate.of(2026,10,26),
+            "IT", "117", "Author", null, List.of());
+        var renderer = new PdfBoxOfficeActionSheetRenderer();
+        var code = new DepartmentCode("112");
+        var unknown = new DepartmentCode("999");
+        var knownPlan = new OfficeDistributionPlan(1,1,
+            new DistributionRecipients(List.of(code),List.of()), List.of(),"","","","","");
+        var unknownPlan = new OfficeDistributionPlan(1,1,
+            new DistributionRecipients(List.of(unknown),List.of()), List.of(),"","","","","");
+        String label = "إدارة عمليات القطاع العام";
+        try (var known = Loader.loadPDF(renderer.render(source,knownPlan,
+                    List.of(new DepartmentDirectoryEntry(code,"Department",label)),List.of(),printContext()));
+             var missing = Loader.loadPDF(renderer.render(source,unknownPlan,
+                    List.of(new DepartmentDirectoryEntry(unknown,"Department",label)),List.of(),printContext()))) {
+            var checked = new org.apache.pdfbox.rendering.PDFRenderer(known).renderImage(0);
+            var unchecked = new org.apache.pdfbox.rendering.PDFRenderer(missing).renderImage(0);
+            // Column three, second row: public-sector operations. The label and grid are unchanged.
+            assertTrue(differentPixels(checked,unchecked,396,243,407,255)>8);
+            assertEquals(0,differentPixels(checked,unchecked,23,210,390,364));
+            assertEquals(0,differentPixels(checked,unchecked,350,585,545,623));
+        }
+    }
+
     @Test void fallsBackToRecipientRoleNotUnverifiedPersonalName() {
         var dept = new DepartmentDirectoryEntry(new DepartmentCode("117"),
                 "Digital Transformation", "إدارة التحول الرقمي");
