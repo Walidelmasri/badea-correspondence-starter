@@ -19,7 +19,7 @@ class PdfBoxOfficeActionSheetRendererTest {
         var source = new CorrespondenceDetails("id", CorrespondenceState.WITH_PRESIDENT_OFFICE,
             "Subject", null, "117/20261026/1", LocalDate.of(2026,10,26),
             "IT", "117", "Author", null, List.of());
-        for (String code : List.of("102", "110", "112", "113", "999")) {
+        for (String code : List.of("102", "110", "112", "113", "120", "999")) {
             var unit = new DepartmentCode(code);
             var plan = new OfficeDistributionPlan(1,1,
                 new DistributionRecipients(List.of(unit),List.of()), List.of(),"","","","","");

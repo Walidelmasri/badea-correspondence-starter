@@ -61,7 +61,7 @@ public final class PdfBoxOfficeActionSheetRenderer implements OfficeActionSheetR
             new DepartmentCell("104", "إدارة المخاطر"),
             new DepartmentCell("105", "مكتب الامتثال والنزاهة")),
         List.of(
-            new DepartmentCell(null, "نائب رئيس المصرف لقطاع العمليات"),
+            new DepartmentCell("120", "نائب رئيس المصرف لقطاع العمليات"),
             new DepartmentCell("112", "إدارة العمليات قطاع عام"),
             new DepartmentCell("113", "إدارة العمليات قطاع خاص وتمويل التجارة"),
             new DepartmentCell("114", "إدارة الخزانة والاستثمار"),
